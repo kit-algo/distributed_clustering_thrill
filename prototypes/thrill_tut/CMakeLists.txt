@@ -1,0 +1,8 @@
+cmake_minimum_required (VERSION 2.6)
+project (KMeans)
+include_directories("lib/thrill")
+add_subdirectory (lib/thrill)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG -std=c++14 -fopenmp ${FLAGS} -Wall -Wextra")
+add_executable(KMeans k_means.cpp)
+target_link_libraries(KMeans ${CMAKE_SOURCE_DIR}/lib/thrill/build/thrill/libthrill.a)
+# target_link_libraries (KMeans LINK_PUBLIC thrill)

@@ -1,0 +1,1 @@
+/usr/bin/c++    -O3 -DNDEBUG -std=c++14 -fopenmp  -Wall -Wextra   CMakeFiles/KMeans.dir/k_means.cpp.o  -o KMeans -rdynamic ../lib/thrill/build/thrill/libthrill.a 

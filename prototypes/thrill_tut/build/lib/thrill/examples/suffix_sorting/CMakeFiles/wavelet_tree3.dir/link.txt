@@ -1,0 +1,1 @@
+/usr/bin/c++    -std=c++1y -g -W -Wall -Wextra -fPIC -Wpedantic -Wcast-qual -Winit-self -Wnoexcept -Woverloaded-virtual -Wredundant-decls   CMakeFiles/wavelet_tree3.dir/wavelet_tree3.cpp.o  -o wavelet_tree3 -rdynamic ../../thrill/libthrill.a -ltbb -ltbbmalloc -ljemalloc -lpthread -ldl -lz -lbz2 ../../extlib/libs3/libs3.a -lxml2 -lcurl -lssl -lcrypto 
