@@ -186,7 +186,7 @@ void louvain(const Graph& graph, std::vector<int> &node_clusters) {
       }
     }
 
-    std::cout << "new graph" << cluster_count  << "\n";
+    std::cout << "new graph " << cluster_count << "\n";
     Graph meta_graph(cluster_count, edges.size());
     meta_graph.setEdgesWithMissingBackwardArcs(edges);
     assert(graph.getTotalWeight() == meta_graph.getTotalWeight());

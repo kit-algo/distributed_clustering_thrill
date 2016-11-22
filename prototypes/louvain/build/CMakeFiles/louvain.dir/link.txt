@@ -1,1 +1,0 @@
-/usr/bin/c++    -O3 -std=c++14 -fopenmp  -Wall -Wextra   CMakeFiles/louvain.dir/src/main.cpp.o  -o louvain -rdynamic 
