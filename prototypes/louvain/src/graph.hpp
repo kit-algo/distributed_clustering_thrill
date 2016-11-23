@@ -13,25 +13,30 @@ private:
   int node_count;
   int edge_count;
   std::vector<int> edge_indexes;
+  std::vector<int> degrees;
   std::vector<int> neighbors;
   std::vector<int> weights;
   int total_weight;
 
-  void initializeTotalWeight() {
+  void initializeAccumulatedWeights() {
     assert(std::accumulate(weights.begin(), weights.end(), 0) % 2 == 0);
-    total_weight = std::accumulate(weights.begin(), weights.end(), 0) / 2;
+    for (int node = 0; node < node_count; node++) {
+      degrees[node] = std::accumulate(weights.begin() + edge_indexes[node], weights.begin() + edge_indexes[node + 1], 0);
+    }
+    total_weight = std::accumulate(degrees.begin(), degrees.end(), 0) / 2;
   }
 
 public:
   Graph(const int node_count, const int edge_count) : node_count(node_count), edge_count(edge_count),
-    edge_indexes(node_count + 1, 2 * edge_count), neighbors(2 * edge_count), weights(2 * edge_count) {}
+    edge_indexes(node_count + 1, 2 * edge_count), degrees(node_count, 0),
+    neighbors(2 * edge_count), weights(2 * edge_count) {}
 
   int getNodeCount() const { return node_count; }
   int getEdgeCount() const { return edge_count; }
   int getTotalWeight() const { return total_weight; }
 
   int weightedNodeDegree(const int node_id) const {
-    return std::accumulate(weights.begin() + edge_indexes[node_id], weights.begin() + edge_indexes[node_id + 1], 0);
+    return degrees[node_id];
   }
 
   template<class F>
@@ -65,7 +70,7 @@ public:
       assert(std::get<2>(foo[i]) > 0);
     }
 
-    initializeTotalWeight();
+    initializeAccumulatedWeights();
   }
 
   void setEdgesByAdjacencyLists(std::vector<std::vector<int>> &neighbors) {
@@ -79,7 +84,7 @@ public:
       }
     }
 
-    initializeTotalWeight();
+    initializeAccumulatedWeights();
   }
 
   double modularity(std::vector<int> const &clusters) const {
