@@ -62,7 +62,7 @@ public:
       }
       neighbors[i] = std::get<1>(foo[i]);
       weights[i] = std::get<2>(foo[i]);
-      assert(std::get<2>(foo[i]) != 0);
+      assert(std::get<2>(foo[i]) > 0);
     }
 
     initializeTotalWeight();
