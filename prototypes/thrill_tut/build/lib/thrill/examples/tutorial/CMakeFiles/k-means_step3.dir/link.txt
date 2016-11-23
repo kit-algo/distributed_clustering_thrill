@@ -1,1 +1,0 @@
-/usr/bin/c++    -std=c++1y -g -W -Wall -Wextra -fPIC -Wpedantic -Wcast-qual -Winit-self -Wnoexcept -Woverloaded-virtual -Wredundant-decls   CMakeFiles/k-means_step3.dir/k-means_step3.cpp.o  -o k-means_step3 -rdynamic ../../thrill/libthrill.a -ltbb -ltbbmalloc -ljemalloc -lpthread -ldl -lz -lbz2 ../../extlib/libs3/libs3.a -lxml2 -lcurl -lssl -lcrypto 

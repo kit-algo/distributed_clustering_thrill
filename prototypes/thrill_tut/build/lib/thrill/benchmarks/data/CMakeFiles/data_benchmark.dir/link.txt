@@ -1,1 +1,0 @@
-/usr/bin/c++    -std=c++1y -g -W -Wall -Wextra -fPIC -Wpedantic -Wcast-qual -Winit-self -Wnoexcept -Woverloaded-virtual -Wredundant-decls   CMakeFiles/data_benchmark.dir/data_benchmark.cpp.o  -o data_benchmark -rdynamic ../../thrill/libthrill.a -ltbb -ltbbmalloc -ljemalloc -lpthread -ldl -lz -lbz2 ../../extlib/libs3/libs3.a -lxml2 -lcurl -lssl -lcrypto 
