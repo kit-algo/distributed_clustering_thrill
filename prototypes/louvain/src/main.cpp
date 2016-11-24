@@ -160,25 +160,24 @@ void louvain(const Graph& graph, std::vector<int> &node_clusters, int level = 0)
       });
     }
 
-    std::vector<std::tuple<int, int, int>> edges;
+    std::cout << "matrix stuff\n";
+    int edge_count = 0;
     for (int i = 0; i < cluster_count; i++) {
-      for (int j = i; j < cluster_count; j++) {
+      for (int j = 0; j < cluster_count; j++) {
         int weight = weight_matrix[cluster_count * i + j];
-
-        if (i == j) {
-          assert(weight % 2 == 0);
-          weight /= 2;
-        }
-
         if (!weight == 0) {
-          edges.push_back(std::make_tuple(i, j, weight));
+          edge_count++;
+          if (i == j) {
+            edge_count++;
+            weight_matrix[cluster_count * i + j] /= 2;
+          }
         }
       }
     }
 
     std::cout << "new graph " << cluster_count << "\n";
-    Graph meta_graph(cluster_count, edges.size());
-    meta_graph.setEdgesWithMissingBackwardArcs(edges);
+    Graph meta_graph(cluster_count, edge_count / 2);
+    meta_graph.setEdgesByAdjacencyMatrix(weight_matrix);
     assert(graph.getTotalWeight() == meta_graph.getTotalWeight());
     std::vector<int> meta_singleton(cluster_count);
     for (int i = 0; i < cluster_count; i++) {
@@ -202,9 +201,6 @@ int main(int, char const *argv[]) {
   graph.setEdgesByAdjacencyLists(neighbors);
   std::vector<int> clusters(neighbors.size());
   louvain(graph, clusters);
-  for (auto& cluster : clusters) {
-    std::cout << cluster << " ";
-  }
-  std::cout << '\n';
+  std::cout << graph.modularity(clusters) << "\n";
 }
 

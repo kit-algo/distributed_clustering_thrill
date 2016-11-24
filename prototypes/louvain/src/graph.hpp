@@ -73,6 +73,32 @@ public:
     initializeAccumulatedWeights();
   }
 
+  void setEdgesByAdjacencyMatrix(const std::vector<int> &matrix) {
+    long current_edge_index = 0;
+    std::cout << edge_count << "\n";
+
+    for (long i = 0; i < node_count; i++) {
+      edge_indexes[i] = current_edge_index;
+
+      for (int j = 0; j < node_count; j++) {
+        int weight = matrix[i * node_count + j];
+
+        if (weight != 0) {
+          neighbors[current_edge_index] = j;
+          weights[current_edge_index++] = weight;
+
+          if (i == j) {
+            neighbors[current_edge_index] = j;
+            weights[current_edge_index++] = weight;
+          }
+        }
+      }
+    }
+
+    edge_indexes[node_count] = current_edge_index;
+    initializeAccumulatedWeights();
+  }
+
   void setEdgesByAdjacencyLists(std::vector<std::vector<int>> &neighbors) {
     int current_edge_index = 0;
     for (int node = 0; node < node_count; node++) {
