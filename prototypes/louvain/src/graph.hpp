@@ -6,6 +6,7 @@
 #include <vector>
 #include <iostream>
 #include <assert.h>
+#include <map>
 
 class Graph {
 private:
@@ -73,29 +74,27 @@ public:
     initializeAccumulatedWeights();
   }
 
-  void setEdgesByAdjacencyMatrix(const std::vector<int> &matrix) {
+  void setEdgesByAdjacencyMatrix(const std::map<std::pair<int, int>, int> &matrix) {
     long current_edge_index = 0;
-    std::cout << edge_count << "\n";
+    int current_node = -1;
+    for (const auto &edge : matrix) {
+      while (current_node < edge.first.first) {
+        edge_indexes[++current_node] = current_edge_index;
+      }
+      neighbors[current_edge_index] = edge.first.second;
+      weights[current_edge_index++] = edge.second;
+      assert(edge.second > 0);
 
-    for (long i = 0; i < node_count; i++) {
-      edge_indexes[i] = current_edge_index;
-
-      for (int j = 0; j < node_count; j++) {
-        int weight = matrix[i * node_count + j];
-
-        if (weight != 0) {
-          neighbors[current_edge_index] = j;
-          weights[current_edge_index++] = weight;
-
-          if (i == j) {
-            neighbors[current_edge_index] = j;
-            weights[current_edge_index++] = weight;
-          }
-        }
+      if (edge.first.first == edge.first.second) {
+        neighbors[current_edge_index] = edge.first.second;
+        weights[current_edge_index - 1] /= 2;
+        weights[current_edge_index++] = edge.second / 2;
       }
     }
 
     edge_indexes[node_count] = current_edge_index;
+    neighbors.resize(current_edge_index);
+    weights.resize(current_edge_index);
     initializeAccumulatedWeights();
   }
 

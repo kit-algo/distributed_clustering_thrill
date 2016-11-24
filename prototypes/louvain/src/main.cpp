@@ -1,5 +1,6 @@
 #include "graph.hpp"
 #include <map>
+#include <unordered_map>
 
 #include <sstream>
 #include <fstream>
@@ -85,7 +86,7 @@ long deltaModularity(const int node, const Graph& graph, int target_cluster, con
 
 int rewriteClusterIds(std::vector<int> &clusters, const int node_count) {
   int id_counter = 0;
-  std::map<int, int> old_to_new;
+  std::unordered_map<int, int> old_to_new;
 
   for (int i = 0; i < node_count; i++) {
     if (old_to_new.find(clusters[i]) == old_to_new.end()) {
@@ -152,31 +153,15 @@ void louvain(const Graph& graph, std::vector<int> &node_clusters, int level = 0)
     long cluster_count = rewriteClusterIds(node_clusters, graph.getNodeCount());
     std::cout << "contracting " << cluster_count << " clusters\n";
 
-    // contract to meta_graph
-    std::vector<int> weight_matrix(cluster_count * cluster_count, 0);
+    std::map<std::pair<int, int>, int> weight_matrix;
     for (int node = 0; node < graph.getNodeCount(); node++) {
       graph.forEachAdjacentNode(node, [&](int neighbor, int weight) {
-        weight_matrix[cluster_count * node_clusters[node] + node_clusters[neighbor]] += weight;
+        weight_matrix[std::pair<int, int>(node_clusters[node], node_clusters[neighbor])] += weight;
       });
     }
 
-    std::cout << "matrix stuff\n";
-    int edge_count = 0;
-    for (int i = 0; i < cluster_count; i++) {
-      for (int j = 0; j < cluster_count; j++) {
-        int weight = weight_matrix[cluster_count * i + j];
-        if (!weight == 0) {
-          edge_count++;
-          if (i == j) {
-            edge_count++;
-            weight_matrix[cluster_count * i + j] /= 2;
-          }
-        }
-      }
-    }
-
     std::cout << "new graph " << cluster_count << "\n";
-    Graph meta_graph(cluster_count, edge_count / 2);
+    Graph meta_graph(cluster_count, weight_matrix.size());
     meta_graph.setEdgesByAdjacencyMatrix(weight_matrix);
     assert(graph.getTotalWeight() == meta_graph.getTotalWeight());
     std::vector<int> meta_singleton(cluster_count);
