@@ -1,5 +1,6 @@
 #include "graph.hpp"
 #include "modularity.hpp"
+#include "cluster_store.hpp"
 
 #include <sstream>
 #include <fstream>
@@ -49,8 +50,8 @@ int main(int, char const *argv[]) {
   Graph graph(neighbors.size(), edge_count);
   graph.setEdgesByAdjacencyLists(neighbors);
 
-  std::vector<int> clusters(neighbors.size());
-  Modularity::louvain(graph, clusters);
+  ClusterStore clusters(0, neighbors.size());
+  Modularity::partitioned_louvain(graph, clusters);
 
   std::cout << graph.modularity(clusters) << "\n";
 }

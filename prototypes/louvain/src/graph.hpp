@@ -1,5 +1,7 @@
 #pragma once
 
+#include "cluster_store.hpp"
+
 #include <algorithm>
 #include <numeric>
 #include <tuple>
@@ -112,7 +114,7 @@ public:
     initializeAccumulatedWeights();
   }
 
-  double modularity(std::vector<int> const &clusters) const {
+  double modularity(ClusterStore const &clusters) const {
     std::vector<int> inner_weights(clusters.size(), 0);
     std::vector<long> incident_weights(clusters.size(), 0);
 
