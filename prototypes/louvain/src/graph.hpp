@@ -81,21 +81,23 @@ public:
     initializeAccumulatedWeights();
   }
 
-  void setEdgesByAdjacencyMatrix(const std::map<std::pair<NodeId, NodeId>, Weight> &matrix) {
+  void setEdgesByAdjacencyMatrix(const std::vector<std::map<NodeId, Weight>> &weights) {
     EdgeId current_edge_index = 0;
     NodeId current_node = 0;
-    for (const auto &edge : matrix) {
-      while (current_node <= edge.first.first) {
-        edge_indexes[current_node++] = current_edge_index;
-      }
-      neighbors[current_edge_index] = edge.first.second;
-      weights[current_edge_index++] = edge.second;
-      assert(edge.second > 0);
+    for (NodeId tail = 0; tail < node_count; tail++) {
+      for (const auto &edge : weights[tail]) {
+        while (current_node <= tail) {
+          edge_indexes[current_node++] = current_edge_index;
+        }
+        neighbors[current_edge_index] = edge.first;
+        weights[current_edge_index++] = edge.second;
+        assert(edge.second > 0);
 
-      if (edge.first.first == edge.first.second) {
-        neighbors[current_edge_index] = edge.first.second;
-        weights[current_edge_index - 1] /= 2;
-        weights[current_edge_index++] = edge.second / 2;
+        if (tail == edge.first) {
+          neighbors[current_edge_index] = edge.first;
+          weights[current_edge_index - 1] /= 2;
+          weights[current_edge_index++] = edge.second / 2;
+        }
       }
     }
 

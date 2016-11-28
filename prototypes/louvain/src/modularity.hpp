@@ -33,8 +33,6 @@ double modularity(Graph const &graph, ClusterStore const &clusters) {
 
   Weight inner_sum = std::accumulate(inner_weights.begin(), inner_weights.end(), 0);
   uint64_t incident_sum = std::accumulate(incident_weights.begin(), incident_weights.end(), 0l, [](const uint64_t& agg, const uint64_t& elem) {
-    assert(elem >= 0);
-    assert(agg >= 0);
     return agg + (elem * elem);
   });
 
@@ -148,7 +146,7 @@ void contractAndReapply(const Graph &, ClusterStore &);
 
 void louvain(const Graph& graph, ClusterStore &clusters) {
   std::cout << "louvain\n";
-  assert(abs(graph.modularity(ClusterStore(0, graph.getNodeCount(), 0))) == 0);
+  assert(abs(modularity(graph, ClusterStore(0, graph.getNodeCount(), 0))) == 0);
 
   bool changed = localMoving(graph, clusters);
 
@@ -185,20 +183,23 @@ void contractAndReapply(const Graph& graph, ClusterStore &clusters) {
   ClusterId cluster_count = clusters.rewriteClusterIds();
   std::cout << "contracting " << cluster_count << " clusters\n";
 
-  std::map<std::pair<NodeId, NodeId>, Weight> weight_matrix;
+  std::vector<std::map<NodeId, Weight>> cluster_connection_weights(cluster_count);
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight weight) {
-      weight_matrix[std::pair<NodeId, NodeId>(clusters[node], clusters[neighbor])] += weight;
+      cluster_connection_weights[clusters[node]][clusters[neighbor]] += weight;
     });
   }
 
-  Graph meta_graph(cluster_count, weight_matrix.size());
-  meta_graph.setEdgesByAdjacencyMatrix(weight_matrix);
+  EdgeId edge_count = std::accumulate(cluster_connection_weights.begin(), cluster_connection_weights.end(), 0, [](const EdgeId agg, const std::map<NodeId, Weight>& elem) {
+    return agg + elem.size() / 2 + 1;
+  });
+  Graph meta_graph(cluster_count, edge_count);
+  meta_graph.setEdgesByAdjacencyMatrix(cluster_connection_weights);
 
   assert(graph.getTotalWeight() == meta_graph.getTotalWeight());
   ClusterStore meta_singleton(0, cluster_count);
   meta_singleton.assignSingletonClusterIds();
-  assert(graph.modularity(clusters) == meta_graph.modularity(meta_singleton));
+  assert(modularity(graph, clusters) == modularity(meta_graph, meta_singleton));
 
   ClusterStore meta_clusters(0, meta_graph.getNodeCount());
   louvain(meta_graph, meta_clusters);
