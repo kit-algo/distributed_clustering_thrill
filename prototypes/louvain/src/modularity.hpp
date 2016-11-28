@@ -20,10 +20,10 @@ using ClusterId = typename ClusterStore::ClusterId;
 
 double modularity(Graph const &graph, ClusterStore const &clusters) {
   std::vector<Weight> inner_weights(clusters.size(), 0);
-  std::vector<Weight> incident_weights(clusters.size(), 0); // TODO assert size
+  std::vector<Weight> incident_weights(clusters.size(), 0);
 
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
-    incident_weights[clusters[node]] += graph.weightedNodeDegree(node);
+    incident_weights[clusters[node]] += graph.nodeDegree(node);
     graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight weight) {
       if (clusters[neighbor] == clusters[node]) {
         inner_weights[clusters[node]] += weight;
@@ -54,13 +54,13 @@ int64_t deltaModularity(const Graph &graph,
 
   int64_t target_cluster_incident_edges_weight = cluster_weights[target_cluster];
   if (target_cluster == current_cluster) {
-    target_cluster_incident_edges_weight -= graph.weightedNodeDegree(node);
+    target_cluster_incident_edges_weight -= graph.nodeDegree(node);
   }
 
-  int64_t current_cluster_incident_edges_weight = cluster_weights[current_cluster] - graph.weightedNodeDegree(node);
+  int64_t current_cluster_incident_edges_weight = cluster_weights[current_cluster] - graph.nodeDegree(node);
 
   int64_t e = (graph.getTotalWeight() * 2 * (weight_between_node_and_target_cluster - weight_between_node_and_current_cluster));
-  int64_t a = (target_cluster_incident_edges_weight - current_cluster_incident_edges_weight) * graph.weightedNodeDegree(node);
+  int64_t a = (target_cluster_incident_edges_weight - current_cluster_incident_edges_weight) * graph.nodeDegree(node);
   return e - a;
 
   static_assert(sizeof(decltype(e)) >= 2 * sizeof(Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
@@ -83,7 +83,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
   std::map<ClusterId, Weight> node_to_cluster_weights;
   std::vector<Weight> cluster_weights(graph.getNodeCount());
   for (NodeId i = 0; i < graph.getNodeCount(); i++) {
-    cluster_weights[i] = graph.weightedNodeDegree(i);
+    cluster_weights[i] = graph.nodeDegree(i);
   }
 
   NodeId current_node = node_range_lower_bound;
@@ -120,9 +120,9 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
     }
 
     if (best_cluster != current_node_cluster) {
-      cluster_weights[current_node_cluster] -= graph.weightedNodeDegree(current_node);
+      cluster_weights[current_node_cluster] -= graph.nodeDegree(current_node);
       clusters.set(current_node, best_cluster);
-      cluster_weights[best_cluster] += graph.weightedNodeDegree(current_node);
+      cluster_weights[best_cluster] += graph.nodeDegree(current_node);
       unchanged_count = 0;
       changed = true;
       // assert(deltaModularity(current_node, graph, current_node_cluster, clusters, cluster_weights) == -best_delta_modularity);
@@ -193,7 +193,7 @@ void contractAndReapply(const Graph& graph, ClusterStore &clusters) {
   EdgeId edge_count = std::accumulate(cluster_connection_weights.begin(), cluster_connection_weights.end(), 0, [](const EdgeId agg, const std::map<NodeId, Weight>& elem) {
     return agg + elem.size() / 2 + 1;
   });
-  Graph meta_graph(cluster_count, edge_count);
+  Graph meta_graph(cluster_count, edge_count, true);
   meta_graph.setEdgesByAdjacencyMatrix(cluster_connection_weights);
 
   assert(graph.getTotalWeight() == meta_graph.getTotalWeight());
