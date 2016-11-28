@@ -51,7 +51,8 @@ int main(int, char const *argv[]) {
   graph.setEdgesByAdjacencyLists(neighbors);
 
   ClusterStore clusters(0, neighbors.size());
-  Modularity::partitioned_louvain(graph, clusters);
+  // Modularity::partitionedLouvain(graph, clusters);
+  Modularity::louvain(graph, clusters);
 
   std::cout << Modularity::modularity(graph, clusters) << "\n";
 }

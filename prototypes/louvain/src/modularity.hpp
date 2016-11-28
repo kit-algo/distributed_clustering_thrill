@@ -13,11 +13,6 @@
 
 namespace Modularity {
 
-// using Graph::NodeId;
-// using Graph::EdgeId;
-// using Graph::Weight;
-// using ClusterStore::ClusterId;
-
 using NodeId = typename Graph::NodeId;
 using EdgeId = typename Graph::EdgeId;
 using Weight = typename Graph::Weight;
@@ -42,7 +37,6 @@ double modularity(Graph const &graph, ClusterStore const &clusters) {
     assert(agg >= 0);
     return agg + (elem * elem);
   });
-  // std::cout << "inner " << inner_sum << " incident " << incident_sum << "\n";
 
   uint64_t total_weight = graph.getTotalWeight();
   return (inner_sum / (2.*total_weight)) - (incident_sum / (4.*total_weight*total_weight));
@@ -51,9 +45,6 @@ double modularity(Graph const &graph, ClusterStore const &clusters) {
   static_assert(sizeof(decltype(incident_sum)) >= 2 * sizeof(Graph::EdgeId), "Modularity has to be able to captuare a value of maximum number of edges squared");
 }
 
-// template <typename T> int sgn(T val) {
-//   return (T(0) < val) - (val < T(0));
-// }
 
 int64_t deltaModularity(const Graph &graph,
                         const NodeId node,
@@ -62,6 +53,7 @@ int64_t deltaModularity(const Graph &graph,
                         const int64_t weight_between_node_and_current_cluster,
                         const int64_t weight_between_node_and_target_cluster,
                         const std::vector<Weight> &cluster_weights) {
+
   int64_t target_cluster_incident_edges_weight = cluster_weights[target_cluster];
   if (target_cluster == current_cluster) {
     target_cluster_incident_edges_weight -= graph.weightedNodeDegree(node);
@@ -70,11 +62,7 @@ int64_t deltaModularity(const Graph &graph,
   int64_t current_cluster_incident_edges_weight = cluster_weights[current_cluster] - graph.weightedNodeDegree(node);
 
   int64_t e = (graph.getTotalWeight() * 2 * (weight_between_node_and_target_cluster - weight_between_node_and_current_cluster));
-  // assert(sgn(e) == sgn(weight_between_node_and_target_cluster - weight_between_node_and_current_cluster));
   int64_t a = (target_cluster_incident_edges_weight - current_cluster_incident_edges_weight) * graph.weightedNodeDegree(node);
-  // assert(graph.weightedNodeDegree(node) > 0);
-  // assert(sgn(a) == sgn((target_cluster_incident_edges_weight - current_cluster_incident_edges_weight)));
-
   return e - a;
 
   static_assert(sizeof(decltype(e)) >= 2 * sizeof(Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
@@ -156,6 +144,8 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
   return changed;
 }
 
+void contractAndReapply(const Graph &, ClusterStore &);
+
 void louvain(const Graph& graph, ClusterStore &clusters) {
   std::cout << "louvain\n";
   assert(abs(graph.modularity(ClusterStore(0, graph.getNodeCount(), 0))) == 0);
@@ -163,34 +153,11 @@ void louvain(const Graph& graph, ClusterStore &clusters) {
   bool changed = localMoving(graph, clusters);
 
   if (changed) {
-    ClusterId cluster_count = clusters.rewriteClusterIds();
-    std::cout << "contracting " << cluster_count << " clusters\n";
-
-    std::map<std::pair<NodeId, NodeId>, Weight> weight_matrix;
-    for (NodeId node = 0; node < graph.getNodeCount(); node++) {
-      graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight weight) {
-        weight_matrix[std::pair<NodeId, NodeId>(clusters[node], clusters[neighbor])] += weight;
-      });
-    }
-
-    std::cout << "new graph " << cluster_count << "\n";
-    Graph meta_graph(cluster_count, weight_matrix.size());
-    meta_graph.setEdgesByAdjacencyMatrix(weight_matrix);
-    assert(graph.getTotalWeight() == meta_graph.getTotalWeight());
-    ClusterStore meta_singleton(0, cluster_count);
-    meta_singleton.assignSingletonClusterIds();
-    assert(graph.modularity(clusters) == meta_graph.modularity(meta_singleton));
-    ClusterStore meta_clusters(0, meta_graph.getNodeCount());
-    louvain(meta_graph, meta_clusters);
-
-    // translate meta clusters
-    for (NodeId node = 0; node < graph.getNodeCount(); node++) {
-      clusters.set(node, meta_clusters[clusters[node]]);
-    }
+    contractAndReapply(graph, clusters);
   }
 }
 
-void partitioned_louvain(const Graph& graph, ClusterStore &clusters) {
+void partitionedLouvain(const Graph& graph, ClusterStore &clusters) {
   std::cout << "louvain\n";
 
   uint32_t partition_count = 4;
@@ -211,6 +178,10 @@ void partitioned_louvain(const Graph& graph, ClusterStore &clusters) {
     }
   }
 
+  contractAndReapply(graph, clusters);
+}
+
+void contractAndReapply(const Graph& graph, ClusterStore &clusters) {
   ClusterId cluster_count = clusters.rewriteClusterIds();
   std::cout << "contracting " << cluster_count << " clusters\n";
 
@@ -221,13 +192,14 @@ void partitioned_louvain(const Graph& graph, ClusterStore &clusters) {
     });
   }
 
-  std::cout << "new graph " << cluster_count << "\n";
   Graph meta_graph(cluster_count, weight_matrix.size());
   meta_graph.setEdgesByAdjacencyMatrix(weight_matrix);
+
   assert(graph.getTotalWeight() == meta_graph.getTotalWeight());
   ClusterStore meta_singleton(0, cluster_count);
   meta_singleton.assignSingletonClusterIds();
   assert(graph.modularity(clusters) == meta_graph.modularity(meta_singleton));
+
   ClusterStore meta_clusters(0, meta_graph.getNodeCount());
   louvain(meta_graph, meta_clusters);
 
