@@ -44,8 +44,11 @@ double modularity(Graph const &graph, ClusterStore const &clusters) {
   });
   // std::cout << "inner " << inner_sum << " incident " << incident_sum << "\n";
 
-  Weight total_weight = graph.getTotalWeight();
+  uint64_t total_weight = graph.getTotalWeight();
   return (inner_sum / (2.*total_weight)) - (incident_sum / (4.*total_weight*total_weight));
+
+  static_assert(sizeof(decltype(total_weight)) >= 2 * sizeof(Graph::EdgeId), "Modularity has to be able to captuare a value of maximum number of edges squared");
+  static_assert(sizeof(decltype(incident_sum)) >= 2 * sizeof(Graph::EdgeId), "Modularity has to be able to captuare a value of maximum number of edges squared");
 }
 
 // template <typename T> int sgn(T val) {
@@ -81,7 +84,10 @@ uint64_t deltaModularity(const NodeId node, const Graph& graph, ClusterId target
   // assert(sgn(a) == sgn((target_cluster_incident_edges_weight - current_cluster_incident_edges_weight)));
 
   return e - a;
-  // TODO size assert
+
+  static_assert(sizeof(decltype(e)) >= 2 * sizeof(Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
+  static_assert(sizeof(decltype(a)) >= 2 * sizeof(Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
+  static_assert(sizeof(deltaModularity(std::declval<NodeId>(), std::declval<Graph>(), std::declval<ClusterId>(), std::declval<ClusterStore>(), std::declval<std::vector<Weight>>())) >= 2 * sizeof(Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
 }
 
 bool localMoving(const Graph& graph, ClusterStore &clusters);
