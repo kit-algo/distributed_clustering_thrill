@@ -1,7 +1,5 @@
 #pragma once
 
-#include "cluster_store.hpp"
-
 #include <algorithm>
 #include <numeric>
 #include <tuple>
@@ -9,52 +7,59 @@
 #include <iostream>
 #include <assert.h>
 #include <map>
+#include <cstdint>
 
 class Graph {
+public:
+
+  typedef uint32_t NodeId;
+  typedef uint32_t EdgeId; // TODO 64 Bit
+  typedef uint32_t Weight;
+
 private:
 
-  int node_count;
-  int edge_count;
-  std::vector<int> edge_indexes;
-  std::vector<int> degrees;
-  std::vector<int> neighbors;
-  std::vector<int> weights;
-  int total_weight;
+  NodeId node_count;
+  EdgeId edge_count;
+  std::vector<EdgeId> edge_indexes;
+  std::vector<Weight> degrees;
+  std::vector<NodeId> neighbors;
+  std::vector<Weight> weights;
+  Weight total_weight;
 
   void initializeAccumulatedWeights() {
     assert(std::accumulate(weights.begin(), weights.end(), 0) % 2 == 0);
-    for (int node = 0; node < node_count; node++) {
+    for (NodeId node = 0; node < node_count; node++) {
       degrees[node] = std::accumulate(weights.begin() + edge_indexes[node], weights.begin() + edge_indexes[node + 1], 0);
     }
     total_weight = std::accumulate(degrees.begin(), degrees.end(), 0) / 2;
   }
 
 public:
-  Graph(const int node_count, const int edge_count) : node_count(node_count), edge_count(edge_count),
+  Graph(const NodeId node_count, const EdgeId edge_count) : node_count(node_count), edge_count(edge_count),
     edge_indexes(node_count + 1, 2 * edge_count), degrees(node_count, 0),
     neighbors(2 * edge_count), weights(2 * edge_count) {}
 
-  int getNodeCount() const { return node_count; }
-  int getEdgeCount() const { return edge_count; }
-  int getTotalWeight() const { return total_weight; }
+  NodeId getNodeCount() const { return node_count; }
+  EdgeId getEdgeCount() const { return edge_count; }
+  Weight getTotalWeight() const { return total_weight; }
 
-  int weightedNodeDegree(const int node_id) const {
+  Weight weightedNodeDegree(const NodeId node_id) const {
     return degrees[node_id];
   }
 
   template<class F>
-  void forEachAdjacentNode(int node, F f) const {
-    for (int edge_index = edge_indexes[node]; edge_index < edge_indexes[node + 1]; edge_index++) {
+  void forEachAdjacentNode(NodeId node, F f) const {
+    for (EdgeId edge_index = edge_indexes[node]; edge_index < edge_indexes[node + 1]; edge_index++) {
       f(neighbors[edge_index], weights[edge_index]);
     }
   }
 
-  void setEdgesWithMissingBackwardArcs(std::vector<std::tuple<int, int, int>> &edges) {
-    std::vector<std::tuple<int, int, int>> foo(2 * edge_count);
-    for (int i = 0; i < edge_count; i++) {
+  void setEdgesWithMissingBackwardArcs(std::vector<std::tuple<NodeId, NodeId, Weight>> &edges) {
+    std::vector<std::tuple<NodeId, NodeId, Weight>> foo(2 * edge_count);
+    for (EdgeId i = 0; i < edge_count; i++) {
       foo[i] = edges[i];
     }
-    for (int i = 0; i < edge_count; i++) {
+    for (EdgeId i = 0; i < edge_count; i++) {
       foo[edge_count + i] = std::make_tuple(std::get<1>(edges[i]), std::get<0>(edges[i]), std::get<2>(edges[i]));
     }
 
@@ -62,11 +67,11 @@ public:
       return std::get<0>(edge1) < std::get<0>(edge2);
     });
 
-    int current_node = -1;
-    for (int i = 0; i < 2 * edge_count; i++) {
-      int tail = std::get<0>(foo[i]);
-      while (current_node < tail) {
-        edge_indexes[++current_node] = i;
+    NodeId current_node = 0;
+    for (EdgeId i = 0; i < 2 * edge_count; i++) {
+      NodeId tail = std::get<0>(foo[i]);
+      while (current_node <= tail) {
+        edge_indexes[current_node++] = i;
       }
       neighbors[i] = std::get<1>(foo[i]);
       weights[i] = std::get<2>(foo[i]);
@@ -76,12 +81,12 @@ public:
     initializeAccumulatedWeights();
   }
 
-  void setEdgesByAdjacencyMatrix(const std::map<std::pair<int, int>, int> &matrix) {
-    long current_edge_index = 0;
-    int current_node = -1;
+  void setEdgesByAdjacencyMatrix(const std::map<std::pair<NodeId, NodeId>, Weight> &matrix) {
+    EdgeId current_edge_index = 0;
+    NodeId current_node = 0;
     for (const auto &edge : matrix) {
-      while (current_node < edge.first.first) {
-        edge_indexes[++current_node] = current_edge_index;
+      while (current_node <= edge.first.first) {
+        edge_indexes[current_node++] = current_edge_index;
       }
       neighbors[current_edge_index] = edge.first.second;
       weights[current_edge_index++] = edge.second;
@@ -100,11 +105,11 @@ public:
     initializeAccumulatedWeights();
   }
 
-  void setEdgesByAdjacencyLists(std::vector<std::vector<int>> &neighbors) {
-    int current_edge_index = 0;
-    for (int node = 0; node < node_count; node++) {
+  void setEdgesByAdjacencyLists(std::vector<std::vector<NodeId>> &neighbors) {
+    EdgeId current_edge_index = 0;
+    for (NodeId node = 0; node < node_count; node++) {
       edge_indexes[node] = current_edge_index;
-      for (int& neighbor : neighbors[node]) {
+      for (NodeId& neighbor : neighbors[node]) {
         this->neighbors[current_edge_index] = neighbor;
         weights[current_edge_index] = 1;
         current_edge_index++;
@@ -112,29 +117,5 @@ public:
     }
 
     initializeAccumulatedWeights();
-  }
-
-  double modularity(ClusterStore const &clusters) const {
-    std::vector<int> inner_weights(clusters.size(), 0);
-    std::vector<long> incident_weights(clusters.size(), 0);
-
-    for (int node = 0; node < node_count; node++) {
-      incident_weights[clusters[node]] += weightedNodeDegree(node);
-      forEachAdjacentNode(node, [&](int neighbor, int weight) {
-        if (clusters[neighbor] == clusters[node]) {
-          inner_weights[clusters[node]] += weight;
-        }
-      });
-    }
-
-    int inner_sum = std::accumulate(inner_weights.begin(), inner_weights.end(), 0);
-    long incident_sum = std::accumulate(incident_weights.begin(), incident_weights.end(), 0l, [](const long& agg, const long& elem) {
-      assert(elem >= 0);
-      assert(agg >= 0);
-      return agg + (elem * elem);
-    });
-    // std::cout << "inner " << inner_sum << " incident " << incident_sum << "\n";
-
-    return (inner_sum / (2.*total_weight)) - (incident_sum / (4.*total_weight*total_weight));
   }
 };

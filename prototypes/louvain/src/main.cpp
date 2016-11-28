@@ -21,20 +21,20 @@ void open_file(std::string filename, F callback, std::ios_base::openmode mode = 
     std::cout << "done reading " << filename << "\n";
 }
 
-int read_graph(const std::string filename, std::vector<std::vector<int>> &neighbors) {
-  int edge_count;
+Graph::EdgeId read_graph(const std::string filename, std::vector<std::vector<Graph::NodeId>> &neighbors) {
+  Graph::EdgeId edge_count;
   open_file(filename, [&](auto& file) {
     std::string line;
-    int node_count;
+    Graph::NodeId node_count;
     std::getline(file, line);
     std::istringstream header_stream(line);
     header_stream >> node_count >> edge_count;
     neighbors.resize(node_count);
 
-    int i = 0;
+    Graph::NodeId i = 0;
     while (std::getline(file, line)) {
       std::istringstream line_stream(line);
-      int neighbor;
+      Graph::NodeId neighbor;
       while (line_stream >> neighbor) {
         neighbors[i].push_back(neighbor - 1);
       }
@@ -45,14 +45,14 @@ int read_graph(const std::string filename, std::vector<std::vector<int>> &neighb
 }
 
 int main(int, char const *argv[]) {
-  std::vector<std::vector<int>> neighbors;
-  int edge_count = read_graph(argv[1], neighbors);
+  std::vector<std::vector<Graph::NodeId>> neighbors;
+  Graph::EdgeId edge_count = read_graph(argv[1], neighbors);
   Graph graph(neighbors.size(), edge_count);
   graph.setEdgesByAdjacencyLists(neighbors);
 
   ClusterStore clusters(0, neighbors.size());
   Modularity::partitioned_louvain(graph, clusters);
 
-  std::cout << graph.modularity(clusters) << "\n";
+  std::cout << Modularity::modularity(graph, clusters) << "\n";
 }
 
