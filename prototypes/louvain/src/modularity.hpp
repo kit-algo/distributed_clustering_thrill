@@ -82,13 +82,18 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
   clusters.assignSingletonClusterIds();
   std::map<ClusterId, Weight> node_to_cluster_weights;
   std::vector<Weight> cluster_weights(graph.getNodeCount());
+
+  std::vector<Weight> moving_order_permutation(graph.getNodeCount());
   for (NodeId i = 0; i < graph.getNodeCount(); i++) {
     cluster_weights[i] = graph.nodeDegree(i);
+    moving_order_permutation[i] = i;
   }
+  std::random_shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound);
 
-  NodeId current_node = node_range_lower_bound;
+  NodeId current_node_index = node_range_lower_bound;
   NodeId unchanged_count = 0;
   while(unchanged_count < node_range_upper_bound - node_range_lower_bound) {
+    NodeId current_node = moving_order_permutation[current_node_index];
     // std::cout << "local moving: " << current_node << "\n";
     ClusterId current_node_cluster = clusters[current_node];
     Weight weight_between_node_and_current_cluster = 0;
@@ -133,9 +138,10 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
     }
 
     node_to_cluster_weights.clear();
-    current_node++;
-    if (current_node >= node_range_upper_bound) {
-      current_node = node_range_lower_bound;
+    current_node_index++;
+    if (current_node_index >= node_range_upper_bound) {
+      current_node_index = node_range_lower_bound;
+      std::random_shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound);
     }
   }
 
