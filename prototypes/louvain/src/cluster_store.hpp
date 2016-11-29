@@ -58,4 +58,13 @@ public:
 
     return id_counter;
   }
+
+  void intersection(const ClusterStore &other, ClusterStore &intersection) const {
+    assert(size() == other.size() && size() == intersection.size());
+    assert(offset == 0 && other.offset == 0 && intersection.offset == 0);
+
+    for (NodeId node = 0; node < size(); node++) {
+      intersection.node_clusters[node] = node_clusters[node] * size() + other.node_clusters[node];
+    }
+  }
 };
