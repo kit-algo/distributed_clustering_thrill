@@ -66,5 +66,7 @@ public:
     for (NodeId node = 0; node < size(); node++) {
       intersection.node_clusters[node] = node_clusters[node] * size() + other.node_clusters[node];
     }
+
+    intersection.rewriteClusterIds();
   }
 };
