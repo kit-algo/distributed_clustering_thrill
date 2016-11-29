@@ -1,6 +1,7 @@
 #include "graph.hpp"
 #include "modularity.hpp"
 #include "cluster_store.hpp"
+#include "similarity.hpp"
 
 #include <sstream>
 #include <fstream>
@@ -50,10 +51,14 @@ int main(int, char const *argv[]) {
   Graph graph(neighbors.size(), edge_count);
   graph.setEdgesByAdjacencyLists(neighbors);
 
-  ClusterStore clusters(0, neighbors.size());
-  // Modularity::partitionedLouvain(graph, clusters);
-  Modularity::louvain(graph, clusters);
+  ClusterStore seq_clusters(0, neighbors.size());
+  ClusterStore par_clusters(0, neighbors.size());
+  Modularity::louvain(graph, seq_clusters);
+  Modularity::partitionedLouvain(graph, par_clusters);
 
-  std::cout << Modularity::modularity(graph, clusters) << "\n";
+  std::cout << "Sequential Louvain Modularity: " << Modularity::modularity(graph, seq_clusters) << "\n";
+  std::cout << "Partinioned Louvain Modularity: " << Modularity::modularity(graph, par_clusters) << "\n";
+  std::cout << "ARI: " << Similarity::adjustedRandIndex(seq_clusters, par_clusters) << "\n";
+  std::cout << "NMI: " << Similarity::normalizedMutualInformation(seq_clusters, par_clusters) << "\n";
 }
 
