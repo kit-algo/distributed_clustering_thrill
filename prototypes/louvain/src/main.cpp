@@ -7,7 +7,10 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <numeric>
 #include <assert.h>
+#include <random>
+#include <chrono>
 
 template<class F>
 void open_file(std::string filename, F callback, std::ios_base::openmode mode = std::ios::in) {
@@ -50,6 +53,14 @@ int main(int, char const *argv[]) {
   Graph::EdgeId edge_count = read_graph(argv[1], neighbors);
   Graph graph(neighbors.size(), edge_count);
   graph.setEdgesByAdjacencyLists(neighbors);
+
+  Modularity::seed = std::chrono::system_clock::now().time_since_epoch().count();
+  std::cout << "SEED: " << Modularity::seed << "\n";
+
+  std::vector<NodeId> permutation(graph.getNodeCount());
+  std::iota(permutation.begin(), permutation.end(), 0);
+  std::shuffle(permutation.begin(), permutation.end(), std::default_random_engine(Modularity::seed));
+  graph.applyNodePermutation(permutation);
 
   ClusterStore seq_clusters(0, neighbors.size());
   ClusterStore par_clusters(0, neighbors.size());

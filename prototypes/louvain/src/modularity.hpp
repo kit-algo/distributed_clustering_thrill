@@ -13,6 +13,8 @@
 
 namespace Modularity {
 
+unsigned seed = 0;
+
 using NodeId = typename Graph::NodeId;
 using EdgeId = typename Graph::EdgeId;
 using Weight = typename Graph::Weight;
@@ -88,7 +90,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
     cluster_weights[i] = graph.nodeDegree(i);
     moving_order_permutation[i] = i;
   }
-  std::random_shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound);
+  std::shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound, std::default_random_engine(seed));
 
   NodeId current_node_index = node_range_lower_bound;
   NodeId unchanged_count = 0;
@@ -151,7 +153,6 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
 void contractAndReapply(const Graph &, ClusterStore &);
 
 void louvain(const Graph& graph, ClusterStore &clusters) {
-  std::cout << "louvain\n";
   assert(abs(modularity(graph, ClusterStore(0, graph.getNodeCount(), 0))) == 0);
 
   bool changed = localMoving(graph, clusters);
@@ -162,8 +163,6 @@ void louvain(const Graph& graph, ClusterStore &clusters) {
 }
 
 void partitionedLouvain(const Graph& graph, ClusterStore &clusters) {
-  std::cout << "louvain\n";
-
   uint32_t partition_count = 4;
   NodeId partition_size = (graph.getNodeCount() + partition_count - 1) / partition_count;
 

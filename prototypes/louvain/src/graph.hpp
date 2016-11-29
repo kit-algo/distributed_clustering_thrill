@@ -99,6 +99,39 @@ public:
     initializeAccumulatedWeights();
   }
 
+  void applyNodePermutation(const std::vector<NodeId> &permutation) {
+    assert(permutation.size() == node_count);
+    std::vector<NodeId> reversed_permutation(node_count);
+    for (NodeId node = 0; node < node_count; node++) {
+      reversed_permutation[permutation[node]] = node;
+    }
+
+    std::vector<EdgeId> new_first_out(first_out.size(), 2 * edge_count);
+    std::vector<NodeId> new_neighbors(neighbors.size());
+    std::vector<Weight> new_weights(weighted ? weights.size() : 0);
+
+    EdgeId current_first_out_index = 0;
+    for (NodeId node = 0; node < node_count; node++) {
+      NodeId old_id = reversed_permutation[node];
+      new_first_out[node] = current_first_out_index;
+
+      for (EdgeId old_edge_index = first_out[old_id]; old_edge_index < first_out[old_id + 1]; old_edge_index++) {
+        new_neighbors[current_first_out_index] = permutation[neighbors[old_edge_index]];
+        if (weighted) {
+          new_weights[current_first_out_index] = weights[neighbors[old_edge_index]];
+        }
+        current_first_out_index++;
+      }
+      // TODO Sorting?
+    }
+
+    first_out.assign(new_first_out.begin(), new_first_out.end());
+    neighbors.assign(new_neighbors.begin(), new_neighbors.end());
+    weights.assign(new_weights.begin(), new_weights.end());
+
+    initializeAccumulatedWeights();
+  }
+
 private:
   void initializeAccumulatedWeights() {
     assert(std::accumulate(weights.begin(), weights.end(), 0) % 2 == 0);
