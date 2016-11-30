@@ -11,6 +11,7 @@ adjacency_arrays = Hash.new { |hash, key| hash[key] = [] }
 
 puts 'reading file'
 
+progress = 0
 File.open(ARGV[0]).each do |line|
   case line
   when /\A# Nodes: (\d+) Edges: (\d+)/  # Nodes: 317080 Edges: 1049866
@@ -21,9 +22,14 @@ File.open(ARGV[0]).each do |line|
     adjacency_arrays[$1.to_i] << $2.to_i
     adjacency_arrays[$2.to_i] << $1.to_i
     m_counted += 1
+
+    percent_edges = 100 * m_counted / m_declared
+    puts "#{percent_edges}%" if percent_edges != progress
+    progress = percent_edges
   else
     puts "broken line #{line}"
   end
+
 end
 
 puts "actually found #{m_counted} edges rather than the declared #{m_declared}" if m_counted != m_declared
