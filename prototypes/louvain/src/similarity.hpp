@@ -31,18 +31,18 @@ double adjustedRandIndex(const ClusterStore &c, const ClusterStore &d) {
     intersection_cluster_sizes[intersection[node]]++;
   }
 
-  uint32_t rand_index = 0;
-  for (uint32_t s : intersection_cluster_sizes) {
+  uint64_t rand_index = 0;
+  for (uint64_t s : intersection_cluster_sizes) {
     rand_index += s * (s - 1) / 2;
   }
 
-  uint32_t sum_c = 0;
-  for (uint32_t s : c_cluster_sizes) {
+  uint64_t sum_c = 0;
+  for (uint64_t s : c_cluster_sizes) {
     sum_c += s * (s - 1) / 2;
   }
 
-  uint32_t sum_d = 0;
-  for (uint32_t s : d_cluster_sizes) {
+  uint64_t sum_d = 0;
+  for (uint64_t s : d_cluster_sizes) {
     sum_d += s * (s - 1) / 2;
   }
 
