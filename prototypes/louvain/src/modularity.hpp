@@ -95,7 +95,8 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
   NodeId current_node_index = node_range_lower_bound;
   NodeId unchanged_count = 0;
   while(unchanged_count < node_range_upper_bound - node_range_lower_bound) {
-    NodeId current_node = moving_order_permutation[current_node_index];
+    // NodeId current_node = moving_order_permutation[current_node_index];
+    NodeId current_node = current_node_index;
     // std::cout << "local moving: " << current_node << "\n";
     ClusterId current_node_cluster = clusters[current_node];
     Weight weight_between_node_and_current_cluster = 0;
@@ -163,19 +164,19 @@ void louvain(const Graph& graph, ClusterStore &clusters) {
 }
 
 void partitionedLouvain(const Graph& graph, ClusterStore &clusters) {
-  uint32_t partition_count = 4;
+  uint32_t partition_count = 32;
   NodeId partition_size = (graph.getNodeCount() + partition_count - 1) / partition_count;
 
   for (uint32_t partition = 0; partition < partition_count; partition++) {
     NodeId lower = partition * partition_size;
     NodeId upper = std::min((partition+1) * partition_size, graph.getNodeCount());
     ClusterStore partition_clustering(lower, upper);
-    std::cout << partition << "move\n";
+    // std::cout << partition << "move\n";
     localMoving(graph, partition_clustering, lower, upper);
-    std::cout << partition << "rewrite clusters\n";
+    // std::cout << partition << "rewrite clusters\n";
     partition_clustering.rewriteClusterIds();
 
-    std::cout << partition << "combine\n";
+    // std::cout << partition << "combine\n";
     for (NodeId node = lower; node < upper; node++) {
       clusters.set(node, partition_clustering[node]);
     }
@@ -186,7 +187,7 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters) {
 
 void contractAndReapply(const Graph& graph, ClusterStore &clusters) {
   ClusterId cluster_count = clusters.rewriteClusterIds();
-  std::cout << "contracting " << cluster_count << " clusters\n";
+  // std::cout << "contracting " << cluster_count << " clusters\n";
 
   std::vector<std::map<NodeId, Weight>> cluster_connection_weights(cluster_count);
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {

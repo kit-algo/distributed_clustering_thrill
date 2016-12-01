@@ -57,13 +57,34 @@ int main(int, char const *argv[]) {
   Modularity::seed = std::chrono::system_clock::now().time_since_epoch().count();
   std::cout << "SEED: " << Modularity::seed << "\n";
 
+  ClusterStore seq_clusters(0, neighbors.size());
+  ClusterStore par_clusters(0, neighbors.size());
+
+  Modularity::louvain(graph, seq_clusters);
+  Modularity::partitionedLouvain(graph, par_clusters);
+
+  std::cout << "Sequential Louvain Modularity: " << Modularity::modularity(graph, seq_clusters) << "\n";
+  std::cout << "Partinioned Louvain Modularity: " << Modularity::modularity(graph, par_clusters) << "\n";
+  std::cout << "ARI: " << Similarity::adjustedRandIndex(seq_clusters, par_clusters) << "\n";
+  std::cout << "NMI: " << Similarity::normalizedMutualInformation(seq_clusters, par_clusters) << "\n";
+
+  std::cout << "Shuffling Node Order\n";
   std::vector<NodeId> permutation(graph.getNodeCount());
   std::iota(permutation.begin(), permutation.end(), 0);
   std::shuffle(permutation.begin(), permutation.end(), std::default_random_engine(Modularity::seed));
   graph.applyNodePermutation(permutation);
 
-  ClusterStore seq_clusters(0, neighbors.size());
-  ClusterStore par_clusters(0, neighbors.size());
+  Modularity::louvain(graph, seq_clusters);
+  Modularity::partitionedLouvain(graph, par_clusters);
+
+  std::cout << "Sequential Louvain Modularity: " << Modularity::modularity(graph, seq_clusters) << "\n";
+  std::cout << "Partinioned Louvain Modularity: " << Modularity::modularity(graph, par_clusters) << "\n";
+  std::cout << "ARI: " << Similarity::adjustedRandIndex(seq_clusters, par_clusters) << "\n";
+  std::cout << "NMI: " << Similarity::normalizedMutualInformation(seq_clusters, par_clusters) << "\n";
+
+  std::cout << "Fix Node Order\n";
+  graph.fixIdOrder();
+
   Modularity::louvain(graph, seq_clusters);
   Modularity::partitionedLouvain(graph, par_clusters);
 

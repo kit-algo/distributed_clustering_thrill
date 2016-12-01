@@ -132,6 +132,18 @@ public:
     initializeAccumulatedWeights();
   }
 
+  void fixIdOrder() {
+    std::vector<NodeId> permutation(node_count, node_count);
+    NodeId current_new_id = 0;
+    for (NodeId neighbor : neighbors) {
+      if (permutation[neighbor] == node_count) {
+        permutation[neighbor] = current_new_id++;
+      }
+    }
+    assert(current_new_id == node_count);
+    applyNodePermutation(permutation);
+  }
+
 private:
   void initializeAccumulatedWeights() {
     assert(std::accumulate(weights.begin(), weights.end(), 0) % 2 == 0);
