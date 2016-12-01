@@ -15,7 +15,7 @@ using NodeId = typename Graph::NodeId;
 using ClusterId = typename ClusterStore::ClusterId;
 
 double adjustedRandIndex(const ClusterStore &c, const ClusterStore &d) {
-  NodeId node_count = c.size();
+  uint64_t node_count = c.size();
   ClusterStore intersection(0, node_count);
   c.intersection(d, intersection);
 
@@ -80,9 +80,9 @@ double normalizedMutualInformation(const ClusterStore &c, const ClusterStore &d)
   c.intersection(d, intersection);
 
   // TODO reduce sizes to actual number of clusters
-  std::vector<uint32_t> c_cluster_sizes(node_count, 0);
-  std::vector<uint32_t> d_cluster_sizes(node_count, 0);
-  std::vector<uint32_t> intersection_cluster_sizes(node_count, 0);
+  std::vector<uint64_t> c_cluster_sizes(node_count, 0);
+  std::vector<uint64_t> d_cluster_sizes(node_count, 0);
+  std::vector<uint64_t> intersection_cluster_sizes(node_count, 0);
   std::vector<ClusterId> intersection_to_c(node_count, 0);
   std::vector<ClusterId> intersection_to_d(node_count, 0);
 
