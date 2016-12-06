@@ -13,7 +13,7 @@
 
 namespace Modularity {
 
-unsigned seed = 0;
+std::default_random_engine rng;
 
 using NodeId = typename Graph::NodeId;
 using EdgeId = typename Graph::EdgeId;
@@ -90,13 +90,13 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
     cluster_weights[i] = graph.nodeDegree(i);
     moving_order_permutation[i] = i;
   }
-  std::shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound, std::default_random_engine(seed));
+  std::shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound, rng);
 
   NodeId current_node_index = node_range_lower_bound;
   NodeId unchanged_count = 0;
   while(unchanged_count < node_range_upper_bound - node_range_lower_bound) {
-    // NodeId current_node = moving_order_permutation[current_node_index];
-    NodeId current_node = current_node_index;
+    NodeId current_node = moving_order_permutation[current_node_index];
+    // NodeId current_node = current_node_index;
     // std::cout << "local moving: " << current_node << "\n";
     ClusterId current_node_cluster = clusters[current_node];
     Weight weight_between_node_and_current_cluster = 0;
@@ -144,7 +144,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
     current_node_index++;
     if (current_node_index >= node_range_upper_bound) {
       current_node_index = node_range_lower_bound;
-      std::shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound, std::default_random_engine(seed));
+      std::shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound, rng);
     }
   }
 
@@ -163,8 +163,7 @@ void louvain(const Graph& graph, ClusterStore &clusters) {
   }
 }
 
-void partitionedLouvain(const Graph& graph, ClusterStore &clusters) {
-  uint32_t partition_count = 32;
+void partitionedLouvain(const Graph& graph, ClusterStore &clusters, uint32_t partition_count = 4) {
   NodeId partition_size = (graph.getNodeCount() + partition_count - 1) / partition_count;
 
   for (uint32_t partition = 0; partition < partition_count; partition++) {
