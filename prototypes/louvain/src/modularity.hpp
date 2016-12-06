@@ -144,7 +144,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
     current_node_index++;
     if (current_node_index >= node_range_upper_bound) {
       current_node_index = node_range_lower_bound;
-      std::random_shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound);
+      std::shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound, std::default_random_engine(seed));
     }
   }
 
