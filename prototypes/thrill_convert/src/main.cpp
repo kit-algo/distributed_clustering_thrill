@@ -57,7 +57,7 @@ void convert(thrill::Context& context, const std::string &input_path, const std:
       [](const Edge& edge) { return edge.tail; },
       [&](auto& iterator, const uint32_t node) {
         std::ostringstream output;
-        output << id_mapping[node] + 1 << ":";
+        // output << id_mapping[node] + 1 << ":";
         while(iterator.HasNext()) {
           uint32_t neighbor = iterator.Next().head;
           output << id_mapping[neighbor] + 1 << " ";
