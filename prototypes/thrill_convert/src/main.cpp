@@ -7,6 +7,7 @@
 #include <thrill/api/collapse.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/zip_with_index.hpp>
+#include <thrill/api/zip.hpp>
 #include <thrill/api/group_by_key.hpp>
 #include <thrill/api/print.hpp>
 
@@ -16,6 +17,10 @@
 
 struct Edge {
   uint32_t tail, head;
+};
+
+struct Node {
+  uint32_t id, degree;
 };
 
 std::ostream& operator << (std::ostream& os, const Edge& e) {
@@ -42,25 +47,38 @@ void convert(thrill::Context& context, const std::string &input_path, const std:
       return (e1.tail == e2.tail && e1.head < e2.head) || (e1.tail < e2.tail);
     });
 
-  auto id_mapping_pairs = edges
+  auto new_node_id_times_degree = edges
     .Keep()
-    .Map([](const Edge & edge) { return edge.tail; })
-    .ReduceByKey([](const uint32_t& tail) { return tail; }, [](const uint32_t& tail, const uint32_t&) { return tail; })
-    .Sort([](const uint32_t& tail1, const uint32_t& tail2) { return tail1 < tail2; })
-    .ZipWithIndex([](const uint32_t& tail, const uint32_t& index) { return std::make_pair(tail, index); })
-    .AllGather();
+    .Map([](const Edge & edge) { return Node {edge.tail, 1 }; })
+    .ReduceByKey([](const Node & node) { return node.id; }, [](const Node & n1, const Node & n2) { return Node { n1.id, n1.degree + n2.degree }; })
+    .Sort([](const Node & n1, const Node & n2) { return n1.id < n2.id; })
+    .ZipWithIndex([](const Node & node, const uint32_t& index) { return Node { index, node.degree }; })
+    .template FlatMap<uint32_t>(
+      [](const Node & node, auto emit) {
+        for (uint32_t i = 0; i < node.degree; i++) {
+          emit(node.id);
+        }
+      });
 
-  std::unordered_map<uint32_t, uint32_t> id_mapping(id_mapping_pairs.begin(), id_mapping_pairs.end());
 
-  edges
+  auto transformed_edges = edges
+    .Zip(thrill::api::NoRebalanceTag, new_node_id_times_degree, [](const Edge & edge, const uint32_t & new_id) { return Edge { new_id, edge.head }; })
+    .Map([](const Edge & edge) { return Edge { edge.head, edge.tail }; })
+    .Sort(
+      [](const Edge & e1, const Edge & e2) {
+        return (e1.tail == e2.tail && e1.head < e2.head) || (e1.tail < e2.tail);
+      })
+    .Zip(thrill::api::NoRebalanceTag, new_node_id_times_degree, [](const Edge & edge, const uint32_t& new_id) { return Edge { new_id, edge.head }; });
+
+  transformed_edges
     .GroupByKey<std::string>(
       [](const Edge& edge) { return edge.tail; },
-      [&](auto& iterator, const uint32_t node) {
+      [](auto& iterator, const uint32_t) {
         std::ostringstream output;
-        // output << id_mapping[node] + 1 << ":";
+        // output << node + 1 << ":";
         while(iterator.HasNext()) {
           uint32_t neighbor = iterator.Next().head;
-          output << id_mapping[neighbor] + 1 << " ";
+          output << neighbor + 1 << " ";
         }
         return output.str();
       })
