@@ -63,10 +63,11 @@ public:
     EdgeId current_edge_index = 0;
     NodeId current_node = 0;
     for (NodeId tail = 0; tail < node_count; tail++) {
+      while (current_node <= tail) {
+        first_out[current_node++] = current_edge_index;
+      }
+
       for (const auto &edge : adjacency_weights[tail]) {
-        while (current_node <= tail) {
-          first_out[current_node++] = current_edge_index;
-        }
         neighbors[current_edge_index] = edge.first;
         weights[current_edge_index++] = edge.second;
         assert(edge.second > 0);
@@ -140,6 +141,13 @@ public:
         permutation[neighbor] = current_new_id++;
       }
     }
+
+    for (NodeId node = 0; node < node_count; node++) {
+      if (permutation[node] == node_count) {
+        permutation[node] = current_new_id++;
+      }
+    }
+
     assert(current_new_id == node_count);
     applyNodePermutation(permutation);
   }
