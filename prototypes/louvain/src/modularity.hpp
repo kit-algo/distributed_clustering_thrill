@@ -94,7 +94,8 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
 
   NodeId current_node_index = node_range_lower_bound;
   NodeId unchanged_count = 0;
-  while(unchanged_count < node_range_upper_bound - node_range_lower_bound) {
+  int current_iteration = 0;
+  while(current_iteration < 32 && unchanged_count < node_range_upper_bound - node_range_lower_bound) {
     NodeId current_node = moving_order_permutation[current_node_index];
     // NodeId current_node = current_node_index;
     // std::cout << "local moving: " << current_node << "\n";
@@ -144,6 +145,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
     current_node_index++;
     if (current_node_index >= node_range_upper_bound) {
       current_node_index = node_range_lower_bound;
+      current_iteration++;
       std::shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound, rng);
     }
   }
