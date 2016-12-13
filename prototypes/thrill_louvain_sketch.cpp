@@ -18,10 +18,10 @@
 
 struct Edge {
   uint32_t tail, head;
-};
 
-struct WeightedEdge {
-  uint32_t tail, head, weight;
+  uint32_t getWeight() {
+    return 1;
+  }
 };
 
 struct Node {
@@ -29,18 +29,32 @@ struct Node {
   std::vector<uint32_t> neighbors;
 };
 
+struct WeightedEdge {
+  uint32_t tail, head, weight;
+
+  uint32_t getWeight() {
+    return weight;
+  }
+};
+
+struct WeightedNodeEdge {
+  uint32_t head, weight;
+};
+
+struct WeightedNode {
+  uint32_t id;
+  std::vector<WeightedNodeEdge> neighbors;
+};
+
 std::ostream& operator << (std::ostream& os, const Edge& e) {
   return os << e.tail << " -> " << e.head;
 }
 
-void convert(thrill::Context& context) {
-  uint32_t partition_count = 4;
-  auto nodes;
-
-  auto clusters = nodes
+auto louvain(auto & nodes) {
+  auto node_clusters = nodes
     .Keep()
     // Map to partition
-    .Map([](const Node & node) { return std::make_pair(node.id % 4, node) })
+    .Map([](const Node & node) { return std::make_pair(0, node) })
     // Local Moving
     // May need template param
     .GroupByKey(
@@ -61,12 +75,24 @@ void convert(thrill::Context& context) {
           emit(std::make_pair(node_id, cluster_id));
         });
       })
-    .Sort([](const std::pair<uint32_t, uint32_t> & node_cluster1, const std::pair<uint32_t, uint32_t> & node_cluster2) { return node_cluster1.first < node_cluster2.first; })
+    .Sort([](const std::pair<uint32_t, uint32_t> & node_cluster1, const std::pair<uint32_t, uint32_t> & node_cluster2) { return node_cluster1.first < node_cluster2.first; });
+  // TODO cleanup cluster ids
+
+  bool changed = node_clusters.AllReduce(
+    [](bool acc, const std::pair<uint32_t, uint32_t> & node_cluster) {
+      return acc && node_cluster.first == node_cluster.second;
+    }, true);
+  if (!changed) {
+    return node_clusters;
+  }
+
+  auto clusters = node_clusters
+    .Keep()
     .Map([](const std::pair<uint32_t, uint32_t> & node_cluster) { return node_cluster.second; });
 
   auto cluster_id_times_degree = nodes
-    // sorted???
     .Keep()
+    .Sort([](const Node & node1, const Node & node2) { return node1.id < node2.id; })
     // No rebalance
     .Zip(clusters, [](const Node & node, uint32_t cluster_id) { return std::make_pair(node.neighbors.size(), cluster_id); })
     .FlatMap(
@@ -76,32 +102,77 @@ void convert(thrill::Context& context) {
         }
       });
 
-  auto edge_list = nodes
+  // Build Meta Graph
+  auto meta_graph_nodes = edge_list
+    // To Edge List
     .FlatMap(
       [](const Node & node, auto emit) {
         for (uint32_t neighbor : node.neighbors) {
           emit(Edge { node, neighbor });
         }
       });
-
-  auto meta_graph_edges = edge_list
-    .Zip(cluster_id_times_degree, [](const Edge & edge, const uint32_t & new_id) { return Edge { new_id, edge.head }; })
+    // Translate Ids
+    .Zip(cluster_id_times_degree.Keep(), [](const Edge & edge, const uint32_t & new_id) { return Edge { new_id, edge.head }; })
     .Map([](const Edge & edge) { return Edge { edge.head, edge.tail }; })
     .Sort(
       [](const Edge & e1, const Edge & e2) {
         return (e1.tail == e2.tail && e1.head < e2.head) || (e1.tail < e2.tail);
       })
-    .Zip(new_node_id_times_degree, [](const Edge & edge, const uint32_t& new_id) { return Edge { new_id, edge.head }; });
-    .Map([](const Edge & edge) { return WeightedEdge { edge.tail, edge.head, 1 } })
+    .Zip(cluster_id_times_degree, [](const Edge & edge, const uint32_t& new_id) { return Edge { new_id, edge.head }; });
+    .Map([](const auto & edge) { return WeightedEdge { edge.tail, edge.head, edge.getWeight() } })
     .ReduceByKey(
       [](const WeightedEdge & edge) { return std::make_pair(edge.tail, edge.head) },
       [](const WeightedEdge & edge1, const WeightedEdge & edge2) { return WeightedEdge { edge1.tail, edge1.head, edge1.weight + edge2.weight }; })
+    // Build Node Data Structure
+    .Map([](const WeightedEdge & edge) { return WeightedNode { edge.tail, { WeightedNodeEdge { edge.head, edge.weight } } } })
+    .ReduceByKey(
+      [](const WeightedNode & node) { return node.id },
+      [](const WeightedNode & node1, const WeightedNode & node2) {
+        node1.neighbors.insert(node1.neighbors.end(), node2.neighbors.begin(), node2.neighbors.end());
+        return node1;
+      })
 
+  // Recursion on meta graph
+  auto meta_clustering = louvain(meta_graph_nodes);
+
+  // translate meta clusters and return
+  return node_clusters
+    .Map([](auto & node_cluster) { return std::make_pair(node_cluster.second, std::vector<uint32_t>(1, node_cluster.first)) })
+    .ReduceToIndex(
+      [](auto & cluster_nodes) { return cluster_nodes.first; },
+      [](auto & cluster_nodes1, auto & cluster_nodes2) {
+        cluster_nodes1.second.insert(cluster_nodes1.second.end(), cluster_nodes2.second.begin(), cluster_nodes2.second.end());
+        return cluster_nodes1;
+      })
+    .Zip(meta_clustering,
+      [](auto & cluster_nodes, auto & meta_node_cluster) {
+        cluster_nodes.first = meta_node_cluster.second;
+      })
+    .FlatMap(
+      [](auto & cluster_nodes, auto emit) {
+        for (uint32_t node : cluster_nodes.second) {
+          emit(std::make_pair(node, cluster_nodes.first));
+        }
+      })
+    .Sort([](const std::pair<uint32_t, uint32_t> & node_cluster1, const std::pair<uint32_t, uint32_t> & node_cluster2) { return node_cluster1.first < node_cluster2.first; });
 }
 
 int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
-    convert(context, argv[1], std::string(argv[1]) + ".graph");
+    auto nodes = thrill::ReadLines(context, argv[1])
+      .ZipWithIndex([](const std::string & line, const uint32_t& index) {
+        Node node = { index, {} };
+
+        std::istringstream line_stream(line);
+        uint32_t neighbor;
+
+        while (line >> neighbor) {
+          node.neighbors.push_back(neighbor);
+        }
+
+        return node;
+      });
+    louvain(nodes);
   });
 }
 
