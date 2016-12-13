@@ -2,6 +2,7 @@
 #include "modularity.hpp"
 #include "cluster_store.hpp"
 #include "similarity.hpp"
+#include "partitioning.hpp"
 
 #include <sstream>
 #include <fstream>
@@ -73,7 +74,10 @@ int main(int, char const *argv[]) {
   std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
 
   for (int i = 4; i <= 256; i *= 4) {
-    Modularity::partitionedLouvain(graph, compare_clusters);
+    std::vector<uint32_t> partitions(graph.getNodeCount());
+    Partitioning::chunk(graph, i, partitions);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions);
+
     std::cout << Modularity::modularity(graph, compare_clusters) << ',';
     std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
     std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
@@ -98,7 +102,10 @@ int main(int, char const *argv[]) {
   std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
 
   for (int i = 4; i <= 256; i *= 4) {
-    Modularity::partitionedLouvain(graph, compare_clusters);
+    std::vector<uint32_t> partitions(graph.getNodeCount());
+    Partitioning::chunk(graph, i, partitions);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions);
+
     std::cout << Modularity::modularity(graph, compare_clusters) << ',';
     std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
     std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
@@ -120,7 +127,10 @@ int main(int, char const *argv[]) {
   std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
 
   for (int i = 4; i <= 256; i *= 4) {
-    Modularity::partitionedLouvain(graph, compare_clusters);
+    std::vector<uint32_t> partitions(graph.getNodeCount());
+    Partitioning::chunk(graph, i, partitions);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions);
+
     std::cout << Modularity::modularity(graph, compare_clusters) << ',';
     std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
     std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';

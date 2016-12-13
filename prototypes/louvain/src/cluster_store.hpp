@@ -46,7 +46,10 @@ public:
   }
 
   ClusterId rewriteClusterIds() {
-    ClusterId id_counter = offset;
+    return rewriteClusterIds(offset);
+  }
+
+  ClusterId rewriteClusterIds(ClusterId id_counter) {
     std::unordered_map<ClusterId, ClusterId> old_to_new;
 
     for (auto& cluster_id : node_clusters) {

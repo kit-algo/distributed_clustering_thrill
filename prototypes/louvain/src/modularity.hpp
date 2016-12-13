@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <cmath>
 #include <cstdint>
+#include <algorithm>
 
 namespace Modularity {
 
@@ -71,33 +72,31 @@ int64_t deltaModularity(const Graph &graph,
 }
 
 bool localMoving(const Graph& graph, ClusterStore &clusters);
-bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_lower_bound, NodeId node_range_upper_bound);
+bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move);
 
 bool localMoving(const Graph& graph, ClusterStore &clusters) {
-  return localMoving(graph, clusters, 0, graph.getNodeCount());
+  std::vector<NodeId> nodes_to_move(graph.getNodeCount());
+  std::iota(nodes_to_move.begin(), nodes_to_move.end(), 0);
+  return localMoving(graph, clusters, nodes_to_move);
 }
 
-bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_lower_bound, NodeId node_range_upper_bound) {
-  assert(node_range_upper_bound - node_range_lower_bound == clusters.size());
+bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move) {
   bool changed = false;
 
   clusters.assignSingletonClusterIds();
   std::map<ClusterId, Weight> node_to_cluster_weights;
   std::vector<Weight> cluster_weights(graph.getNodeCount());
 
-  std::vector<Weight> moving_order_permutation(graph.getNodeCount());
   for (NodeId i = 0; i < graph.getNodeCount(); i++) {
     cluster_weights[i] = graph.nodeDegree(i);
-    moving_order_permutation[i] = i;
   }
-  std::shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound, rng);
+  std::shuffle(nodes_to_move.begin(), nodes_to_move.end(), rng);
 
-  NodeId current_node_index = node_range_lower_bound;
+  NodeId current_node_index = 0;
   NodeId unchanged_count = 0;
   int current_iteration = 0;
-  while(current_iteration < 32 && unchanged_count < node_range_upper_bound - node_range_lower_bound) {
-    NodeId current_node = moving_order_permutation[current_node_index];
-    // NodeId current_node = current_node_index;
+  while(current_iteration < 32 && unchanged_count < nodes_to_move.size()) {
+    NodeId current_node = nodes_to_move[current_node_index];
     // std::cout << "local moving: " << current_node << "\n";
     ClusterId current_node_cluster = clusters[current_node];
     Weight weight_between_node_and_current_cluster = 0;
@@ -143,10 +142,10 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, NodeId node_range_l
 
     node_to_cluster_weights.clear();
     current_node_index++;
-    if (current_node_index >= node_range_upper_bound) {
-      current_node_index = node_range_lower_bound;
+    if (current_node_index >= nodes_to_move.size()) {
+      current_node_index = 0;
       current_iteration++;
-      std::shuffle(moving_order_permutation.begin() + node_range_lower_bound, moving_order_permutation.begin() + node_range_upper_bound, rng);
+      std::shuffle(nodes_to_move.begin(), nodes_to_move.end(), rng);
     }
   }
 
@@ -165,20 +164,23 @@ void louvain(const Graph& graph, ClusterStore &clusters) {
   }
 }
 
-void partitionedLouvain(const Graph& graph, ClusterStore &clusters, uint32_t partition_count = 4) {
-  NodeId partition_size = (graph.getNodeCount() + partition_count - 1) / partition_count;
+void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::vector<uint32_t>& partitions) {
+  assert(partitions.size() == graph.getNodeCount());
+  uint32_t partition_count = *std::max_element(partitions.begin(), partitions.end()) + 1;
+  std::vector<std::vector<NodeId>> partition_nodes(partition_count);
+  for (NodeId node = 0; node < graph.getNodeCount(); node++) {
+    partition_nodes[partitions[node]].push_back(node);
+  }
 
-  for (uint32_t partition = 0; partition < partition_count; partition++) {
-    NodeId lower = partition * partition_size;
-    NodeId upper = std::min((partition+1) * partition_size, graph.getNodeCount());
-    ClusterStore partition_clustering(lower, upper);
+  for (uint32_t partition = 0; partition < partition_nodes.size(); partition++) {
+    ClusterStore partition_clustering(0, graph.getNodeCount());
     // std::cout << partition << "move\n";
-    localMoving(graph, partition_clustering, lower, upper);
+    localMoving(graph, partition_clustering, partition_nodes[partition]);
     // std::cout << partition << "rewrite clusters\n";
-    partition_clustering.rewriteClusterIds();
+    partition_clustering.rewriteClusterIds(partition * graph.getNodeCount());
 
     // std::cout << partition << "combine\n";
-    for (NodeId node = lower; node < upper; node++) {
+    for (NodeId node : partition_nodes[partition]) {
       clusters.set(node, partition_clustering[node]);
     }
   }
