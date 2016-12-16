@@ -1,0 +1,7 @@
+cmake_minimum_required (VERSION 2.6)
+project (louvain)
+include_directories("lib/thrill")
+add_subdirectory (lib/thrill)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG -std=c++14 -Wall -Wextra")
+add_executable(louvain src/main.cpp)
+target_link_libraries(louvain thrill)

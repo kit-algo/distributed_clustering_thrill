@@ -60,20 +60,23 @@ auto louvain(auto & nodes) {
     .GroupByKey(
       [](const std::pair<uint32_t, Node> & node_with_partition) { return node_with_partition.first; },
       [](auto & iterator, const uint32_t /*partition*/) {
-        std::vector<Node> nodes;
+        // std::vector<Node> nodes;
+        std::vector<std::pair<uint32_t, uint32_t>> mapping;
         while (iterator.HasNext()) {
-          nodes.push_back(iterator.Next());
+          // nodes.push_back(iterator.Next());
+          const Node& node = iterator.Next();
+          mapping.push_back(std::make_pair(node.id, node.id % 4)); // Dummy mapping
         }
 
         // build graph
         // perform local moving
-        // return some mapping
+        return mapping
       })
     .FlatMap(
-      [](const Mapping & mapping, auto emit) {
-        mapping.forEach([](uint32_t node_id, uint32_t cluster_id) {
-          emit(std::make_pair(node_id, cluster_id));
-        });
+      [](const std::vector<std::pair<uint32_t, uint32_t>>& mapping, auto emit) {
+        for (auto& pair : mapping) {
+          emit(std::make_pair(pair.first, pair.second));
+        }
       })
     .Sort([](const std::pair<uint32_t, uint32_t> & node_cluster1, const std::pair<uint32_t, uint32_t> & node_cluster2) { return node_cluster1.first < node_cluster2.first; });
   // TODO cleanup cluster ids
