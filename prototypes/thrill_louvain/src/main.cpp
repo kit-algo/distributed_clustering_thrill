@@ -12,19 +12,18 @@
 #include <thrill/api/print.hpp>
 #include <thrill/api/size.hpp>
 #include <thrill/api/reduce_to_index.hpp>
+#include <thrill/api/sum.hpp>
 
 #include <ostream>
 #include <iostream>
 #include <unordered_map>
 #include <vector>
+#include <set>
+#include <map>
 
-struct Edge {
-  uint32_t tail, head;
-
-  uint32_t getWeight() {
-    return 1;
-  }
-};
+#include "graph.hpp"
+#include "modularity.hpp"
+#include "cluster_store.hpp"
 
 struct Node {
   uint32_t id, degree;
@@ -34,10 +33,18 @@ struct NodeInfo {
   uint32_t id, data;
 };
 
+struct Edge {
+  uint32_t tail, head;
+
+  uint32_t getWeight() const {
+    return 1;
+  }
+};
+
 struct WeightedEdge {
   uint32_t tail, head, weight;
 
-  uint32_t getWeight() {
+  uint32_t getWeight() const {
     return weight;
   }
 };
@@ -46,20 +53,13 @@ std::ostream& operator << (std::ostream& os, Edge& e) {
   return os << e.tail << " -> " << e.head;
 }
 
+std::ostream& operator << (std::ostream& os, WeightedEdge& e) {
+  return os << e.tail << " -> " << e.head << " (" << e.weight << ")";
+}
+
 std::ostream& operator << (std::ostream& os, NodeInfo& node_info) {
   return os << node_info.id << ": " << node_info.data;
 }
-
-// template<class NodeType>
-// typename NodeType::EdgeType constructEdge(uint32_t, typename NodeType::NeighborType&);
-
-// template<> Edge constructEdge<Node>(uint32_t node, uint32_t& neighbor) {
-//   return Edge { node, neighbor };
-// }
-
-// template<> WeightedEdge constructEdge<WeightedNode>(uint32_t node, WeightedNodeNeighbor& neighbor) {
-//   return WeightedEdge { node, neighbor.head, neighbor.weight };
-// }
 
 template<class EdgeType>
 thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
@@ -74,6 +74,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
     .Sort([](const Node & node1, const Node & node2) { return node1.id < node2.id; });
 
   const uint64_t node_count = nodes.Keep().Size();
+  const uint64_t total_weight = edge_list.Keep().Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
 
   auto edge_partitions = nodes
     .Keep()
@@ -86,59 +87,96 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       });
 
   // Local Moving
-  auto node_clusters = edge_list
+  auto bloated_node_clusters = edge_list
     .Keep()
     .Zip(thrill::api::NoRebalanceTag, edge_partitions, [](const EdgeType & edge, const uint32_t & partition) { return std::make_pair(partition, edge); })
-    // .template GroupByKey<std::vector<std::pair<uint32_t, uint32_t>>>(
-    //   [](const std::pair<uint32_t, EdgeType> & edge_with_partition) { return edge_with_partition.first; },
-    //   [](auto &, const uint32_t &) {
-    //     // std::vector<Node> nodes;
-    //     // std::vector<NodeCluster> mapping;
-    //     // while (iterator.HasNext()) {
-    //     //   // nodes.push_back(iterator.Next());
-    //     //   NodeType& node = iterator.Next();
-    //     //   mapping.push_back(NodeCluster { node.id, node.id % 4 }); // Dummy mapping
-    //     // }
+    .template GroupByKey<std::vector<std::pair<uint32_t, uint32_t>>>(
+      [](const std::pair<uint32_t, EdgeType> & edge_with_partition) { return edge_with_partition.first; },
+      [&node_count, &total_weight](auto & iterator, const uint32_t & partition) {
+        std::set<uint32_t> node_ids_in_partition;
 
-    //     // build graph
-    //     // perform local moving
-    //     // return mapping;
-    //     std::vector<std::pair<uint32_t, uint32_t>> foo;
-    //     return foo;
-    //   })
-    // .template FlatMap<NodeInfo>(
-    //   [](std::vector<std::pair<uint32_t, uint32_t>> mapping, auto emit) {
-    //     for (const std::pair<uint32_t, uint32_t>& pair : mapping) {
-    //       emit(NodeInfo { pair.first, pair.second });
-    //     }
-    //   })
-    .Map([](const std::pair<uint32_t, EdgeType> & pair) { return pair.second.tail; })
-    .ReduceByKey(
-      [](const uint32_t node) { return node; },
-      [](const uint32_t node, const uint32_t) { return node; })
-    .Map([](const uint32_t node) { return NodeInfo { node, node % 4 }; })
+        std::vector<std::map<uint32_t, uint32_t>> adjacency_lists(node_count);
+
+        uint32_t partition_edge_count_upper_bound = 0;
+        while (iterator.HasNext()) {
+          const EdgeType& edge = iterator.Next().second;
+          assert(edge.head < node_count);
+          assert(edge.tail < node_count);
+          node_ids_in_partition.insert(edge.tail);
+          adjacency_lists[edge.tail][edge.head] = edge.getWeight();
+          adjacency_lists[edge.head][edge.tail] = edge.getWeight();
+          partition_edge_count_upper_bound += 2;
+        }
+
+        Graph graph(node_count, partition_edge_count_upper_bound, std::is_same<EdgeType, WeightedEdge>::value);
+        graph.setEdgesByAdjacencyMatrix(adjacency_lists);
+        graph.overrideTotalWeight(total_weight);
+        ClusterStore clusters(0, node_count);
+
+        std::vector<uint32_t> node_ids_in_partition_vector(node_ids_in_partition.begin(), node_ids_in_partition.end());
+        Modularity::localMoving(graph, clusters, node_ids_in_partition_vector);
+
+        std::vector<std::pair<uint32_t, uint32_t>> mapping;
+        for (uint32_t node : node_ids_in_partition_vector) {
+          mapping.push_back(std::make_pair(node, clusters[node] + node_count * partition));
+        }
+        return mapping;
+      })
+    .template FlatMap<NodeInfo>(
+      [](std::vector<std::pair<uint32_t, uint32_t>> mapping, auto emit) {
+        for (const std::pair<uint32_t, uint32_t>& pair : mapping) {
+          emit(NodeInfo { pair.first, pair.second });
+        }
+      })
     .Sort(
       [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
-        return node_cluster1.id < node_cluster2.id;
+        return node_cluster1.data < node_cluster2.data;
       });
 
-  // TODO cleanup cluster ids
+  bloated_node_clusters.Keep().Print("bloated");
 
-  bool unchanged = node_clusters
+  auto foo = bloated_node_clusters
     .Keep()
-    .Map([](const NodeInfo & node_cluster) { return node_cluster.id == node_cluster.data; })
-    .AllReduce([](bool acc, const bool value) { return acc && value; }, true);
-  if (unchanged) {
+    .Map([](const NodeInfo & node_cluster) { return std::make_pair(node_cluster.data, 1u); })
+    .ReduceByKey(
+      [](const std::pair<uint32_t, uint32_t> & cluster_size) { return cluster_size.first; },
+      [](const std::pair<uint32_t, uint32_t> & cluster_size1, const std::pair<uint32_t, uint32_t> & cluster_size2) {
+        return std::make_pair(cluster_size1.first, cluster_size1.second + cluster_size2.second);
+      });
+  foo.Keep().Map([](const std::pair<uint32_t, uint32_t> & cluster_size) { return cluster_size.first; }).Print("foo");
+
+  auto sorted_cluster_sizes = foo
+    .Sort([](const std::pair<uint32_t, uint32_t> & cluster_size1, const std::pair<uint32_t, uint32_t> & cluster_size2) { return cluster_size1.first < cluster_size2.first; });
+  sorted_cluster_sizes.Keep().Map([](const std::pair<uint32_t, uint32_t> & cluster_size) { return cluster_size.first; }).Print("sorted cluster sizes");
+    // cleanup ids
+  auto cluster_sizes = sorted_cluster_sizes
+    .ZipWithIndex([](const std::pair<uint32_t, uint32_t> & cluster_size, const uint32_t& index) { return std::make_pair(index, cluster_size.second); });
+  cluster_sizes.Keep().Map([](const std::pair<uint32_t, uint32_t> & cluster_size) { return cluster_size.first; }).Print("cluster sizes");
+
+
+  auto node_clusters = cluster_sizes
+    .Keep()
+    .template FlatMap<uint32_t>(
+      [](const std::pair<uint32_t, uint32_t> & cluster_size, auto emit) {
+        for (uint32_t i = 0; i < cluster_size.second; i++) {
+          emit(cluster_size.first);
+        }
+      })
+    .Zip(thrill::api::NoRebalanceTag, bloated_node_clusters, [](const uint32_t new_id, const NodeInfo & node_cluster) { return NodeInfo { node_cluster.id, new_id }; });
+
+  if (nodes.Keep().Size() == cluster_sizes.Keep().Size()) {
     return node_clusters;
   }
 
   auto clusters = node_clusters
     .Keep()
+    .Sort(
+      [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
+        return node_cluster1.id < node_cluster2.id;
+      })
     .Map([](const NodeInfo & node_cluster) { return node_cluster.data; });
 
   auto cluster_id_times_degree = nodes
-    .Keep()
-    // No rebalance
     .Zip(thrill::api::NoRebalanceTag, clusters, [](const Node & node, const uint32_t cluster_id) { return std::make_pair(node.degree, cluster_id); })
     .template FlatMap<uint32_t>(
       [](std::pair<size_t, uint32_t> degree_and_cluster, auto emit) {
@@ -177,22 +215,20 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       [](WeightedEdge edge1, WeightedEdge edge2) { return WeightedEdge { edge1.tail, edge1.head, edge1.weight + edge2.weight }; })
     .Collapse();
 
+  meta_graph_edges.Keep().Print("Meta Graph Edges");
+
   // Recursion on meta graph
   auto meta_clustering = louvain(meta_graph_edges);
 
-  // translate meta clusters and return
-  auto cluster_sizes = node_clusters
-    .Keep()
-    .Map([](const NodeInfo & node_cluster) { return std::make_pair(node_cluster.data, 1u); })
-    .ReduceByKey(
-      [](const std::pair<uint32_t, uint32_t> & cluster_size) { return cluster_size.first; },
-      [](const std::pair<uint32_t, uint32_t> & cluster_size1, const std::pair<uint32_t, uint32_t> & cluster_size2) {
-        return std::make_pair(cluster_size1.first, cluster_size1.second + cluster_size2.second);
-      })
-    .Sort([](const std::pair<uint32_t, uint32_t> & cluster_sizes1, const std::pair<uint32_t, uint32_t> & cluster_sizes2) { return cluster_sizes1.first < cluster_sizes2.first; });
+  meta_graph_edges.Keep().Print("Meta Graph Clustering");
 
+  // translate meta clusters and return
   auto new_cluster_ids_times_size = meta_clustering
-    .Zip(thrill::api::NoRebalanceTag, cluster_sizes, [](const NodeInfo & meta_node_cluster, const std::pair<uint32_t, uint32_t> & cluster_size) { return std::make_pair(meta_node_cluster.data, cluster_size.second); }) // assert(meta_node_cluster.id == cluster_size.first)
+    .Zip(thrill::api::NoRebalanceTag, cluster_sizes,
+      [](const NodeInfo & meta_node_cluster, const std::pair<uint32_t, uint32_t> & cluster_size) {
+        assert(meta_node_cluster.id == cluster_size.first);
+        return std::make_pair(meta_node_cluster.data, cluster_size.second);
+      })
     .template FlatMap<uint32_t>(
       [](const std::pair<uint32_t, uint32_t> & cluster_size, auto emit) {
         for (uint32_t i = 0; i < cluster_size.second; i++) {
