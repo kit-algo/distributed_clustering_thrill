@@ -49,49 +49,66 @@ Graph::EdgeId read_graph(const std::string filename, std::vector<std::vector<Gra
   return edge_count;
 }
 
+void log_results(const Graph & graph, const ClusterStore & base_clusters, const ClusterStore & compare_clusters, std::vector<ClusterStore::ClusterId> & level_cluster_counts) {
+  std::cout << Modularity::modularity(graph, compare_clusters) << ',';
+  for (ClusterStore::ClusterId cluster_count : level_cluster_counts) {
+    std::cout << cluster_count << " -> ";
+  }
+  std::cout << ',';
+  std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
+  std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
+  std::pair<double, double> precision_recall = Similarity::weightedPrecisionRecall(base_clusters, compare_clusters);
+  std::cout << precision_recall.first << ',' << precision_recall.second << ',';
+  level_cluster_counts.clear();
+}
+
 int main(int, char const *argv[]) {
   std::vector<std::vector<Graph::NodeId>> neighbors;
   Graph::EdgeId edge_count = read_graph(argv[1], neighbors);
   Graph graph(neighbors.size(), edge_count);
   graph.setEdgesByAdjacencyLists(neighbors);
 
+  std::vector<int> partition_sizes { 4, 32, 128, 1024 };
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   Modularity::rng = std::default_random_engine(seed);
-  std::cout << "Graph, N, M, Seed, Variant, Q Base, Q 1, NMI 1, ARI 1, Q 4 chunk, NMI 4 chunk, ARI 4 chunk, Q 4 det_grd, NMI 4 det_grd, ARI 4 det_grd, Q 64 chunk, NMI 64 chunk, ARI 64 chunk, Q 64 det_grd, NMI 64 det_grd, ARI 64 det_grd, Q 256 chunk, NMI 256 chunk, ARI 256 chunk, Q 256 det_grd, NMI 256 det_grd, ARI 256 det_grd,\n";
+  std::cout << "Graph, N, M, Seed, Variant, Q Base, Levels Base, Q 1, Levels 1, NMI 1, ARI 1, precision 1, recall 1";
+  for (int i : partition_sizes) {
+    std::cout << "Q " << i << " chunk, Levels " << i << " chunk, NMI " << i << " chunk, ARI " << i << " chunk, precision " << i << " chunk, recall " << i << " chunk, Q " << i << " det_grd, Levels " << i << " det_grd, NMI " << i << " det_grd, ARI " << i << " det_grd, precision " << i << " det_grd, recall " << i << " det_grd";
+  }
+  std::cout << "\n";
   std::cout << argv[1] << ',' << graph.getNodeCount() << ',' << graph.getEdgeCount() << ',' << seed << ",original,";
 
   ClusterStore base_clusters(0, neighbors.size());
   ClusterStore compare_clusters(0, neighbors.size());
+  std::vector<ClusterStore::ClusterId> level_cluster_counts;
 
   // STANDARD ORDER
 
-  Modularity::louvain(graph, base_clusters);
-  Modularity::louvain(graph, compare_clusters);
-
+  Modularity::louvain(graph, base_clusters, level_cluster_counts);
   std::cout << Modularity::modularity(graph, base_clusters) << ',';
+  for (ClusterStore::ClusterId cluster_count : level_cluster_counts) {
+    std::cout << cluster_count << " -> ";
+  }
+  std::cout << ',';
+  level_cluster_counts.clear();
 
-  std::cout << Modularity::modularity(graph, compare_clusters) << ',';
-  std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
-  std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
+  Modularity::louvain(graph, compare_clusters, level_cluster_counts);
+  log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
 
-  for (int i = 4; i <= 256; i *= 16) {
+  for (int i : partition_sizes) {
     std::vector<uint32_t> partitions(graph.getNodeCount());
     Partitioning::chunk(graph, i, partitions);
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions, level_cluster_counts);
 
-    std::cout << Modularity::modularity(graph, compare_clusters) << ',';
-    std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
-    std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
+    log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
 
     Partitioning::deterministic_greedy_with_linear_penalty(graph, i, partitions);
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions, level_cluster_counts);
 
-    std::cout << Modularity::modularity(graph, compare_clusters) << ',';
-    std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
-    std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
+    log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
   }
 
-  std::cout << "\n,,,,shuffled,";
+  std::cout << argv[1] << ',' << graph.getNodeCount() << ',' << graph.getEdgeCount() << ',' << seed << ",shuffled,";
 
   // SHUFFLED ORDER
 
@@ -100,62 +117,28 @@ int main(int, char const *argv[]) {
   std::shuffle(permutation.begin(), permutation.end(), Modularity::rng);
   graph.applyNodePermutation(permutation);
 
-  Modularity::louvain(graph, base_clusters);
-  Modularity::louvain(graph, compare_clusters);
-
+  Modularity::louvain(graph, base_clusters, level_cluster_counts);
   std::cout << Modularity::modularity(graph, base_clusters) << ',';
-
-  std::cout << Modularity::modularity(graph, compare_clusters) << ',';
-  std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
-  std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
-
-  for (int i = 4; i <= 256; i *= 16) {
-    std::vector<uint32_t> partitions(graph.getNodeCount());
-    Partitioning::chunk(graph, i, partitions);
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions);
-
-    std::cout << Modularity::modularity(graph, compare_clusters) << ',';
-    std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
-    std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
-
-    Partitioning::deterministic_greedy_with_linear_penalty(graph, i, partitions);
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions);
-
-    std::cout << Modularity::modularity(graph, compare_clusters) << ',';
-    std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
-    std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
+  for (ClusterStore::ClusterId cluster_count : level_cluster_counts) {
+    std::cout << cluster_count << " -> ";
   }
+  std::cout << ',';
+  level_cluster_counts.clear();
 
-  std::cout << "\n,,,,fixed,";
+  Modularity::louvain(graph, compare_clusters, level_cluster_counts);
+  log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
 
-  // FIXED ORDER
-
-  graph.fixIdOrder();
-
-  Modularity::louvain(graph, base_clusters);
-  Modularity::louvain(graph, compare_clusters);
-
-  std::cout << Modularity::modularity(graph, base_clusters) << ',';
-
-  std::cout << Modularity::modularity(graph, compare_clusters) << ',';
-  std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
-  std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
-
-  for (int i = 4; i <= 256; i *= 16) {
+  for (int i : partition_sizes) {
     std::vector<uint32_t> partitions(graph.getNodeCount());
     Partitioning::chunk(graph, i, partitions);
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions, level_cluster_counts);
 
-    std::cout << Modularity::modularity(graph, compare_clusters) << ',';
-    std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
-    std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
+    log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
 
     Partitioning::deterministic_greedy_with_linear_penalty(graph, i, partitions);
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions, level_cluster_counts);
 
-    std::cout << Modularity::modularity(graph, compare_clusters) << ',';
-    std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
-    std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
+    log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
   }
 
   std::cout << "\n";

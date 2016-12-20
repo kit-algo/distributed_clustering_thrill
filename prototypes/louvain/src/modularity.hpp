@@ -152,19 +152,19 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
   return changed;
 }
 
-void contractAndReapply(const Graph &, ClusterStore &);
+void contractAndReapply(const Graph &, ClusterStore &, std::vector<ClusterId> &);
 
-void louvain(const Graph& graph, ClusterStore &clusters) {
+void louvain(const Graph& graph, ClusterStore &clusters, std::vector<ClusterId> & level_cluster_counts) {
   assert(abs(modularity(graph, ClusterStore(0, graph.getNodeCount(), 0))) == 0);
 
   bool changed = localMoving(graph, clusters);
 
   if (changed) {
-    contractAndReapply(graph, clusters);
+    contractAndReapply(graph, clusters, level_cluster_counts);
   }
 }
 
-void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::vector<uint32_t>& partitions) {
+void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::vector<uint32_t>& partitions, std::vector<ClusterId> & level_cluster_counts) {
   assert(partitions.size() == graph.getNodeCount());
   uint32_t partition_count = *std::max_element(partitions.begin(), partitions.end()) + 1;
   std::vector<std::vector<NodeId>> partition_nodes(partition_count);
@@ -185,11 +185,12 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::v
     }
   }
 
-  contractAndReapply(graph, clusters);
+  contractAndReapply(graph, clusters, level_cluster_counts);
 }
 
-void contractAndReapply(const Graph& graph, ClusterStore &clusters) {
+void contractAndReapply(const Graph& graph, ClusterStore &clusters, std::vector<ClusterId> & level_cluster_counts) {
   ClusterId cluster_count = clusters.rewriteClusterIds();
+  level_cluster_counts.push_back(cluster_count);
   // std::cout << "contracting " << cluster_count << " clusters\n";
 
   std::vector<std::map<NodeId, Weight>> cluster_connection_weights(cluster_count);
@@ -211,7 +212,7 @@ void contractAndReapply(const Graph& graph, ClusterStore &clusters) {
   assert(modularity(graph, clusters) == modularity(meta_graph, meta_singleton));
 
   ClusterStore meta_clusters(0, meta_graph.getNodeCount());
-  louvain(meta_graph, meta_clusters);
+  louvain(meta_graph, meta_clusters, level_cluster_counts);
 
   // translate meta clusters
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
