@@ -51,8 +51,9 @@ Graph::EdgeId read_graph(const std::string filename, std::vector<std::vector<Gra
 
 void log_results(const Graph & graph, const ClusterStore & base_clusters, const ClusterStore & compare_clusters, std::vector<ClusterStore::ClusterId> & level_cluster_counts) {
   std::cout << Modularity::modularity(graph, compare_clusters) << ',';
+  std::cout << graph.getNodeCount();
   for (ClusterStore::ClusterId cluster_count : level_cluster_counts) {
-    std::cout << cluster_count << " -> ";
+    std::cout << " -> " << cluster_count;
   }
   std::cout << ',';
   std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
@@ -71,9 +72,9 @@ int main(int, char const *argv[]) {
   std::vector<int> partition_sizes { 4, 32, 128, 1024 };
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   Modularity::rng = std::default_random_engine(seed);
-  std::cout << "Graph, N, M, Seed, Variant, Q Base, Levels Base, Q 1, Levels 1, NMI 1, ARI 1, precision 1, recall 1";
+  std::cout << "Graph, N, M, Seed, Variant, Q Base, Levels Base, Q 1, Levels 1, NMI 1, ARI 1, precision 1, recall 1,";
   for (int i : partition_sizes) {
-    std::cout << "Q " << i << " chunk, Levels " << i << " chunk, NMI " << i << " chunk, ARI " << i << " chunk, precision " << i << " chunk, recall " << i << " chunk, Q " << i << " det_grd, Levels " << i << " det_grd, NMI " << i << " det_grd, ARI " << i << " det_grd, precision " << i << " det_grd, recall " << i << " det_grd";
+    std::cout << "Q " << i << " chunk, Levels " << i << " chunk, NMI " << i << " chunk, ARI " << i << " chunk, precision " << i << " chunk, recall " << i << " chunk, Q " << i << " det_grd, Levels " << i << " det_grd, NMI " << i << " det_grd, ARI " << i << " det_grd, precision " << i << " det_grd, recall " << i << " det_grd,";
   }
   std::cout << "\n";
   std::cout << argv[1] << ',' << graph.getNodeCount() << ',' << graph.getEdgeCount() << ',' << seed << ",original,";
@@ -86,8 +87,9 @@ int main(int, char const *argv[]) {
 
   Modularity::louvain(graph, base_clusters, level_cluster_counts);
   std::cout << Modularity::modularity(graph, base_clusters) << ',';
+  std::cout << graph.getNodeCount();
   for (ClusterStore::ClusterId cluster_count : level_cluster_counts) {
-    std::cout << cluster_count << " -> ";
+    std::cout << " -> " << cluster_count;
   }
   std::cout << ',';
   level_cluster_counts.clear();
@@ -108,6 +110,7 @@ int main(int, char const *argv[]) {
     log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
   }
 
+  std::cout << "\n";
   std::cout << argv[1] << ',' << graph.getNodeCount() << ',' << graph.getEdgeCount() << ',' << seed << ",shuffled,";
 
   // SHUFFLED ORDER
@@ -119,8 +122,9 @@ int main(int, char const *argv[]) {
 
   Modularity::louvain(graph, base_clusters, level_cluster_counts);
   std::cout << Modularity::modularity(graph, base_clusters) << ',';
+  std::cout << graph.getNodeCount();
   for (ClusterStore::ClusterId cluster_count : level_cluster_counts) {
-    std::cout << cluster_count << " -> ";
+    std::cout << " -> " << cluster_count;
   }
   std::cout << ',';
   level_cluster_counts.clear();
