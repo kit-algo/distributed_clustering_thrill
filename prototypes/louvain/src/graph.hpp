@@ -37,6 +37,8 @@ public:
   EdgeId getEdgeCount() const { return edge_count; }
   Weight getTotalWeight() const { return total_weight; }
 
+  void overrideTotalWeight(const Weight weight) { total_weight = weight; }
+
   Weight nodeDegree(const NodeId node_id) const {
     if (weighted) {
       return degrees[node_id];
@@ -59,7 +61,6 @@ public:
   }
 
   void setEdgesByAdjacencyMatrix(const std::vector<std::map<NodeId, Weight>> &adjacency_weights) {
-    assert(weighted);
     EdgeId current_edge_index = 0;
     NodeId current_node = 0;
     for (NodeId tail = 0; tail < node_count; tail++) {
@@ -69,13 +70,19 @@ public:
 
       for (const auto &edge : adjacency_weights[tail]) {
         neighbors[current_edge_index] = edge.first;
-        weights[current_edge_index++] = edge.second;
+        if (weighted) {
+          weights[current_edge_index] = edge.second;
+        }
         assert(edge.second > 0);
+        current_edge_index++;
 
         if (tail == edge.first) {
           neighbors[current_edge_index] = edge.first;
-          weights[current_edge_index - 1] /= 2;
-          weights[current_edge_index++] = edge.second / 2;
+          if (weighted) {
+            weights[current_edge_index - 1] /= 2;
+            weights[current_edge_index] = edge.second / 2;
+          }
+          current_edge_index++;
         }
       }
     }
@@ -83,6 +90,7 @@ public:
     first_out[node_count] = current_edge_index;
     neighbors.resize(current_edge_index);
     weights.resize(current_edge_index);
+    // TODO Update Edge Count?
     initializeAccumulatedWeights();
   }
 
