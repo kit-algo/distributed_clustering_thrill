@@ -147,4 +147,46 @@ double normalizedMutualInformation(const ClusterStore &c, const ClusterStore &d)
   }
 }
 
+std::pair<double, double> weightedPrecisionRecall(const ClusterStore &base, const ClusterStore &compare) {
+  uint64_t node_count = base.size();
+  ClusterStore intersection(0, node_count);
+  base.intersection(compare, intersection);
+
+  // TODO reduce sizes to actual number of clusters
+  std::vector<uint32_t> base_cluster_sizes(node_count, 0);
+  std::vector<uint32_t> compare_cluster_sizes(node_count, 0);
+  std::vector<uint32_t> intersection_cluster_sizes(node_count, 0);
+
+  std::vector<ClusterId> intersection_to_base(node_count, 0);
+
+  // precompute sizes for each cluster
+  for (NodeId node = 0; node < node_count; node++) {
+    base_cluster_sizes[base[node]]++;
+    compare_cluster_sizes[compare[node]]++;
+    intersection_cluster_sizes[intersection[node]]++;
+
+    intersection_to_base[intersection[node]] = base[node];
+  }
+
+  std::vector<ClusterId> largest_intersection(node_count, 0);
+  std::vector<ClusterId> largest_intersection_size(node_count, 0);
+
+  for (NodeId node = 0; node < node_count; node++) {
+    if (intersection_cluster_sizes[intersection[node]] >= largest_intersection_size[compare[node]]) {
+      largest_intersection[compare[node]] = intersection[node];
+      largest_intersection_size[compare[node]] = intersection_cluster_sizes[intersection[node]];
+    }
+  }
+
+  double precision = 0.;
+  double recall = 0.;
+
+  for (NodeId node = 0; node < node_count; node++) {
+    precision += double(largest_intersection_size[compare[node]]) / compare_cluster_sizes[compare[node]];
+    recall += double(largest_intersection_size[compare[node]]) / base_cluster_sizes[intersection_to_base[largest_intersection[compare[node]]]];
+  }
+
+  return std::make_pair(precision / node_count, recall / node_count);
+}
+
 };
