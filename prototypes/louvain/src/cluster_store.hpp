@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <map>
 #include <assert.h>
 
 using NodeId = typename Graph::NodeId;
@@ -71,5 +72,18 @@ public:
     }
 
     intersection.rewriteClusterIds();
+  }
+
+  void clusterSizeDistribution(std::map<uint32_t, uint32_t> & distribution) {
+    std::vector<uint32_t> cluster_sizes(size(), 0);
+    for (auto& cluster_id : node_clusters) {
+      cluster_sizes[cluster_id]++;
+    }
+
+    for (auto& cluster_size : cluster_sizes) {
+      if (cluster_size != 0) {
+        distribution[cluster_size]++;
+      }
+    }
   }
 };
