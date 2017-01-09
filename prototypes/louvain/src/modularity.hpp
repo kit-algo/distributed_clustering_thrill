@@ -197,6 +197,14 @@ void contractAndReapply(const Graph& graph, ClusterStore &clusters, uint64_t alg
   Logging::report("algorithm_level", level_logging_id, "node_count", graph.getNodeCount());
   Logging::report("algorithm_level", level_logging_id, "cluster_count", cluster_count);
 
+  uint64_t distribution_logging_id = Logging::getUnusedId();
+  Logging::report("cluster_size_distribution", distribution_logging_id, "algorithm_level_id", level_logging_id);
+  std::map<uint32_t, uint32_t> size_distribution;
+  clusters.clusterSizeDistribution(size_distribution);
+  for (auto & size_count : size_distribution) {
+    Logging::report("cluster_size_distribution", distribution_logging_id, size_count.first, size_count.second);
+  }
+
   std::vector<std::map<NodeId, Weight>> cluster_connection_weights(cluster_count);
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight weight) {
