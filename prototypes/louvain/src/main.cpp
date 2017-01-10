@@ -174,7 +174,5 @@ int main(int, char const *argv[]) {
     Modularity::partitionedLouvain(graph, compare_clusters, partitions, algo_run_id);
     log_results(graph, base_algo_run_id, base_clusters, algo_run_id, compare_clusters);
   }
-
-  std::cout << "\n";
 }
 
