@@ -53,8 +53,8 @@ Graph::EdgeId read_graph(const std::string filename, std::vector<std::vector<Gra
 void log_results(const Graph & graph, uint64_t base_algo_run_id, const ClusterStore & base_clusters, uint64_t compare_algo_run_id, const ClusterStore & compare_clusters) {
   Logging::report("algorithm_run", compare_algo_run_id, "modularity", Modularity::modularity(graph, compare_clusters));
   uint64_t comparison_id = Logging::getUnusedId();
-  Logging::report("clustering_comparison", comparison_id, "base_algorithm_run", base_algo_run_id);
-  Logging::report("clustering_comparison", comparison_id, "compare_algorithm_run", compare_algo_run_id);
+  Logging::report("clustering_comparison", comparison_id, "base_algorithm_run_id", base_algo_run_id);
+  Logging::report("clustering_comparison", comparison_id, "compare_algorithm_run_id", compare_algo_run_id);
   Logging::report("clustering_comparison", comparison_id, "NMI", Similarity::normalizedMutualInformation(base_clusters, compare_clusters));
   Logging::report("clustering_comparison", comparison_id, "ARI", Similarity::adjustedRandIndex(base_clusters, compare_clusters));
   std::pair<double, double> precision_recall = Similarity::weightedPrecisionRecall(base_clusters, compare_clusters);
