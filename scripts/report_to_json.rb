@@ -29,8 +29,6 @@ ARGF.each_line do |line|
   end
 end
 
-data.transform_values! { |type_items| type_items.map { |id, item| item.tap { item['id'] = id } } }
-
 timestamp = Time.now
 commit = `git rev-parse HEAD`.strip
 
