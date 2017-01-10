@@ -32,7 +32,7 @@ end
 timestamp = Time.now
 commit = `git rev-parse HEAD`.strip
 
-data['program_run'].each do |run|
+data['program_run'].each do |_id, run|
   run['timestamp'] = timestamp
   run['commit'] = commit
 end
