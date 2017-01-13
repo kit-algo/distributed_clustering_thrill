@@ -13,6 +13,7 @@
 #include <thrill/api/size.hpp>
 #include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/sum.hpp>
+#include <thrill/api/join.hpp>
 
 #include <ostream>
 #include <iostream>
@@ -63,8 +64,6 @@ std::ostream& operator << (std::ostream& os, NodeInfo& node_info) {
 
 template<class EdgeType>
 thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
-  std::cout << "louvain\n";
-
   auto nodes = edge_list
     .Map([](const EdgeType & edge) { return Node { edge.tail, 1 }; })
     .ReduceByKey(
@@ -75,18 +74,18 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
   const uint64_t node_count = nodes.Size();
   const uint64_t total_weight = edge_list.Keep().Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
 
-  auto edge_partitions = nodes
+  auto node_partitions = nodes
     // Map to degree times partition
-    .template FlatMap<uint32_t>(
-      [](const Node & node, auto emit) {
-        for (uint32_t i = 0; i < node.degree; i++) {
-          emit(0); // dummy partition
-        }
-      });
+    .Map([](const Node & node) { return std::make_pair(node.id, 0u); });
 
-  // Local Moving
   auto bloated_node_clusters = edge_list
-    .Zip(edge_partitions, [](const EdgeType & edge, const uint32_t & partition) { return std::make_pair(partition, edge); })
+    .template InnerJoinWith(node_partitions,
+      [](const EdgeType& edge) { return edge.tail; },
+      [](const std::pair<uint32_t, uint32_t>& node_partition) { return node_partition.second; },
+      [](const EdgeType& edge, const std::pair<uint32_t, uint32_t>& node_partition) {
+          return std::make_pair(node_partition.second, edge);
+      }, thrill::hash())
+  // Local Moving
     .template GroupByKey<std::vector<std::pair<uint32_t, uint32_t>>>(
       [](const std::pair<uint32_t, EdgeType> & edge_with_partition) { return edge_with_partition.first; },
       [&node_count, &total_weight](auto & iterator, const uint32_t & partition) {
