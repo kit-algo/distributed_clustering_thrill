@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdint>
 #include <algorithm>
+#include <random>
 
 namespace Modularity {
 
@@ -155,7 +156,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
 void contractAndReapply(const Graph &, ClusterStore &, std::vector<ClusterId> &);
 
 void louvain(const Graph& graph, ClusterStore &clusters, std::vector<ClusterId> & level_cluster_counts) {
-  assert(abs(modularity(graph, ClusterStore(0, graph.getNodeCount(), 0))) == 0);
+  assert(std::abs(modularity(graph, ClusterStore(0, graph.getNodeCount(), 0))) == 0);
 
   bool changed = localMoving(graph, clusters);
 
