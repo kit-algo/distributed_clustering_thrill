@@ -89,7 +89,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
   // Local Moving
   auto bloated_node_clusters = edge_list
     .Keep()
-    .Zip(thrill::api::NoRebalanceTag, edge_partitions, [](const EdgeType & edge, const uint32_t & partition) { return std::make_pair(partition, edge); })
+    .Zip(edge_partitions, [](const EdgeType & edge, const uint32_t & partition) { return std::make_pair(partition, edge); })
     .template GroupByKey<std::vector<std::pair<uint32_t, uint32_t>>>(
       [](const std::pair<uint32_t, EdgeType> & edge_with_partition) { return edge_with_partition.first; },
       [&node_count, &total_weight](auto & iterator, const uint32_t & partition) {
@@ -162,7 +162,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
           emit(cluster_size.first);
         }
       })
-    .Zip(thrill::api::NoRebalanceTag, bloated_node_clusters, [](const uint32_t new_id, const NodeInfo & node_cluster) { return NodeInfo { node_cluster.id, new_id }; });
+    .Zip(bloated_node_clusters, [](const uint32_t new_id, const NodeInfo & node_cluster) { return NodeInfo { node_cluster.id, new_id }; });
 
   if (nodes.Keep().Size() == cluster_sizes.Keep().Size()) {
     return node_clusters;
@@ -177,7 +177,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
     .Map([](const NodeInfo & node_cluster) { return node_cluster.data; });
 
   auto cluster_id_times_degree = nodes
-    .Zip(thrill::api::NoRebalanceTag, clusters, [](const Node & node, const uint32_t cluster_id) { return std::make_pair(node.degree, cluster_id); })
+    .Zip(clusters, [](const Node & node, const uint32_t cluster_id) { return std::make_pair(node.degree, cluster_id); })
     .template FlatMap<uint32_t>(
       [](std::pair<size_t, uint32_t> degree_and_cluster, auto emit) {
         for (uint32_t i = 0; i < degree_and_cluster.first; i++) {
@@ -188,7 +188,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
   // Build Meta Graph
   auto meta_graph_edges = edge_list
     // Translate Ids
-    .Zip(thrill::api::NoRebalanceTag, cluster_id_times_degree.Keep(),
+    .Zip(cluster_id_times_degree.Keep(),
       [](EdgeType edge, uint32_t new_id) {
         edge.tail = new_id;
         return edge;
@@ -204,7 +204,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       [](const EdgeType & e1, const EdgeType & e2) {
         return (e1.tail == e2.tail && e1.head < e2.head) || (e1.tail < e2.tail);
       })
-    .Zip(thrill::api::NoRebalanceTag, cluster_id_times_degree,
+    .Zip(cluster_id_times_degree,
       [](EdgeType edge, uint32_t new_id) {
         edge.tail = new_id;
         return edge;
@@ -224,7 +224,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   // translate meta clusters and return
   auto new_cluster_ids_times_size = meta_clustering
-    .Zip(thrill::api::NoRebalanceTag, cluster_sizes,
+    .Zip(cluster_sizes,
       [](const NodeInfo & meta_node_cluster, const std::pair<uint32_t, uint32_t> & cluster_size) {
         assert(meta_node_cluster.id == cluster_size.first);
         return std::make_pair(meta_node_cluster.data, cluster_size.second);
@@ -241,7 +241,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
         return node_cluster1.data < node_cluster2.data;
       })
-    .Zip(thrill::api::NoRebalanceTag, new_cluster_ids_times_size, [](const NodeInfo & node_cluster, uint32_t new_cluster_id) { return NodeInfo { node_cluster.id, new_cluster_id }; })
+    .Zip(new_cluster_ids_times_size, [](const NodeInfo & node_cluster, uint32_t new_cluster_id) { return NodeInfo { node_cluster.id, new_cluster_id }; })
     .Sort(
       [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
         return node_cluster1.id < node_cluster2.id;
