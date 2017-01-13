@@ -1,3 +1,0 @@
-[submodule "prototypes/thrill_tut/lib/thrill"]
-	path = lib/thrill
-	url = https://github.com/thrill/thrill.git
