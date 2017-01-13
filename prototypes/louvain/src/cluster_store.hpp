@@ -72,4 +72,21 @@ public:
 
     intersection.rewriteClusterIds();
   }
+
+  void generateConsecutiveClusterNodeIdPermutation(std::vector<NodeId> & permutation) {
+    assert(permutation.size() == size());
+    std::vector<std::pair<ClusterId, NodeId>> cluster_and_node_list(size());
+    for (NodeId node = 0; node < size(); node++) {
+      cluster_and_node_list[node].first = node_clusters[node];
+      cluster_and_node_list[node].second = node;
+    }
+
+    std::sort(cluster_and_node_list.begin(), cluster_and_node_list.end(), [](const std::pair<ClusterId, NodeId> & cn1, const std::pair<ClusterId, NodeId> & cn2) {
+      return (cn1.first == cn2.first && cn1.second < cn2.second) || cn1.first < cn2.first;
+    });
+
+    for (NodeId new_id = 0; new_id < size(); new_id++) {
+      permutation[cluster_and_node_list[new_id].second] = new_id;
+    }
+  }
 };
