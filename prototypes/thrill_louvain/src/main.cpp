@@ -100,8 +100,12 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
           assert(edge.head < node_count);
           assert(edge.tail < node_count);
           node_ids_in_partition.insert(edge.tail);
-          adjacency_lists[edge.tail][edge.head] = edge.getWeight();
-          adjacency_lists[edge.head][edge.tail] = edge.getWeight();
+          if (edge.tail == edge.head) {
+            adjacency_lists[edge.tail][edge.head] = edge.getWeight() * 2;
+          } else {
+            adjacency_lists[edge.tail][edge.head] = edge.getWeight();
+            adjacency_lists[edge.head][edge.tail] = edge.getWeight();
+          }
           partition_edge_count_upper_bound += 2;
         }
 
@@ -110,6 +114,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
         graph.overrideTotalWeight(total_weight);
         ClusterStore clusters(0, node_count);
 
+        assert(node_ids_in_partition.size() == node_count);
         std::vector<uint32_t> node_ids_in_partition_vector(node_ids_in_partition.begin(), node_ids_in_partition.end());
         Modularity::localMoving(graph, clusters, node_ids_in_partition_vector);
 
@@ -130,25 +135,16 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
         return node_cluster1.data < node_cluster2.data;
       });
 
-  bloated_node_clusters.Print("bloated");
-
-  auto foo = bloated_node_clusters
+  auto cluster_sizes = bloated_node_clusters
     .Map([](const NodeInfo & node_cluster) { return std::make_pair(node_cluster.data, 1u); })
     .ReduceByKey(
       [](const std::pair<uint32_t, uint32_t> & cluster_size) { return cluster_size.first; },
       [](const std::pair<uint32_t, uint32_t> & cluster_size1, const std::pair<uint32_t, uint32_t> & cluster_size2) {
         return std::make_pair(cluster_size1.first, cluster_size1.second + cluster_size2.second);
-      });
-  foo.Map([](const std::pair<uint32_t, uint32_t> & cluster_size) { return cluster_size.first; }).Print("foo");
-
-  auto sorted_cluster_sizes = foo
-    .Sort([](const std::pair<uint32_t, uint32_t> & cluster_size1, const std::pair<uint32_t, uint32_t> & cluster_size2) { return cluster_size1.first < cluster_size2.first; });
-  sorted_cluster_sizes.Map([](const std::pair<uint32_t, uint32_t> & cluster_size) { return cluster_size.first; }).Print("sorted cluster sizes");
+      })
+    .Sort([](const std::pair<uint32_t, uint32_t> & cluster_size1, const std::pair<uint32_t, uint32_t> & cluster_size2) { return cluster_size1.first < cluster_size2.first; })
     // cleanup ids
-  auto cluster_sizes = sorted_cluster_sizes
     .ZipWithIndex([](const std::pair<uint32_t, uint32_t> & cluster_size, const uint32_t& index) { return std::make_pair(index, cluster_size.second); });
-  cluster_sizes.Map([](const std::pair<uint32_t, uint32_t> & cluster_size) { return cluster_size.first; }).Print("cluster sizes");
-
 
   auto node_clusters = cluster_sizes
     .template FlatMap<uint32_t>(
@@ -207,14 +203,24 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
     .ReduceByKey(
       [&node_count](WeightedEdge edge) { return node_count * edge.tail + edge.head; },
       [](WeightedEdge edge1, WeightedEdge edge2) { return WeightedEdge { edge1.tail, edge1.head, edge1.weight + edge2.weight }; })
+    // turn loops into forward and backward arc
+    .template FlatMap<WeightedEdge>(
+      [](const WeightedEdge & edge, auto emit) {
+        if (edge.tail == edge.head) {
+          emit(WeightedEdge { edge.tail, edge.head, edge.weight / 2 });
+          emit(WeightedEdge { edge.tail, edge.head, edge.weight / 2 });
+        } else {
+          emit(edge);
+        }
+      })
+    .Sort(
+      [](const WeightedEdge & e1, const WeightedEdge & e2) {
+        return (e1.tail == e2.tail && e1.head < e2.head) || (e1.tail < e2.tail);
+      })
     .Collapse();
-
-  meta_graph_edges.Print("Meta Graph Edges");
 
   // Recursion on meta graph
   auto meta_clustering = louvain(meta_graph_edges);
-
-  meta_graph_edges.Print("Meta Graph Clustering");
 
   // translate meta clusters and return
   auto new_cluster_ids_times_size = meta_clustering
@@ -243,6 +249,9 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
 }
 
 int main(int, char const *argv[]) {
+  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  Modularity::rng = std::default_random_engine(seed);
+
   return thrill::Run([&](thrill::Context& context) {
     auto edges = thrill::ReadLines(context, argv[1])
       .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })

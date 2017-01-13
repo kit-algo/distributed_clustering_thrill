@@ -89,8 +89,10 @@ public:
 
     first_out[node_count] = current_edge_index;
     neighbors.resize(current_edge_index);
-    weights.resize(current_edge_index);
-    // TODO Update Edge Count?
+    if (weighted) {
+      weights.resize(current_edge_index);
+    }
+    edge_count = current_edge_index / 2;
     initializeAccumulatedWeights();
   }
 
