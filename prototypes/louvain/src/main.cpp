@@ -3,6 +3,7 @@
 #include "cluster_store.hpp"
 #include "similarity.hpp"
 #include "partitioning.hpp"
+#include "logging.hpp"
 
 #include <sstream>
 #include <fstream>
@@ -49,21 +50,21 @@ Graph::EdgeId read_graph(const std::string filename, std::vector<std::vector<Gra
   return edge_count;
 }
 
-void log_results(const Graph & graph, const ClusterStore & base_clusters, const ClusterStore & compare_clusters, std::vector<ClusterStore::ClusterId> & level_cluster_counts) {
-  std::cout << Modularity::modularity(graph, compare_clusters) << ',';
-  std::cout << graph.getNodeCount();
-  for (ClusterStore::ClusterId cluster_count : level_cluster_counts) {
-    std::cout << " -> " << cluster_count;
-  }
-  std::cout << ',';
-  std::cout << Similarity::normalizedMutualInformation(base_clusters, compare_clusters) << ',';
-  std::cout << Similarity::adjustedRandIndex(base_clusters, compare_clusters) << ',';
+void log_results(const Graph & graph, uint64_t base_algo_run_id, const ClusterStore & base_clusters, uint64_t compare_algo_run_id, const ClusterStore & compare_clusters) {
+  Logging::report("algorithm_run", compare_algo_run_id, "modularity", Modularity::modularity(graph, compare_clusters));
+  uint64_t comparison_id = Logging::getUnusedId();
+  Logging::report("clustering_comparison", comparison_id, "base_algorithm_run_id", base_algo_run_id);
+  Logging::report("clustering_comparison", comparison_id, "compare_algorithm_run_id", compare_algo_run_id);
+  Logging::report("clustering_comparison", comparison_id, "NMI", Similarity::normalizedMutualInformation(base_clusters, compare_clusters));
+  Logging::report("clustering_comparison", comparison_id, "ARI", Similarity::adjustedRandIndex(base_clusters, compare_clusters));
   std::pair<double, double> precision_recall = Similarity::weightedPrecisionRecall(base_clusters, compare_clusters);
-  std::cout << precision_recall.first << ',' << precision_recall.second << ',';
-  level_cluster_counts.clear();
+  Logging::report("clustering_comparison", comparison_id, "Precision", precision_recall.first);
+  Logging::report("clustering_comparison", comparison_id, "Recall", precision_recall.second);
 }
 
 int main(int, char const *argv[]) {
+  uint64_t run_id = Logging::getUnusedId();
+
   std::vector<std::vector<Graph::NodeId>> neighbors;
   Graph::EdgeId edge_count = read_graph(argv[1], neighbors);
   Graph graph(neighbors.size(), edge_count);
@@ -72,46 +73,58 @@ int main(int, char const *argv[]) {
   std::vector<int> partition_sizes { 4, 32, 128, 1024 };
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   Modularity::rng = std::default_random_engine(seed);
-  std::cout << "Graph, N, M, Seed, Variant, Q Base, Levels Base, Q 1, Levels 1, NMI 1, ARI 1, precision 1, recall 1,";
-  for (int i : partition_sizes) {
-    std::cout << "Q " << i << " chunk, Levels " << i << " chunk, NMI " << i << " chunk, ARI " << i << " chunk, precision " << i << " chunk, recall " << i << " chunk, Q " << i << " det_grd, Levels " << i << " det_grd, NMI " << i << " det_grd, ARI " << i << " det_grd, precision " << i << " det_grd, recall " << i << " det_grd,";
-  }
-  std::cout << "\n";
-  std::cout << argv[1] << ',' << graph.getNodeCount() << ',' << graph.getEdgeCount() << ',' << seed << ",original,";
+
+  Logging::report("program_run", run_id, "graph", argv[1]);
+  Logging::report("program_run", run_id, "node_count", graph.getNodeCount());
+  Logging::report("program_run", run_id, "edge_count", graph.getEdgeCount());
+  Logging::report("program_run", run_id, "seed", seed);
 
   ClusterStore base_clusters(0, neighbors.size());
   ClusterStore compare_clusters(0, neighbors.size());
-  std::vector<ClusterStore::ClusterId> level_cluster_counts;
 
   // STANDARD ORDER
 
-  Modularity::louvain(graph, base_clusters, level_cluster_counts);
-  std::cout << Modularity::modularity(graph, base_clusters) << ',';
-  std::cout << graph.getNodeCount();
-  for (ClusterStore::ClusterId cluster_count : level_cluster_counts) {
-    std::cout << " -> " << cluster_count;
-  }
-  std::cout << ',';
-  level_cluster_counts.clear();
+  uint64_t base_algo_run_id = Logging::getUnusedId();
+  Logging::report("algorithm_run", base_algo_run_id, "program_run_id", run_id);
+  Logging::report("algorithm_run", base_algo_run_id, "algorithm", "sequential louvain");
+  Logging::report("algorithm_run", base_algo_run_id, "order", "original");
 
-  Modularity::louvain(graph, compare_clusters, level_cluster_counts);
-  log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
+  Modularity::louvain(graph, base_clusters, base_algo_run_id);
+  Logging::report("algorithm_run", base_algo_run_id, "modularity", Modularity::modularity(graph, base_clusters));
+
+  uint64_t algo_run_id = Logging::getUnusedId();
+  Logging::report("algorithm_run", algo_run_id, "program_run_id", run_id);
+  Logging::report("algorithm_run", algo_run_id, "algorithm", "sequential louvain");
+  Logging::report("algorithm_run", algo_run_id, "order", "original");
+
+  Modularity::louvain(graph, compare_clusters, algo_run_id);
+  log_results(graph, base_algo_run_id, base_clusters, algo_run_id, compare_clusters);
 
   for (int i : partition_sizes) {
     std::vector<uint32_t> partitions(graph.getNodeCount());
+
+    algo_run_id = Logging::getUnusedId();
     Partitioning::chunk(graph, i, partitions);
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions, level_cluster_counts);
+    Logging::report("algorithm_run", algo_run_id, "program_run_id", run_id);
+    Logging::report("algorithm_run", algo_run_id, "algorithm", "partitioned louvain");
+    Logging::report("algorithm_run", algo_run_id, "order", "original");
+    Logging::report("algorithm_run", algo_run_id, "partition_algorithm", "chunk");
+    Logging::report("algorithm_run", algo_run_id, "partition_count", i);
 
-    log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions, algo_run_id);
+    log_results(graph, base_algo_run_id, base_clusters, algo_run_id, compare_clusters);
 
+    algo_run_id = Logging::getUnusedId();
     Partitioning::deterministic_greedy_with_linear_penalty(graph, i, partitions);
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions, level_cluster_counts);
+    Logging::report("algorithm_run", algo_run_id, "program_run_id", run_id);
+    Logging::report("algorithm_run", algo_run_id, "algorithm", "partitioned louvain");
+    Logging::report("algorithm_run", algo_run_id, "order", "original");
+    Logging::report("algorithm_run", algo_run_id, "partition_algorithm", "deterministic_greedy_with_linear_penalty");
+    Logging::report("algorithm_run", algo_run_id, "partition_count", i);
 
-    log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions, algo_run_id);
+    log_results(graph, base_algo_run_id, base_clusters, algo_run_id, compare_clusters);
   }
-
-  std::cout << "\n";
-  std::cout << argv[1] << ',' << graph.getNodeCount() << ',' << graph.getEdgeCount() << ',' << seed << ",shuffled,";
 
   // SHUFFLED ORDER
 
@@ -120,31 +133,46 @@ int main(int, char const *argv[]) {
   std::shuffle(permutation.begin(), permutation.end(), Modularity::rng);
   graph.applyNodePermutation(permutation);
 
-  Modularity::louvain(graph, base_clusters, level_cluster_counts);
-  std::cout << Modularity::modularity(graph, base_clusters) << ',';
-  std::cout << graph.getNodeCount();
-  for (ClusterStore::ClusterId cluster_count : level_cluster_counts) {
-    std::cout << " -> " << cluster_count;
-  }
-  std::cout << ',';
-  level_cluster_counts.clear();
+  base_algo_run_id = Logging::getUnusedId();
+  Logging::report("algorithm_run", base_algo_run_id, "program_run_id", run_id);
+  Logging::report("algorithm_run", base_algo_run_id, "algorithm", "sequential louvain");
+  Logging::report("algorithm_run", base_algo_run_id, "order", "shuffled");
 
-  Modularity::louvain(graph, compare_clusters, level_cluster_counts);
-  log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
+  Modularity::louvain(graph, base_clusters, base_algo_run_id);
+  Logging::report("algorithm_run", base_algo_run_id, "modularity", Modularity::modularity(graph, base_clusters));
+
+  algo_run_id = Logging::getUnusedId();
+  Logging::report("algorithm_run", algo_run_id, "program_run_id", run_id);
+  Logging::report("algorithm_run", algo_run_id, "algorithm", "sequential louvain");
+  Logging::report("algorithm_run", algo_run_id, "order", "shuffled");
+
+  Modularity::louvain(graph, compare_clusters, algo_run_id);
+  log_results(graph, base_algo_run_id, base_clusters, algo_run_id, compare_clusters);
 
   for (int i : partition_sizes) {
     std::vector<uint32_t> partitions(graph.getNodeCount());
+
+    algo_run_id = Logging::getUnusedId();
     Partitioning::chunk(graph, i, partitions);
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions, level_cluster_counts);
+    Logging::report("algorithm_run", algo_run_id, "program_run_id", run_id);
+    Logging::report("algorithm_run", algo_run_id, "algorithm", "partitioned louvain");
+    Logging::report("algorithm_run", algo_run_id, "order", "shuffled");
+    Logging::report("algorithm_run", algo_run_id, "partition_algorithm", "chunk");
+    Logging::report("algorithm_run", algo_run_id, "partition_count", i);
 
-    log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions, algo_run_id);
+    log_results(graph, base_algo_run_id, base_clusters, algo_run_id, compare_clusters);
 
+    algo_run_id = Logging::getUnusedId();
     Partitioning::deterministic_greedy_with_linear_penalty(graph, i, partitions);
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions, level_cluster_counts);
+    Logging::report("algorithm_run", algo_run_id, "program_run_id", run_id);
+    Logging::report("algorithm_run", algo_run_id, "algorithm", "partitioned louvain");
+    Logging::report("algorithm_run", algo_run_id, "order", "shuffled");
+    Logging::report("algorithm_run", algo_run_id, "partition_algorithm", "deterministic_greedy_with_linear_penalty");
+    Logging::report("algorithm_run", algo_run_id, "partition_count", i);
 
-    log_results(graph, base_clusters, compare_clusters, level_cluster_counts);
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions, algo_run_id);
+    log_results(graph, base_algo_run_id, base_clusters, algo_run_id, compare_clusters);
   }
-
-  std::cout << "\n";
 }
 

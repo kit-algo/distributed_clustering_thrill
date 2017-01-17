@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <map>
 #include <assert.h>
 
 using NodeId = typename Graph::NodeId;
@@ -87,6 +88,19 @@ public:
 
     for (NodeId new_id = 0; new_id < size(); new_id++) {
       permutation[cluster_and_node_list[new_id].second] = new_id;
+    }
+  }
+
+  void clusterSizeDistribution(std::map<uint32_t, uint32_t> & distribution) {
+    std::vector<uint32_t> cluster_sizes(size(), 0);
+    for (auto& cluster_id : node_clusters) {
+      cluster_sizes[cluster_id]++;
+    }
+
+    for (auto& cluster_size : cluster_sizes) {
+      if (cluster_size != 0) {
+        distribution[cluster_size]++;
+      }
     }
   }
 };
