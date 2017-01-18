@@ -154,19 +154,19 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
   return changed;
 }
 
-void contractAndReapply(const Graph &, ClusterStore &, uint64_t);
+void contractAndReapply(const Graph &, ClusterStore &, uint64_t, uint32_t);
 
-void louvain(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id) {
+void louvain(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id, uint32_t level = 0) {
   assert(std::abs(modularity(graph, ClusterStore(0, graph.getNodeCount(), 0))) == 0);
 
   bool changed = localMoving(graph, clusters);
 
   if (changed) {
-    contractAndReapply(graph, clusters, algo_run_id);
+    contractAndReapply(graph, clusters, algo_run_id, level);
   }
 }
 
-void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::vector<uint32_t>& partitions, uint64_t algo_run_id) {
+void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::vector<uint32_t>& partitions, uint64_t algo_run_id, uint32_t level = 0) {
   assert(partitions.size() == graph.getNodeCount());
   uint32_t partition_count = *std::max_element(partitions.begin(), partitions.end()) + 1;
   std::vector<std::vector<NodeId>> partition_nodes(partition_count);
@@ -187,16 +187,17 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::v
     }
   }
 
-  contractAndReapply(graph, clusters, algo_run_id);
+  contractAndReapply(graph, clusters, algo_run_id, level);
 }
 
-void contractAndReapply(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id) {
+void contractAndReapply(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id, uint32_t level) {
   ClusterId cluster_count = clusters.rewriteClusterIds();
 
   uint64_t level_logging_id = Logging::getUnusedId();
   Logging::report("algorithm_level", level_logging_id, "algorithm_run_id", algo_run_id);
   Logging::report("algorithm_level", level_logging_id, "node_count", graph.getNodeCount());
   Logging::report("algorithm_level", level_logging_id, "cluster_count", cluster_count);
+  Logging::report("algorithm_level", level_logging_id, "level", level);
 
   uint64_t distribution_logging_id = Logging::getUnusedId();
   Logging::report("cluster_size_distribution", distribution_logging_id, "algorithm_level_id", level_logging_id);
@@ -225,7 +226,7 @@ void contractAndReapply(const Graph& graph, ClusterStore &clusters, uint64_t alg
   assert(modularity(graph, clusters) == modularity(meta_graph, meta_singleton));
 
   ClusterStore meta_clusters(0, meta_graph.getNodeCount());
-  louvain(meta_graph, meta_clusters, algo_run_id);
+  louvain(meta_graph, meta_clusters, algo_run_id, level + 1);
 
   // translate meta clusters
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
