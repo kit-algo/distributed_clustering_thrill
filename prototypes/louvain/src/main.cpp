@@ -53,14 +53,14 @@ Graph::EdgeId read_graph(const std::string& filename, std::vector<std::vector<Gr
 void read_clustering(const std::string& filename, ClusterStore& clusters) {
   open_file(filename, [&](auto& file) {
     std::string line;
-    std::getline(file, line);
     Graph::NodeId node = 0;
 
     while (std::getline(file, line)) {
       std::istringstream line_stream(line);
       ClusterStore::ClusterId id;
-      line_stream >> id;
-      clusters.set(node, id);
+      if (line_stream >> id) {
+        clusters.set(node++, id);
+      }
     }
   });
 }
@@ -126,7 +126,6 @@ int main(int argc, char const *argv[]) {
   if (ground_proof_available) {
     log_comparison_results(ground_proof_logging_id, ground_proof, base_cluster_logging_id, base_clusters);
   }
-
 
   uint64_t compare_algo_run_logging_id = Logging::getUnusedId();
   Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
