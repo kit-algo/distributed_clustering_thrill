@@ -91,6 +91,7 @@ int main(int argc, char const *argv[]) {
   graph.setEdgesByAdjacencyLists(neighbors);
 
   std::vector<int> partition_sizes { 4, 32, 128, 1024 };
+  // unsigned seed = 3920764003;
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   Modularity::rng = std::default_random_engine(seed);
 
@@ -109,6 +110,8 @@ int main(int argc, char const *argv[]) {
     read_clustering(argv[2], ground_proof);
     ground_proof_logging_id = log_clustering(graph, ground_proof);
     Logging::report("clustering", ground_proof_logging_id, "source", "ground_proof");
+    Logging::report("clustering", ground_proof_logging_id, "program_run_id", run_id);
+    Logging::report("program_run", run_id, "ground_proof", argv[2]);
   }
 
   // STANDARD ORDER
