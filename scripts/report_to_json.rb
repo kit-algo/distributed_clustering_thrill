@@ -40,7 +40,7 @@ end
 
 Dir.chdir ENV['MA_RESULT_OUTPUT_DIR'] if ENV['MA_RESULT_OUTPUT_DIR']
 counter = 0
-while File.exist?("report_#{counter}_#{timestamp.strftime "%Y-%m-%d"}_at_#{commit}.json")
+while File.exist?("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json")
   counter += 1
 end
 File.open("report_#{counter}_#{timestamp.strftime "%Y-%m-%d"}_at_#{commit}.json", 'w+') do |export|

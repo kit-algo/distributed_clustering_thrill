@@ -7,8 +7,7 @@ import glob
 
 data = {}
 
-for path in glob.glob("/Users/eagle/ownCloud/ma_data/*.json"):
-  # file = open('/home/eagle/dev/ma_thesis_code/prototypes/louvain/build/report_0_2017-01-10_at_9f3d1fe4bd3cb7de470d98144831ba0f80d1ecf5.json')
+for path in glob.glob("~/ownCloud/ma_data/results/*.json"):
   for typename, items in json.load(open(path)).items():
     if typename in data:
       data[typename].update(items)
