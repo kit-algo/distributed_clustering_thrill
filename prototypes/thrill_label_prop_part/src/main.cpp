@@ -91,7 +91,7 @@ int main(int, char const *argv[]) {
       .template FlatMap<Edge>(
         [](const std::string& line, auto emit) {
           std::istringstream line_stream(line);
-          uint32_t tail, head;
+          NodeId tail, head;
 
           if (line_stream >> tail >> head) {
             tail--;
@@ -104,7 +104,18 @@ int main(int, char const *argv[]) {
         })
       .Collapse();
 
-    partition(edges, 16)
+
+    auto node_labels = partition(edges, 16);
+
+    NodeId node_count = node_labels.Keep().Size();
+    uint32_t partition_count = 4;
+    NodeId partition_size = (node_count + partition_count - 1) / partition_count;
+
+    node_labels
+      .Sort([](const NodeLabel& node_label1, const NodeLabel& node_label2) { return node_label1.second < node_label2.second; })
+      .ZipWithIndex([&partition_size](const NodeLabel& node_label, size_t index) { return NodeLabel(node_label.first, index / partition_size); })
+      .Sort([](const NodeLabel& node_label1, const NodeLabel& node_label2) { return node_label1.first < node_label2.first; }) // ReduceToIndex?
+
       .Map(
         [](const NodeLabel& node_label) {
           std::stringstream ss;
