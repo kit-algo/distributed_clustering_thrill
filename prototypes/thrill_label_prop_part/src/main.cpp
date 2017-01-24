@@ -38,7 +38,7 @@ std::ostream& operator << (std::ostream& os, Edge& e) {
 
 #include <thrill/api/print.hpp> // Like WTF
 
-auto partition(thrill::DIA<Edge>& edge_list) {
+auto partition(thrill::DIA<Edge>& edge_list, uint32_t num_iterations) {
   auto node_labels = edge_list
     .Map([](const Edge& edge) { return edge.tail; })
     .ReduceByKey(
@@ -47,7 +47,7 @@ auto partition(thrill::DIA<Edge>& edge_list) {
     .Map([](const NodeId& id) { return NodeLabel(id, id); })
     .Collapse();
 
-  for (int iteration = 0; iteration < 32; iteration++) {
+  for (uint32_t iteration = 0; iteration < num_iterations; iteration++) {
     node_labels = edge_list
       .InnerJoinWith(node_labels,
         [](const Edge& edge) { return edge.head; },
@@ -85,6 +85,7 @@ int main(int, char const *argv[]) {
   srand(42);
 
   return thrill::Run([&](thrill::Context& context) {
+    context.enable_consume();
     auto edges = thrill::ReadLines(context, argv[1])
       .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
       .template FlatMap<Edge>(
@@ -101,11 +102,16 @@ int main(int, char const *argv[]) {
             die(std::string("malformatted edge: ") + line);
           }
         })
-      .Sort([](const Edge & e1, const Edge & e2) {
-        return (e1.tail == e2.tail && e1.head < e2.head) || (e1.tail < e2.tail);
-      });
+      .Collapse();
 
-    partition(edges);
+    partition(edges, 16)
+      .Map(
+        [](const NodeLabel& node_label) {
+          std::stringstream ss;
+          ss << node_label.first << ": " << node_label.second;
+          return ss.str();
+        })
+      .Print("Partitions");
   });
 }
 
