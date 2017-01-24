@@ -15,18 +15,17 @@
 
 #include <ostream>
 #include <iostream>
-#include <unordered_map>
 #include <vector>
-#include <set>
 #include <map>
+#include <stdlib.h>
 
 using NodeId = uint32_t;
-using ClusterId = uint32_t;
+using Label = uint32_t;
 
-using NodeCluster = std::pair<NodeId, ClusterId>;
+using NodeLabel = std::pair<NodeId, Label>;
 
-std::ostream& operator << (std::ostream& os, NodeCluster& nc) {
-  return os << nc.first << ": " << nc.second;
+std::ostream& operator << (std::ostream& os, NodeLabel& nl) {
+  return os << nl.first << ": " << nl.second;
 }
 
 struct Edge {
@@ -45,12 +44,46 @@ auto partition(thrill::DIA<Edge>& edge_list) {
     .ReduceByKey(
       [](const NodeId& id) { return id; },
       [](const NodeId& id, const NodeId&) { return id; })
-    .Map([](const NodeId& id) { return NodeCluster(id, id); });
+    .Map([](const NodeId& id) { return NodeLabel(id, id); })
+    .Collapse();
+
+  for (int iteration = 0; iteration < 32; iteration++) {
+    node_labels = edge_list
+      .InnerJoinWith(node_labels,
+        [](const Edge& edge) { return edge.head; },
+        [](const NodeLabel& node_label) { return node_label.first; },
+        [](const Edge& edge, const NodeLabel& node_label) {
+          return std::make_pair(edge.tail, node_label.second);
+        })
+      .GroupByKey<NodeLabel>(
+        [](const std::pair<NodeId, Label>& node_with_incoming_label) { return node_with_incoming_label.first; },
+        [](auto& iterator, const NodeId node) {
+          std::map<Label, uint32_t> label_counts;
+
+          while(iterator.HasNext()) {
+            label_counts[iterator.Next().second]++;
+          }
+
+          uint32_t max_count = 0;
+          std::vector<Label> labels_with_max_count;
+          for (const auto& label_count : label_counts) {
+            if (label_count.second > max_count) {
+              labels_with_max_count.clear();
+              labels_with_max_count.push_back(label_count.first);
+              max_count = label_count.second;
+            }
+          }
+
+          return NodeLabel(node, labels_with_max_count[rand() % labels_with_max_count.size()]);
+        });
+  }
 
   return node_labels;
 }
 
 int main(int, char const *argv[]) {
+  srand(42);
+
   return thrill::Run([&](thrill::Context& context) {
     auto edges = thrill::ReadLines(context, argv[1])
       .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
