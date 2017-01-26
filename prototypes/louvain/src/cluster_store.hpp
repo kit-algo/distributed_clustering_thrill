@@ -58,14 +58,14 @@ public:
   }
 
   ClusterId rewriteClusterIds(std::vector<NodeId>& nodes, ClusterId id_counter = 0) {
-    std::vector<ClusterId> old_to_new(id_range_upper_bound - id_range_lower_bound, id_range_upper_bound);
+    std::map<NodeId, ClusterId> old_to_new;
 
     for (NodeId node : nodes) {
       ClusterId& cluster_id = node_clusters[node];
-      ClusterId& new_id = old_to_new[cluster_id - id_range_lower_bound];
-      if (new_id == id_range_upper_bound) {
-        new_id = id_counter++;
+      if (old_to_new.find(cluster_id) == old_to_new.end()) {
+        old_to_new[cluster_id] = id_counter++;
       }
+      ClusterId new_id = old_to_new[cluster_id];
       cluster_id = new_id;
     }
 
@@ -74,13 +74,13 @@ public:
 
   ClusterId rewriteClusterIds(ClusterId id_counter = 0) {
     id_range_lower_bound = id_counter;
-    std::vector<ClusterId> old_to_new(id_range_upper_bound - id_range_lower_bound, id_range_upper_bound);
+    std::map<NodeId, ClusterId> old_to_new;
 
     for (ClusterId& cluster_id : node_clusters) {
-      ClusterId& new_id = old_to_new[cluster_id - id_range_lower_bound];
-      if (new_id == id_range_upper_bound) {
-        new_id = id_counter++;
+      if (old_to_new.find(cluster_id) == old_to_new.end()) {
+        old_to_new[cluster_id] = id_counter++;
       }
+      ClusterId new_id = old_to_new[cluster_id];
       cluster_id = new_id;
     }
 
