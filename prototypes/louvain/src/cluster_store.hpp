@@ -58,7 +58,7 @@ public:
   }
 
   ClusterId rewriteClusterIds(std::vector<NodeId>& nodes, ClusterId id_counter = 0) {
-    std::map<NodeId, ClusterId> old_to_new;
+    std::unordered_map<NodeId, ClusterId> old_to_new;
 
     for (NodeId node : nodes) {
       ClusterId& cluster_id = node_clusters[node];
@@ -74,7 +74,7 @@ public:
 
   ClusterId rewriteClusterIds(ClusterId id_counter = 0) {
     id_range_lower_bound = id_counter;
-    std::map<NodeId, ClusterId> old_to_new;
+    std::unordered_map<NodeId, ClusterId> old_to_new;
 
     for (ClusterId& cluster_id : node_clusters) {
       if (old_to_new.find(cluster_id) == old_to_new.end()) {
@@ -93,6 +93,7 @@ public:
     intersection.id_range_upper_bound = id_range_upper_bound * other.id_range_upper_bound;
 
     for (NodeId node = 0; node < size(); node++) {
+      // TODO danger of overflows if bounds are high
       intersection.node_clusters[node] = node_clusters[node] * other.id_range_upper_bound + other.node_clusters[node];
     }
 
