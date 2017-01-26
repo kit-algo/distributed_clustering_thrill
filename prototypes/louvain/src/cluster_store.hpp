@@ -53,13 +53,14 @@ public:
 
   ClusterId rewriteClusterIds(ClusterId id_counter = 0) {
     id_range_lower_bound = id_counter;
-    std::unordered_map<ClusterId, ClusterId> old_to_new;
+    std::vector<ClusterId> old_to_new(id_range_upper_bound - id_range_lower_bound, id_range_upper_bound);
 
     for (auto& cluster_id : node_clusters) {
-      if (old_to_new.find(cluster_id) == old_to_new.end()) {
-        old_to_new[cluster_id] = id_counter++;
+      ClusterId& new_id = old_to_new[cluster_id - id_range_lower_bound];
+      if (new_id == id_range_upper_bound) {
+        new_id = id_counter++;
       }
-      cluster_id = old_to_new[cluster_id];
+      cluster_id = new_id;
     }
 
     id_range_upper_bound = id_counter;
