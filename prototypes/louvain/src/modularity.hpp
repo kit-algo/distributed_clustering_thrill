@@ -86,7 +86,8 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
   bool changed = false;
 
   clusters.assignSingletonClusterIds();
-  std::map<ClusterId, Weight> node_to_cluster_weights;
+  std::vector<Weight> node_to_cluster_weights(graph.getNodeCount(), 0);
+  std::vector<ClusterId> incident_clusters;
   std::vector<Weight> cluster_weights(graph.getNodeCount());
 
   for (NodeId i = 0; i < graph.getNodeCount(); i++) {
@@ -97,7 +98,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
   NodeId current_node_index = 0;
   NodeId unchanged_count = 0;
   int current_iteration = 0;
-  while(current_iteration < 32 && unchanged_count < nodes_to_move.size()) {
+  while (current_iteration < 32 && unchanged_count < nodes_to_move.size()) {
     NodeId current_node = nodes_to_move[current_node_index];
     // std::cout << "local moving: " << current_node << "\n";
     ClusterId current_node_cluster = clusters[current_node];
@@ -113,6 +114,9 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
       ClusterId neighbor_cluster = clusters[neighbor];
       if (neighbor != current_node) {
         if (neighbor_cluster != current_node_cluster) {
+          if (node_to_cluster_weights[neighbor_cluster] == 0) {
+            incident_clusters.push_back(neighbor_cluster);
+          }
           node_to_cluster_weights[neighbor_cluster] += weight;
         } else {
           weight_between_node_and_current_cluster += weight;
@@ -120,14 +124,18 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
       }
     });
 
-    for (auto& incident_cluster : node_to_cluster_weights) {
-      int64_t neighbor_cluster_delta = deltaModularity(graph, current_node, current_node_cluster, incident_cluster.first, weight_between_node_and_current_cluster, incident_cluster.second, cluster_weights);
+    for (ClusterId& incident_cluster : incident_clusters) {
+      int64_t neighbor_cluster_delta = deltaModularity(graph, current_node, current_node_cluster, incident_cluster, weight_between_node_and_current_cluster, node_to_cluster_weights[incident_cluster], cluster_weights);
       // std::cout << current_node << " -> " << neighbor << "(" << clusters[neighbor] << "): " << neighbor_cluster_delta << "\n";
       if (neighbor_cluster_delta > best_delta_modularity) {
         best_delta_modularity = neighbor_cluster_delta;
-        best_cluster = incident_cluster.first;
+        best_cluster = incident_cluster;
       }
+
+      node_to_cluster_weights[incident_cluster] = 0;
     }
+
+    incident_clusters.clear();
 
     if (best_cluster != current_node_cluster) {
       cluster_weights[current_node_cluster] -= graph.nodeDegree(current_node);
