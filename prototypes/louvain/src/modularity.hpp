@@ -165,7 +165,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
 void contractAndReapply(const Graph &, ClusterStore &, uint64_t, uint32_t);
 
 void louvain(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id, uint32_t level = 0) {
-  assert(std::abs(modularity(graph, ClusterStore(0, graph.getNodeCount(), 0))) == 0);
+  assert(std::abs(modularity(graph, ClusterStore(graph.getNodeCount(), 0))) == 0);
 
   bool changed = localMoving(graph, clusters);
 
@@ -183,7 +183,7 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::v
   }
 
   for (uint32_t partition = 0; partition < partition_nodes.size(); partition++) {
-    ClusterStore partition_clustering(0, graph.getNodeCount());
+    ClusterStore partition_clustering(graph.getNodeCount());
     // std::cout << partition << "move\n";
     localMoving(graph, partition_clustering, partition_nodes[partition]);
     // std::cout << partition << "rewrite clusters\n";
@@ -229,11 +229,11 @@ void contractAndReapply(const Graph& graph, ClusterStore &clusters, uint64_t alg
   meta_graph.setEdgesByAdjacencyMatrix(cluster_connection_weights);
 
   assert(graph.getTotalWeight() == meta_graph.getTotalWeight());
-  ClusterStore meta_singleton(0, cluster_count);
+  ClusterStore meta_singleton(cluster_count);
   meta_singleton.assignSingletonClusterIds();
   assert(modularity(graph, clusters) == modularity(meta_graph, meta_singleton));
 
-  ClusterStore meta_clusters(0, meta_graph.getNodeCount());
+  ClusterStore meta_clusters(meta_graph.getNodeCount());
   louvain(meta_graph, meta_clusters, algo_run_id, level + 1);
 
   // translate meta clusters

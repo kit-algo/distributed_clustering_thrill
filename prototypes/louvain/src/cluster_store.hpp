@@ -17,23 +17,28 @@ public:
 
 private:
 
-  Graph::NodeId offset;
   std::vector<ClusterId> node_clusters;
+  ClusterId id_range_lower_bound;
+  ClusterId id_range_upper_bound;
 
 public:
 
-  ClusterStore(const NodeId node_range_lower_bound, const NodeId node_range_upper_bound, const ClusterId initial_cluster_id = 0) :
-    offset(node_range_lower_bound), node_clusters(node_range_upper_bound - node_range_lower_bound, initial_cluster_id) {}
+  ClusterStore(const NodeId node_count, const ClusterId initial_cluster_id = 0) :
+    node_clusters(node_count, initial_cluster_id),
+    id_range_lower_bound(initial_cluster_id),
+    id_range_upper_bound(node_count) {
+    assert(initial_cluster_id >= id_range_lower_bound);
+    assert(initial_cluster_id < id_range_upper_bound);
+  }
 
   inline void set(const NodeId node, const ClusterId cluster_id) {
-    node_clusters[node - offset] = cluster_id;
+    assert(cluster_id >= id_range_lower_bound);
+    assert(cluster_id < id_range_upper_bound);
+    node_clusters[node] = cluster_id;
   }
 
   inline ClusterId operator[](const NodeId node) const {
-    if (node >= offset && node < offset + node_clusters.size()) {
-      return node_clusters[node - offset];
-    }
-    return node;
+    return node_clusters[node];
   }
 
   ClusterId size() const {
@@ -41,16 +46,13 @@ public:
   }
 
   void assignSingletonClusterIds() {
-    for (NodeId id = offset; id < offset + node_clusters.size(); id++) {
-      node_clusters[id - offset] = id;
+    for (NodeId id = 0; id < node_clusters.size(); id++) {
+      node_clusters[id] = id;
     }
   }
 
-  ClusterId rewriteClusterIds() {
-    return rewriteClusterIds(offset);
-  }
-
-  ClusterId rewriteClusterIds(ClusterId id_counter) {
+  ClusterId rewriteClusterIds(ClusterId id_counter = 0) {
+    id_range_lower_bound = id_counter;
     std::unordered_map<ClusterId, ClusterId> old_to_new;
 
     for (auto& cluster_id : node_clusters) {
@@ -60,12 +62,12 @@ public:
       cluster_id = old_to_new[cluster_id];
     }
 
+    id_range_upper_bound = id_counter;
     return id_counter;
   }
 
   void intersection(const ClusterStore &other, ClusterStore &intersection) const {
     assert(size() == other.size() && size() == intersection.size());
-    assert(offset == 0 && other.offset == 0 && intersection.offset == 0);
 
     for (NodeId node = 0; node < size(); node++) {
       intersection.node_clusters[node] = node_clusters[node] * size() + other.node_clusters[node];

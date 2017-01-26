@@ -100,9 +100,9 @@ int main(int argc, char const *argv[]) {
   Logging::report("program_run", run_id, "edge_count", graph.getEdgeCount());
   Logging::report("program_run", run_id, "seed", seed);
 
-  ClusterStore ground_proof(0, neighbors.size());
-  ClusterStore base_clusters(0, neighbors.size());
-  ClusterStore compare_clusters(0, neighbors.size());
+  ClusterStore ground_proof(neighbors.size());
+  ClusterStore base_clusters(neighbors.size());
+  ClusterStore compare_clusters(neighbors.size());
 
   bool ground_proof_available = argc >= 3;
   uint64_t ground_proof_logging_id = 0;

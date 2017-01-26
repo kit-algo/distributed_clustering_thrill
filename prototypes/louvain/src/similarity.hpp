@@ -16,7 +16,7 @@ using ClusterId = typename ClusterStore::ClusterId;
 
 double adjustedRandIndex(const ClusterStore &c, const ClusterStore &d) {
   uint64_t node_count = c.size();
-  ClusterStore intersection(0, node_count);
+  ClusterStore intersection(node_count);
   c.intersection(d, intersection);
 
   // TODO reduce sizes to actual number of clusters
@@ -76,7 +76,7 @@ double entropy(const ClusterStore& clustering, std::vector<double> probabilities
 
 double normalizedMutualInformation(const ClusterStore &c, const ClusterStore &d) {
   NodeId node_count = c.size();
-  ClusterStore intersection(0, node_count);
+  ClusterStore intersection(node_count);
   c.intersection(d, intersection);
 
   // TODO reduce sizes to actual number of clusters
@@ -149,7 +149,7 @@ double normalizedMutualInformation(const ClusterStore &c, const ClusterStore &d)
 
 std::pair<double, double> weightedPrecisionRecall(const ClusterStore &base, const ClusterStore &compare) {
   uint64_t node_count = base.size();
-  ClusterStore intersection(0, node_count);
+  ClusterStore intersection(node_count);
   base.intersection(compare, intersection);
 
   // TODO reduce sizes to actual number of clusters
