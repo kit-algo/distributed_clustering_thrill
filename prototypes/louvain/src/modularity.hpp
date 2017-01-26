@@ -150,7 +150,6 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
       unchanged_count++;
     }
 
-    node_to_cluster_weights.clear();
     current_node_index++;
     if (current_node_index >= nodes_to_move.size()) {
       current_node_index = 0;
@@ -176,18 +175,20 @@ void louvain(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id, u
 
 void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::vector<uint32_t>& partitions, uint64_t algo_run_id, uint32_t level = 0) {
   assert(partitions.size() == graph.getNodeCount());
+  clusters.resetBounds();
   uint32_t partition_count = *std::max_element(partitions.begin(), partitions.end()) + 1;
   std::vector<std::vector<NodeId>> partition_nodes(partition_count);
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     partition_nodes[partitions[node]].push_back(node);
   }
 
+  ClusterId minimum_partition_cluster_id = 0;
   for (uint32_t partition = 0; partition < partition_nodes.size(); partition++) {
     ClusterStore partition_clustering(graph.getNodeCount());
     // std::cout << partition << "move\n";
     localMoving(graph, partition_clustering, partition_nodes[partition]);
     // std::cout << partition << "rewrite clusters\n";
-    partition_clustering.rewriteClusterIds(partition * graph.getNodeCount());
+    minimum_partition_cluster_id = partition_clustering.rewriteClusterIds(partition_nodes[partition], minimum_partition_cluster_id);
 
     // std::cout << partition << "combine\n";
     for (NodeId node : partition_nodes[partition]) {

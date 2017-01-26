@@ -46,16 +46,37 @@ public:
   }
 
   void assignSingletonClusterIds() {
-    for (NodeId id = 0; id < node_clusters.size(); id++) {
+    for (NodeId id = 0; id < size(); id++) {
       node_clusters[id] = id;
     }
+    resetBounds();
+  }
+
+  void resetBounds() {
+    id_range_lower_bound = 0;
+    id_range_upper_bound = size();
+  }
+
+  ClusterId rewriteClusterIds(std::vector<NodeId>& nodes, ClusterId id_counter = 0) {
+    std::vector<ClusterId> old_to_new(id_range_upper_bound - id_range_lower_bound, id_range_upper_bound);
+
+    for (NodeId node : nodes) {
+      ClusterId& cluster_id = node_clusters[node];
+      ClusterId& new_id = old_to_new[cluster_id - id_range_lower_bound];
+      if (new_id == id_range_upper_bound) {
+        new_id = id_counter++;
+      }
+      cluster_id = new_id;
+    }
+
+    return id_counter;
   }
 
   ClusterId rewriteClusterIds(ClusterId id_counter = 0) {
     id_range_lower_bound = id_counter;
     std::vector<ClusterId> old_to_new(id_range_upper_bound - id_range_lower_bound, id_range_upper_bound);
 
-    for (auto& cluster_id : node_clusters) {
+    for (ClusterId& cluster_id : node_clusters) {
       ClusterId& new_id = old_to_new[cluster_id - id_range_lower_bound];
       if (new_id == id_range_upper_bound) {
         new_id = id_counter++;
@@ -69,9 +90,10 @@ public:
 
   void intersection(const ClusterStore &other, ClusterStore &intersection) const {
     assert(size() == other.size() && size() == intersection.size());
+    intersection.id_range_upper_bound = id_range_upper_bound * other.id_range_upper_bound;
 
     for (NodeId node = 0; node < size(); node++) {
-      intersection.node_clusters[node] = node_clusters[node] * size() + other.node_clusters[node];
+      intersection.node_clusters[node] = node_clusters[node] * other.id_range_upper_bound + other.node_clusters[node];
     }
 
     intersection.rewriteClusterIds();
