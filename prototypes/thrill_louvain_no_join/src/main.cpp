@@ -112,7 +112,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
         Graph graph(node_count, partition_edge_count_upper_bound, std::is_same<EdgeType, WeightedEdge>::value);
         graph.setEdgesByAdjacencyMatrix(adjacency_lists);
         graph.overrideTotalWeight(total_weight);
-        ClusterStore clusters(0, node_count);
+        ClusterStore clusters(node_count);
 
         assert(node_ids_in_partition.size() == node_count);
         std::vector<uint32_t> node_ids_in_partition_vector(node_ids_in_partition.begin(), node_ids_in_partition.end());
