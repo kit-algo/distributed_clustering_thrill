@@ -2,6 +2,7 @@
 
 #include "graph.hpp"
 #include "modularity.hpp"
+#include "logging.hpp"
 
 #include <assert.h>
 #include <cstdint>
@@ -11,12 +12,13 @@ namespace Partitioning {
 
 using NodeId = typename Graph::NodeId;
 using Weight = typename Graph::Weight;
+using PartitionElementId = uint32_t;
 
 NodeId partitionElementTargetSize(const Graph& graph, const uint32_t partition_element_count) {
   return (graph.getNodeCount() + partition_element_count - 1) / partition_element_count;
 }
 
-void deterministicGreedyWithLinearPenalty(const Graph& graph, const uint32_t partition_element_count, std::vector<uint32_t>& node_partition_elements, bool shuffled = false) {
+Logging::Id deterministicGreedyWithLinearPenalty(const Graph& graph, const uint32_t partition_element_count, std::vector<PartitionElementId>& node_partition_elements, bool shuffled = false) {
   assert(graph.getNodeCount() == node_partition_elements.size());
   NodeId partition_target_size = partitionElementTargetSize(graph, partition_element_count);
 
@@ -37,8 +39,8 @@ void deterministicGreedyWithLinearPenalty(const Graph& graph, const uint32_t par
     });
 
     double best_partition_value = -std::numeric_limits<double>::max();
-    uint32_t best_partition = partition_element_count;
-    for (uint32_t partition = 0; partition < partition_element_count; partition++) {
+    PartitionElementId best_partition = partition_element_count;
+    for (PartitionElementId partition = 0; partition < partition_element_count; partition++) {
       double value = (1. - (double(partition_sizes[partition]) / partition_target_size)) * neighbor_partition_intersection_sizes[partition];
 
       if (value > best_partition_value) {
@@ -52,18 +54,28 @@ void deterministicGreedyWithLinearPenalty(const Graph& graph, const uint32_t par
     node_partition_elements[node] = best_partition;
     partition_sizes[best_partition]++;
   }
+
+  Logging::Id partition_logging_id = Logging::getUnusedId();
+  Logging::report("partition", partition_logging_id, "algorithm", shuffled ? "random_order_deterministic_greedy_with_linear_penalty" : "deterministic_greedy_with_linear_penalty");
+  Logging::report("partition", partition_logging_id, "element_count", partition_element_count);
+  return partition_logging_id;
 }
 
-void chunk(const Graph& graph, const uint32_t partition_element_count, std::vector<uint32_t>& node_partition_elements) {
+Logging::Id chunk(const Graph& graph, const uint32_t partition_element_count, std::vector<PartitionElementId>& node_partition_elements) {
   assert(graph.getNodeCount() == node_partition_elements.size());
   NodeId partition_target_size = partitionElementTargetSize(graph, partition_element_count);
 
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     node_partition_elements[node] = node / partition_target_size;
   }
+
+  Logging::Id partition_logging_id = Logging::getUnusedId();
+  Logging::report("partition", partition_logging_id, "algorithm", "chunk");
+  Logging::report("partition", partition_logging_id, "element_count", partition_element_count);
+  return partition_logging_id;
 }
 
-void chunkIdsInOrder(const Graph& graph, const uint32_t partition_element_count, std::vector<uint32_t>& node_partition_elements, std::vector<NodeId>& ordered_node_ids) {
+void chunkIdsInOrder(const Graph& graph, const uint32_t partition_element_count, std::vector<PartitionElementId>& node_partition_elements, std::vector<NodeId>& ordered_node_ids) {
   assert(graph.getNodeCount() == node_partition_elements.size());
   assert(graph.getNodeCount() == ordered_node_ids.size());
 
@@ -74,14 +86,19 @@ void chunkIdsInOrder(const Graph& graph, const uint32_t partition_element_count,
   }
 }
 
-void random(const Graph& graph, const uint32_t partition_element_count, std::vector<uint32_t>& node_partition_elements) {
+Logging::Id random(const Graph& graph, const uint32_t partition_element_count, std::vector<PartitionElementId>& node_partition_elements) {
   std::vector<NodeId> node_ids(graph.getNodeCount());
   std::iota(node_ids.begin(), node_ids.end(), 0);
   std::shuffle(node_ids.begin(), node_ids.end(), Modularity::rng);
   chunkIdsInOrder(graph, partition_element_count, node_partition_elements, node_ids);
+
+  Logging::Id partition_logging_id = Logging::getUnusedId();
+  Logging::report("partition", partition_logging_id, "algorithm", "random");
+  Logging::report("partition", partition_logging_id, "element_count", partition_element_count);
+  return partition_logging_id;
 }
 
-void clusteringBased(const Graph& graph, const uint32_t partition_element_count, std::vector<uint32_t>& node_partition_elements, const ClusterStore& clusters) {
+Logging::Id clusteringBased(const Graph& graph, const uint32_t partition_element_count, std::vector<uint32_t>& node_partition_elements, const ClusterStore& clusters) {
   assert(graph.getNodeCount() == node_partition_elements.size());
   std::vector<NodeId> node_ids(graph.getNodeCount());
   std::iota(node_ids.begin(), node_ids.end(), 0);
@@ -91,6 +108,11 @@ void clusteringBased(const Graph& graph, const uint32_t partition_element_count,
   });
 
   chunkIdsInOrder(graph, partition_element_count, node_partition_elements, node_ids);
+
+  Logging::Id partition_logging_id = Logging::getUnusedId();
+  Logging::report("partition", partition_logging_id, "algorithm", "cluster_based");
+  Logging::report("partition", partition_logging_id, "element_count", partition_element_count);
+  return partition_logging_id;
 }
 
 }

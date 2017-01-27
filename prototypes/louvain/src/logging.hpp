@@ -5,14 +5,16 @@
 
 namespace Logging {
 
-uint64_t id_counter = 0;
+typedef uint64_t Id;
+
+Id id_counter = 0;
 
 template<class KeyType, class ValueType>
-void report(const std::string & type, const uint64_t id, const KeyType & key, const ValueType & value) {
+void report(const std::string & type, const Id id, const KeyType & key, const ValueType & value) {
   std::cout << type << '/' << id << '/' << key << ": " << value << std::endl;
 }
 
-uint64_t getUnusedId() {
+Id getUnusedId() {
   return id_counter++;
 }
 
