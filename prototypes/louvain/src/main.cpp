@@ -116,7 +116,7 @@ int main(int argc, char const *argv[]) {
     }
 
     compare_algo_run_logging_id = Logging::getUnusedId();
-    Partitioning::deterministic_greedy_with_linear_penalty(graph, i, partitions);
+    Partitioning::deterministicGreedyWithLinearPenalty(graph, i, partitions);
     Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
     Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "partitioned louvain");
     Logging::report("algorithm_run", compare_algo_run_logging_id, "order", "original");
@@ -186,7 +186,7 @@ int main(int argc, char const *argv[]) {
     log_comparison_results(base_cluster_logging_id, base_clusters, compare_cluster_logging_id, compare_clusters);
 
     compare_algo_run_logging_id = Logging::getUnusedId();
-    Partitioning::deterministic_greedy_with_linear_penalty(graph, i, partitions);
+    Partitioning::deterministicGreedyWithLinearPenalty(graph, i, partitions);
     Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
     Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "partitioned louvain");
     Logging::report("algorithm_run", compare_algo_run_logging_id, "order", "clustering_based");
@@ -249,7 +249,7 @@ int main(int argc, char const *argv[]) {
     log_comparison_results(base_cluster_logging_id, base_clusters, compare_cluster_logging_id, compare_clusters);
 
     compare_algo_run_logging_id = Logging::getUnusedId();
-    Partitioning::deterministic_greedy_with_linear_penalty(graph, i, partitions);
+    Partitioning::deterministicGreedyWithLinearPenalty(graph, i, partitions);
     Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
     Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "partitioned louvain");
     Logging::report("algorithm_run", compare_algo_run_logging_id, "order", "shuffled");
