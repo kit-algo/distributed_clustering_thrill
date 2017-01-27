@@ -4,66 +4,14 @@
 #include "similarity.hpp"
 #include "partitioning.hpp"
 #include "logging.hpp"
+#include "io.hpp"
 
-#include <sstream>
-#include <fstream>
 #include <iostream>
 #include <string>
 #include <numeric>
 #include <assert.h>
 #include <random>
 #include <chrono>
-
-template<class F>
-void open_file(const std::string& filename, F callback, std::ios_base::openmode mode = std::ios::in) {
-    // std::cout << "Opening file " << filename << "\n";
-    std::ifstream f(filename, mode);
-    if(!f.is_open()) {
-        throw std::runtime_error("Could not open file " + filename);
-    }
-
-    callback(f);
-
-    // std::cout << "done reading " << filename << "\n";
-}
-
-Graph::EdgeId read_graph(const std::string& filename, std::vector<std::vector<Graph::NodeId>> &neighbors) {
-  Graph::EdgeId edge_count;
-  open_file(filename, [&](auto& file) {
-    std::string line;
-    Graph::NodeId node_count;
-    std::getline(file, line);
-    std::istringstream header_stream(line);
-    header_stream >> node_count >> edge_count;
-    neighbors.resize(node_count);
-
-    Graph::NodeId i = 0;
-    while (std::getline(file, line)) {
-      std::istringstream line_stream(line);
-      Graph::NodeId neighbor;
-      while (line_stream >> neighbor) {
-        neighbors[i].push_back(neighbor - 1);
-      }
-      i++;
-    }
-  });
-  return edge_count;
-}
-
-void read_clustering(const std::string& filename, ClusterStore& clusters) {
-  open_file(filename, [&](auto& file) {
-    std::string line;
-    Graph::NodeId node = 0;
-
-    while (std::getline(file, line)) {
-      std::istringstream line_stream(line);
-      ClusterStore::ClusterId id;
-      if (line_stream >> id) {
-        clusters.set(node++, id);
-      }
-    }
-  });
-}
 
 uint64_t log_clustering(const Graph & graph, const ClusterStore & clusters) {
   uint64_t logging_id = Logging::getUnusedId();
@@ -86,7 +34,7 @@ int main(int argc, char const *argv[]) {
   uint64_t run_id = Logging::getUnusedId();
 
   std::vector<std::vector<Graph::NodeId>> neighbors;
-  Graph::EdgeId edge_count = read_graph(argv[1], neighbors);
+  Graph::EdgeId edge_count = IO::read_graph(argv[1], neighbors);
   Graph graph(neighbors.size(), edge_count);
   graph.setEdgesByAdjacencyLists(neighbors);
 
@@ -107,7 +55,7 @@ int main(int argc, char const *argv[]) {
   bool ground_proof_available = argc >= 3;
   uint64_t ground_proof_logging_id = 0;
   if (ground_proof_available) {
-    read_clustering(argv[2], ground_proof);
+    IO::read_clustering(argv[2], ground_proof);
     ground_proof_logging_id = log_clustering(graph, ground_proof);
     Logging::report("clustering", ground_proof_logging_id, "source", "ground_proof");
     Logging::report("clustering", ground_proof_logging_id, "program_run_id", run_id);
