@@ -69,7 +69,10 @@ std::ostream& operator << (std::ostream& os, Node& node) {
 
 template<class EdgeType>
 thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
+  edge_list = edge_list.Cache();
+
   auto nodes = edge_list
+    .Keep()
     .Map([](const EdgeType & edge) { return Node { edge.tail, 1 }; })
     .ReduceByKey(
       [](const Node & node) { return node.id; },
@@ -77,14 +80,15 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   // nodes.Print("Nodes");
 
-  const uint64_t node_count = nodes.Size();
-  const uint64_t total_weight = edge_list.Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
+  const uint64_t node_count = nodes.Keep().Size();
+  const uint64_t total_weight = edge_list.Keep().Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
 
   auto node_partitions = nodes
     // Map to degree times partition
     .Map([](const Node & node) { return std::make_pair(node.id, 0u); });
 
   auto bloated_node_clusters = edge_list
+    .Keep()
     .InnerJoinWith(node_partitions,
       [](const EdgeType& edge) { return edge.tail; },
       [](const std::pair<uint32_t, uint32_t>& node_partition) { return node_partition.first; },
@@ -137,6 +141,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
     .Cache();
 
   auto clean_cluster_ids_mapping = bloated_node_clusters
+    .Keep()
     .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
     .ReduceByKey(
       [](const uint32_t cluster) { return cluster; },
@@ -145,9 +150,10 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       })
     .ZipWithIndex([](uint32_t old_cluster_id, uint32_t index) { return std::make_pair(old_cluster_id, index); });
 
-  auto cluster_count = clean_cluster_ids_mapping.Size();
+  auto cluster_count = clean_cluster_ids_mapping.Keep().Size();
 
   auto node_clusters = bloated_node_clusters
+    .Keep() // TODO find way to do only in debugging
     .InnerJoinWith(clean_cluster_ids_mapping,
       [](const NodeInfo& node_cluster) {
         // std::cout << node_cluster.id << ": " << node_cluster.data << std::endl;
@@ -161,9 +167,10 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
         assert(node_cluster.data == mapping.first);
         // std::cout << node_cluster.id << ": " << node_cluster.data << " --- " << mapping.first << " - " << mapping.second << std::endl;
         return NodeInfo { node_cluster.id, mapping.second };
-      });
+      })
+    .Cache();
 
-  assert(node_clusters.Size() == bloated_node_clusters.Size());
+  assert(node_clusters.Keep().Size() == bloated_node_clusters.Size());
 
   if (node_count == cluster_count) {
     return node_clusters;
@@ -171,20 +178,20 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   // Build Meta Graph
   auto meta_graph_edges = edge_list
-    .InnerJoinWith(node_clusters,
+    .InnerJoinWith(node_clusters.Keep(),
       [](const EdgeType& edge) { return edge.tail; },
       [](const NodeInfo& node_cluster) { return node_cluster.id; },
       [](EdgeType edge, const NodeInfo& node_cluster) {
           edge.tail = node_cluster.data;
           return edge;
-      }, thrill::hash())
+      })
     .InnerJoinWith(node_clusters,
       [](const EdgeType& edge) { return edge.head; },
       [](const NodeInfo& node_cluster) { return node_cluster.id; },
       [](EdgeType edge, const NodeInfo& node_cluster) {
           edge.head = node_cluster.data;
           return edge;
-      }, thrill::hash())
+      })
     .Map([](EdgeType edge) { return WeightedEdge { edge.tail, edge.head, edge.getWeight() }; })
     .ReduceByKey(
       [&node_count](WeightedEdge edge) { return node_count * edge.tail + edge.head; },
@@ -214,7 +221,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       [](const NodeInfo& meta_node_cluster) { return meta_node_cluster.id; },
       [](const NodeInfo& node_cluster, const NodeInfo& meta_node_cluster) {
           return NodeInfo { node_cluster.id, meta_node_cluster.data };
-      }, thrill::hash());
+      });
 }
 
 int main(int, char const *argv[]) {
@@ -222,7 +229,7 @@ int main(int, char const *argv[]) {
   Modularity::rng = std::default_random_engine(seed);
 
   return thrill::Run([&](thrill::Context& context) {
-    // context.enable_consume();
+    context.enable_consume();
     auto edges = thrill::ReadLines(context, argv[1])
       .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
       .template FlatMap<Edge>(
@@ -239,8 +246,7 @@ int main(int, char const *argv[]) {
             die(std::string("malformatted edge: ") + line);
           }
         })
-      .Collapse()
-      .Cache();
+      .Collapse();
 
     size_t cluster_count = louvain(edges)
       .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
