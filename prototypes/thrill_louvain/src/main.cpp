@@ -14,6 +14,7 @@
 #include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/sum.hpp>
 #include <thrill/api/join.hpp>
+#include <thrill/api/cache.hpp>
 
 #include <ostream>
 #include <iostream>
@@ -74,7 +75,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       [](const Node & node) { return node.id; },
       [](const Node & node1, const Node & node2) { return Node { node1.id, node1.degree + node2.degree }; });
 
-  nodes.Print("Nodes");
+  // nodes.Print("Nodes");
 
   const uint64_t node_count = nodes.Size();
   const uint64_t total_weight = edge_list.Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
@@ -89,7 +90,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       [](const std::pair<uint32_t, uint32_t>& node_partition) { return node_partition.first; },
       [](const EdgeType& edge, const std::pair<uint32_t, uint32_t>& node_partition) {
           return std::make_pair(node_partition.second, edge);
-      }, thrill::hash())
+      })
   // Local Moving
     .template GroupByKey<std::vector<std::pair<uint32_t, uint32_t>>>(
       [](const std::pair<uint32_t, EdgeType> & edge_with_partition) { return edge_with_partition.first; },
@@ -129,42 +130,39 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
     .template FlatMap<NodeInfo>(
       [](std::vector<std::pair<uint32_t, uint32_t>> mapping, auto emit) {
         for (const std::pair<uint32_t, uint32_t>& pair : mapping) {
+          // std::cout << "Node " << pair.first << ": " << pair.second << std::endl;
           emit(NodeInfo { pair.first, pair.second });
         }
-      });
+      })
+    .Cache();
 
-  bloated_node_clusters.Print("bloated");
-
-  // auto cluster_count =
-  auto cluster_ids = bloated_node_clusters
-    .Map([](const NodeInfo & node_cluster) { return node_cluster.data; })
+  auto clean_cluster_ids_mapping = bloated_node_clusters
+    .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
     .ReduceByKey(
-      [](const uint32_t & cluster) { return cluster; },
-      [](const uint32_t & cluster, const uint32_t &) {
+      [](const uint32_t cluster) { return cluster; },
+      [](const uint32_t cluster, const uint32_t) {
         return cluster;
-      });
-
-  cluster_ids.Print("old ids");
-
-  auto cluster_count = cluster_ids.Size();
-
-  auto clean_cluster_ids_mapping = cluster_ids
+      })
     .ZipWithIndex([](uint32_t old_cluster_id, uint32_t index) { return std::make_pair(old_cluster_id, index); });
 
-  clean_cluster_ids_mapping.Map([](const std::pair<uint32_t, uint32_t>& mapping) { return mapping.first; }).Print("mapping1");
-  clean_cluster_ids_mapping.Map([](const std::pair<uint32_t, uint32_t>& mapping) { return mapping.second; }).Print("mapping2");
+  auto cluster_count = clean_cluster_ids_mapping.Size();
 
   auto node_clusters = bloated_node_clusters
     .InnerJoinWith(clean_cluster_ids_mapping,
-      [](const NodeInfo& node_cluster) { std::cout << node_cluster.id << ": " << node_cluster.data << std::endl; return node_cluster.data; },
-      [](const std::pair<uint32_t, uint32_t>& mapping) { std::cout << mapping.first << " - " << mapping.second << std::endl; return mapping.first; },
+      [](const NodeInfo& node_cluster) {
+        // std::cout << node_cluster.id << ": " << node_cluster.data << std::endl;
+        return node_cluster.data;
+      },
+      [](const std::pair<uint32_t, uint32_t>& mapping) {
+        // std::cout << mapping.first << " - " << mapping.second << std::endl;
+        return mapping.first;
+      },
       [](const NodeInfo& node_cluster, const std::pair<uint32_t, uint32_t>& mapping) {
         assert(node_cluster.data == mapping.first);
-        std::cout << node_cluster.id << ": " << node_cluster.data << " --- " << mapping.first << " - " << mapping.second << std::endl;
+        // std::cout << node_cluster.id << ": " << node_cluster.data << " --- " << mapping.first << " - " << mapping.second << std::endl;
         return NodeInfo { node_cluster.id, mapping.second };
       });
 
-  node_clusters.Print("cleaned");
   assert(node_clusters.Size() == bloated_node_clusters.Size());
 
   if (node_count == cluster_count) {
@@ -203,12 +201,12 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       })
     .Collapse();
 
-  meta_graph_edges.Print("meta graph edges");
+  // meta_graph_edges.Print("meta graph edges");
 
   // Recursion on meta graph
   auto meta_clustering = louvain(meta_graph_edges);
 
-  meta_clustering.Print("meta_clustering");
+  // meta_clustering.Print("meta_clustering");
 
   return node_clusters
     .InnerJoinWith(meta_clustering,
@@ -224,6 +222,7 @@ int main(int, char const *argv[]) {
   Modularity::rng = std::default_random_engine(seed);
 
   return thrill::Run([&](thrill::Context& context) {
+    // context.enable_consume();
     auto edges = thrill::ReadLines(context, argv[1])
       .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
       .template FlatMap<Edge>(
@@ -240,9 +239,18 @@ int main(int, char const *argv[]) {
             die(std::string("malformatted edge: ") + line);
           }
         })
-      .Collapse();
+      .Collapse()
+      .Cache();
 
-    louvain(edges).Print("Clusters");
+    size_t cluster_count = louvain(edges)
+      .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
+      .ReduceByKey(
+        [](const uint32_t cluster) { return cluster; },
+        [](const uint32_t cluster, const uint32_t) {
+          return cluster;
+        })
+      .Size();
+    std::cout << "Result: " << cluster_count << std::endl;
   });
 }
 

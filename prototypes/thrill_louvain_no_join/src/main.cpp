@@ -63,8 +63,6 @@ std::ostream& operator << (std::ostream& os, NodeInfo& node_info) {
 
 template<class EdgeType>
 thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
-  std::cout << "louvain\n";
-
   auto nodes = edge_list
     .Map([](const EdgeType & edge) { return Node { edge.tail, 1 }; })
     .ReduceByKey(
@@ -273,7 +271,15 @@ int main(int, char const *argv[]) {
         return (e1.tail == e2.tail && e1.head < e2.head) || (e1.tail < e2.tail);
       });
 
-    louvain(edges).Print("Clusters");
+    size_t cluster_count = louvain(edges)
+      .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
+      .ReduceByKey(
+        [](const uint32_t cluster) { return cluster; },
+        [](const uint32_t cluster, const uint32_t) {
+          return cluster;
+        })
+      .Size();
+    std::cout << "Result: " << cluster_count << std::endl;
   });
 }
 
