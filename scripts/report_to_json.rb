@@ -4,7 +4,13 @@ require 'securerandom'
 require 'json'
 
 data = {}
-local_id_to_uuid = Hash.new { |hash, key| hash[key] = SecureRandom.uuid }
+local_id_to_uuid = Hash.new do |hash, key|
+  hash[key] = if key =~ /\A\d+\Z/
+    SecureRandom.uuid
+  else
+    key
+  end
+end
 
 def typify value
   case value
@@ -43,6 +49,6 @@ counter = 0
 while File.exist?("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json")
   counter += 1
 end
-File.open("report_#{counter}_#{timestamp.strftime "%Y-%m-%d"}_at_#{commit}.json", 'w+') do |export|
+File.open("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json", 'w+') do |export|
   export.puts data.to_json
 end

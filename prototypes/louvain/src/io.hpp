@@ -66,4 +66,20 @@ void read_clustering(const std::string& filename, ClusterStore& clusters) {
   });
 }
 
+void read_partition(const std::string& filename, std::vector<uint32_t>& node_partition_elements) {
+  open_file(filename, [&](auto& file) {
+    std::string line;
+    Graph::NodeId node = 0;
+
+    while (std::getline(file, line)) {
+      std::istringstream line_stream(line);
+      ClusterStore::ClusterId id;
+      if (line_stream >> id) {
+        node_partition_elements[node] = id;
+      }
+      node++;
+    }
+  });
+}
+
 }

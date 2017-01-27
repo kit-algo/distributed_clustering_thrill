@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 2.6)
-project (local_moving)
+project (ThrillLocalMoving)
 include_directories("../../lib/thrill")
 add_subdirectory (../../lib/thrill ../../../lib/thrill/build)
 
@@ -17,5 +17,5 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g") # debug symbols
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=leak -fsanitize=undefined") # sanitize all the things
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNDEBUG") # disable asserts
 
-add_executable(local_moving src/main.cpp)
-target_link_libraries(local_moving thrill)
+add_executable(thrill_local_moving src/main.cpp)
+target_link_libraries(thrill_local_moving thrill)

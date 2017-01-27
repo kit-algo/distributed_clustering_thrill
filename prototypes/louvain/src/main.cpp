@@ -43,6 +43,7 @@ int main(int argc, char const *argv[]) {
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   Modularity::rng = std::default_random_engine(seed);
 
+  Logging::report("program_run", run_id, "binary", argv[0]);
   Logging::report("program_run", run_id, "graph", argv[1]);
   Logging::report("program_run", run_id, "node_count", graph.getNodeCount());
   Logging::report("program_run", run_id, "edge_count", graph.getEdgeCount());

@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 2.6)
-project (partition)
+project (ThrillLabelProp)
 include_directories("../../lib/thrill")
 add_subdirectory (../../lib/thrill ../../../lib/thrill/build)
 
@@ -17,5 +17,5 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g") # debug symbols
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=leak -fsanitize=undefined") # sanitize all the things
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNDEBUG") # disable asserts
 
-add_executable(partition src/main.cpp)
-target_link_libraries(partition thrill)
+add_executable(label_prop_partitioning src/main.cpp)
+target_link_libraries(label_prop_partitioning thrill)
