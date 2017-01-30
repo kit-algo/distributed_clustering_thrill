@@ -131,7 +131,8 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
     .Sort(
       [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
         return node_cluster1.data < node_cluster2.data;
-      });
+      })
+    .Cache();
 
   auto cluster_sizes = bloated_node_clusters
     .Map([](const NodeInfo & node_cluster) { return std::make_pair(node_cluster.data, 1u); })
@@ -151,7 +152,8 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
           emit(cluster_size.first);
         }
       })
-    .Zip(bloated_node_clusters, [](const uint32_t new_id, const NodeInfo & node_cluster) { return NodeInfo { node_cluster.id, new_id }; });
+    .Zip(bloated_node_clusters, [](const uint32_t new_id, const NodeInfo & node_cluster) { return NodeInfo { node_cluster.id, new_id }; })
+    .Cache();
 
   if (nodes.Size() == cluster_sizes.Size()) {
     return node_clusters;
@@ -239,7 +241,10 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
         return node_cluster1.data < node_cluster2.data;
       })
-    .Zip(new_cluster_ids_times_size, [](const NodeInfo & node_cluster, uint32_t new_cluster_id) { return NodeInfo { node_cluster.id, new_cluster_id }; })
+    .Zip(new_cluster_ids_times_size,
+      [](const NodeInfo & node_cluster, uint32_t new_cluster_id) {
+        return NodeInfo { node_cluster.id, new_cluster_id };
+      })
     .Sort(
       [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
         return node_cluster1.id < node_cluster2.id;
