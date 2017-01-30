@@ -63,8 +63,6 @@ std::ostream& operator << (std::ostream& os, NodeInfo& node_info) {
 
 template<class EdgeType>
 thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
-  std::cout << "louvain\n";
-
   auto nodes = edge_list
     .Map([](const EdgeType & edge) { return Node { edge.tail, 1 }; })
     .ReduceByKey(
@@ -112,7 +110,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
         Graph graph(node_count, partition_edge_count_upper_bound, std::is_same<EdgeType, WeightedEdge>::value);
         graph.setEdgesByAdjacencyMatrix(adjacency_lists);
         graph.overrideTotalWeight(total_weight);
-        ClusterStore clusters(0, node_count);
+        ClusterStore clusters(node_count);
 
         assert(node_ids_in_partition.size() == node_count);
         std::vector<uint32_t> node_ids_in_partition_vector(node_ids_in_partition.begin(), node_ids_in_partition.end());
@@ -133,7 +131,8 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
     .Sort(
       [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
         return node_cluster1.data < node_cluster2.data;
-      });
+      })
+    .Cache();
 
   auto cluster_sizes = bloated_node_clusters
     .Map([](const NodeInfo & node_cluster) { return std::make_pair(node_cluster.data, 1u); })
@@ -153,7 +152,8 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
           emit(cluster_size.first);
         }
       })
-    .Zip(bloated_node_clusters, [](const uint32_t new_id, const NodeInfo & node_cluster) { return NodeInfo { node_cluster.id, new_id }; });
+    .Zip(bloated_node_clusters, [](const uint32_t new_id, const NodeInfo & node_cluster) { return NodeInfo { node_cluster.id, new_id }; })
+    .Cache();
 
   if (nodes.Size() == cluster_sizes.Size()) {
     return node_clusters;
@@ -241,7 +241,10 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
         return node_cluster1.data < node_cluster2.data;
       })
-    .Zip(new_cluster_ids_times_size, [](const NodeInfo & node_cluster, uint32_t new_cluster_id) { return NodeInfo { node_cluster.id, new_cluster_id }; })
+    .Zip(new_cluster_ids_times_size,
+      [](const NodeInfo & node_cluster, uint32_t new_cluster_id) {
+        return NodeInfo { node_cluster.id, new_cluster_id };
+      })
     .Sort(
       [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
         return node_cluster1.id < node_cluster2.id;
@@ -273,7 +276,15 @@ int main(int, char const *argv[]) {
         return (e1.tail == e2.tail && e1.head < e2.head) || (e1.tail < e2.tail);
       });
 
-    louvain(edges).Print("Clusters");
+    size_t cluster_count = louvain(edges)
+      .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
+      .ReduceByKey(
+        [](const uint32_t cluster) { return cluster; },
+        [](const uint32_t cluster, const uint32_t) {
+          return cluster;
+        })
+      .Size();
+    std::cout << "Result: " << cluster_count << std::endl;
   });
 }
 

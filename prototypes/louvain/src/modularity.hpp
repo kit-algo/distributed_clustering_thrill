@@ -183,14 +183,12 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::v
   }
 
   ClusterId minimum_partition_cluster_id = 0;
+  ClusterStore partition_clustering(graph.getNodeCount());
   for (uint32_t partition = 0; partition < partition_nodes.size(); partition++) {
-    ClusterStore partition_clustering(graph.getNodeCount());
-    // std::cout << partition << "move\n";
+    partition_clustering.resetBounds();
     localMoving(graph, partition_clustering, partition_nodes[partition]);
-    // std::cout << partition << "rewrite clusters\n";
     minimum_partition_cluster_id = partition_clustering.rewriteClusterIds(partition_nodes[partition], minimum_partition_cluster_id);
 
-    // std::cout << partition << "combine\n";
     for (NodeId node : partition_nodes[partition]) {
       clusters.set(node, partition_clustering[node]);
     }

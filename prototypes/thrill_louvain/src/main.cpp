@@ -14,6 +14,7 @@
 #include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/sum.hpp>
 #include <thrill/api/join.hpp>
+#include <thrill/api/cache.hpp>
 
 #include <ostream>
 #include <iostream>
@@ -68,28 +69,29 @@ std::ostream& operator << (std::ostream& os, Node& node) {
 
 template<class EdgeType>
 thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
+  edge_list = edge_list.Cache();
+
   auto nodes = edge_list
+    .Keep()
     .Map([](const EdgeType & edge) { return Node { edge.tail, 1 }; })
     .ReduceByKey(
       [](const Node & node) { return node.id; },
       [](const Node & node1, const Node & node2) { return Node { node1.id, node1.degree + node2.degree }; });
 
-  nodes.Print("Nodes");
-
-  const uint64_t node_count = nodes.Size();
-  const uint64_t total_weight = edge_list.Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
+  const uint64_t node_count = nodes.Keep().Size();
+  const uint64_t total_weight = edge_list.Keep().Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
 
   auto node_partitions = nodes
-    // Map to degree times partition
     .Map([](const Node & node) { return std::make_pair(node.id, 0u); });
 
   auto bloated_node_clusters = edge_list
+    .Keep()
     .InnerJoinWith(node_partitions,
       [](const EdgeType& edge) { return edge.tail; },
       [](const std::pair<uint32_t, uint32_t>& node_partition) { return node_partition.first; },
       [](const EdgeType& edge, const std::pair<uint32_t, uint32_t>& node_partition) {
           return std::make_pair(node_partition.second, edge);
-      }, thrill::hash())
+      })
   // Local Moving
     .template GroupByKey<std::vector<std::pair<uint32_t, uint32_t>>>(
       [](const std::pair<uint32_t, EdgeType> & edge_with_partition) { return edge_with_partition.first; },
@@ -114,7 +116,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
         Graph graph(node_count, partition_edge_count_upper_bound, std::is_same<EdgeType, WeightedEdge>::value);
         graph.setEdgesByAdjacencyMatrix(adjacency_lists);
         graph.overrideTotalWeight(total_weight);
-        ClusterStore clusters(0, node_count);
+        ClusterStore clusters(node_count);
 
         assert(node_ids_in_partition.size() == node_count);
         std::vector<uint32_t> node_ids_in_partition_vector(node_ids_in_partition.begin(), node_ids_in_partition.end());
@@ -131,41 +133,32 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
         for (const std::pair<uint32_t, uint32_t>& pair : mapping) {
           emit(NodeInfo { pair.first, pair.second });
         }
-      });
+      })
+    .Cache();
 
-  bloated_node_clusters.Print("bloated");
-
-  // auto cluster_count =
-  auto cluster_ids = bloated_node_clusters
-    .Map([](const NodeInfo & node_cluster) { return node_cluster.data; })
+  auto clean_cluster_ids_mapping = bloated_node_clusters
+    .Keep()
+    .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
     .ReduceByKey(
-      [](const uint32_t & cluster) { return cluster; },
-      [](const uint32_t & cluster, const uint32_t &) {
+      [](const uint32_t cluster) { return cluster; },
+      [](const uint32_t cluster, const uint32_t) {
         return cluster;
-      });
-
-  cluster_ids.Print("old ids");
-
-  auto cluster_count = cluster_ids.Size();
-
-  auto clean_cluster_ids_mapping = cluster_ids
+      })
     .ZipWithIndex([](uint32_t old_cluster_id, uint32_t index) { return std::make_pair(old_cluster_id, index); });
 
-  clean_cluster_ids_mapping.Map([](const std::pair<uint32_t, uint32_t>& mapping) { return mapping.first; }).Print("mapping1");
-  clean_cluster_ids_mapping.Map([](const std::pair<uint32_t, uint32_t>& mapping) { return mapping.second; }).Print("mapping2");
+  auto cluster_count = clean_cluster_ids_mapping.Keep().Size();
 
   auto node_clusters = bloated_node_clusters
+    .Keep() // TODO find way to do only in debugging
     .InnerJoinWith(clean_cluster_ids_mapping,
-      [](const NodeInfo& node_cluster) { std::cout << node_cluster.id << ": " << node_cluster.data << std::endl; return node_cluster.data; },
-      [](const std::pair<uint32_t, uint32_t>& mapping) { std::cout << mapping.first << " - " << mapping.second << std::endl; return mapping.first; },
+      [](const NodeInfo& node_cluster) { return node_cluster.data; },
+      [](const std::pair<uint32_t, uint32_t>& mapping) { return mapping.first; },
       [](const NodeInfo& node_cluster, const std::pair<uint32_t, uint32_t>& mapping) {
-        assert(node_cluster.data == mapping.first);
-        std::cout << node_cluster.id << ": " << node_cluster.data << " --- " << mapping.first << " - " << mapping.second << std::endl;
         return NodeInfo { node_cluster.id, mapping.second };
-      });
+      })
+    .Cache();
 
-  node_clusters.Print("cleaned");
-  assert(node_clusters.Size() == bloated_node_clusters.Size());
+  assert(node_clusters.Keep().Size() == bloated_node_clusters.Size());
 
   if (node_count == cluster_count) {
     return node_clusters;
@@ -179,14 +172,14 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       [](EdgeType edge, const NodeInfo& node_cluster) {
           edge.tail = node_cluster.data;
           return edge;
-      }, thrill::hash())
+      })
     .InnerJoinWith(node_clusters,
       [](const EdgeType& edge) { return edge.head; },
       [](const NodeInfo& node_cluster) { return node_cluster.id; },
       [](EdgeType edge, const NodeInfo& node_cluster) {
           edge.head = node_cluster.data;
           return edge;
-      }, thrill::hash())
+      })
     .Map([](EdgeType edge) { return WeightedEdge { edge.tail, edge.head, edge.getWeight() }; })
     .ReduceByKey(
       [&node_count](WeightedEdge edge) { return node_count * edge.tail + edge.head; },
@@ -203,20 +196,21 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       })
     .Collapse();
 
-  meta_graph_edges.Print("meta graph edges");
+  // meta_graph_edges.Print("meta graph edges");
 
   // Recursion on meta graph
   auto meta_clustering = louvain(meta_graph_edges);
 
-  meta_clustering.Print("meta_clustering");
+  // meta_clustering.Print("meta_clustering");
 
   return node_clusters
+    .Keep() // TODO why on earth is this necessary?
     .InnerJoinWith(meta_clustering,
       [](const NodeInfo& node_cluster) { return node_cluster.data; },
       [](const NodeInfo& meta_node_cluster) { return meta_node_cluster.id; },
       [](const NodeInfo& node_cluster, const NodeInfo& meta_node_cluster) {
           return NodeInfo { node_cluster.id, meta_node_cluster.data };
-      }, thrill::hash());
+      });
 }
 
 int main(int, char const *argv[]) {
@@ -224,6 +218,7 @@ int main(int, char const *argv[]) {
   Modularity::rng = std::default_random_engine(seed);
 
   return thrill::Run([&](thrill::Context& context) {
+    context.enable_consume();
     auto edges = thrill::ReadLines(context, argv[1])
       .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
       .template FlatMap<Edge>(
@@ -242,7 +237,15 @@ int main(int, char const *argv[]) {
         })
       .Collapse();
 
-    louvain(edges).Print("Clusters");
+    size_t cluster_count = louvain(edges)
+      .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
+      .ReduceByKey(
+        [](const uint32_t cluster) { return cluster; },
+        [](const uint32_t cluster, const uint32_t) {
+          return cluster;
+        })
+      .Size();
+    std::cout << "Result: " << cluster_count << std::endl;
   });
 }
 

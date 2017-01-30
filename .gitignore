@@ -1,3 +1,4 @@
 data/*
 *.sublime-*
 analysis/.ipynb_checkpoints/
+.DS_Store
