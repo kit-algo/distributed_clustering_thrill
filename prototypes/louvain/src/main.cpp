@@ -90,98 +90,40 @@ int main(int argc, char const *argv[]) {
     log_comparison_results(ground_proof_logging_id, ground_proof, compare_cluster_logging_id, compare_clusters);
   }
 
+  std::vector<uint32_t> partitions(graph.getNodeCount());
+  auto run_and_log_partitioned_louvain = [&](auto calculate_partition) {
+    compare_algo_run_logging_id = Logging::getUnusedId();
+    Logging::Id partition_logging_id = calculate_partition(partitions);
+    Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
+    Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "partitioned louvain");
+    Logging::report("algorithm_run", compare_algo_run_logging_id, "partition_id", partition_logging_id);
+
+    Modularity::partitionedLouvain(graph, compare_clusters, partitions, compare_algo_run_logging_id);
+    compare_cluster_logging_id = log_clustering(graph, compare_clusters);
+    Logging::report("clustering", compare_cluster_logging_id, "source", "computation");
+    Logging::report("clustering", compare_cluster_logging_id, "algorithm_run_id", compare_algo_run_logging_id);
+
+    log_comparison_results(base_cluster_logging_id, base_clusters, compare_cluster_logging_id, compare_clusters);
+    if (ground_proof_available) {
+      log_comparison_results(ground_proof_logging_id, ground_proof, compare_cluster_logging_id, compare_clusters);
+    }
+  };
+
   for (int i : partition_sizes) {
-    std::vector<uint32_t> partitions(graph.getNodeCount());
-
-    // CHUNK
-
-    compare_algo_run_logging_id = Logging::getUnusedId();
-    Logging::Id partition_logging_id = Partitioning::chunk(graph, i, partitions);
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "partitioned louvain");
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "partition_id", partition_logging_id);
-
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions, compare_algo_run_logging_id);
-    compare_cluster_logging_id = log_clustering(graph, compare_clusters);
-    Logging::report("clustering", compare_cluster_logging_id, "source", "computation");
-    Logging::report("clustering", compare_cluster_logging_id, "algorithm_run_id", compare_algo_run_logging_id);
-
-    log_comparison_results(base_cluster_logging_id, base_clusters, compare_cluster_logging_id, compare_clusters);
-    if (ground_proof_available) {
-      log_comparison_results(ground_proof_logging_id, ground_proof, compare_cluster_logging_id, compare_clusters);
-    }
-
-    // DET GREEDY
-
-    compare_algo_run_logging_id = Logging::getUnusedId();
-    partition_logging_id = Partitioning::deterministicGreedyWithLinearPenalty(graph, i, partitions);
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "partitioned louvain");
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "partition_id", partition_logging_id);
-
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions, compare_algo_run_logging_id);
-    compare_cluster_logging_id = log_clustering(graph, compare_clusters);
-    Logging::report("clustering", compare_cluster_logging_id, "source", "computation");
-    Logging::report("clustering", compare_cluster_logging_id, "algorithm_run_id", compare_algo_run_logging_id);
-
-    log_comparison_results(base_cluster_logging_id, base_clusters, compare_cluster_logging_id, compare_clusters);
-    if (ground_proof_available) {
-      log_comparison_results(ground_proof_logging_id, ground_proof, compare_cluster_logging_id, compare_clusters);
-    }
-
-    // DET GREEDY RANDOM
-
-    compare_algo_run_logging_id = Logging::getUnusedId();
-    partition_logging_id = Partitioning::deterministicGreedyWithLinearPenalty(graph, i, partitions, true);
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "partitioned louvain");
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "partition_id", partition_logging_id);
-
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions, compare_algo_run_logging_id);
-    compare_cluster_logging_id = log_clustering(graph, compare_clusters);
-    Logging::report("clustering", compare_cluster_logging_id, "source", "computation");
-    Logging::report("clustering", compare_cluster_logging_id, "algorithm_run_id", compare_algo_run_logging_id);
-
-    log_comparison_results(base_cluster_logging_id, base_clusters, compare_cluster_logging_id, compare_clusters);
-    if (ground_proof_available) {
-      log_comparison_results(ground_proof_logging_id, ground_proof, compare_cluster_logging_id, compare_clusters);
-    }
-
-    // CLUSTERING BASED
-
-    compare_algo_run_logging_id = Logging::getUnusedId();
-    partition_logging_id = Partitioning::clusteringBased(graph, i, partitions, ground_proof_available ? ground_proof : base_clusters); // TODO log cluster id?
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "partitioned louvain");
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "partition_id", partition_logging_id);
-
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions, compare_algo_run_logging_id);
-    compare_cluster_logging_id = log_clustering(graph, compare_clusters);
-    Logging::report("clustering", compare_cluster_logging_id, "source", "computation");
-    Logging::report("clustering", compare_cluster_logging_id, "algorithm_run_id", compare_algo_run_logging_id);
-
-    log_comparison_results(base_cluster_logging_id, base_clusters, compare_cluster_logging_id, compare_clusters);
-    if (ground_proof_available) {
-      log_comparison_results(ground_proof_logging_id, ground_proof, compare_cluster_logging_id, compare_clusters);
-    }
-
-    // CLUSTERING BASED
-
-    compare_algo_run_logging_id = Logging::getUnusedId();
-    partition_logging_id = Partitioning::random(graph, i, partitions);
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "partitioned louvain");
-    Logging::report("algorithm_run", compare_algo_run_logging_id, "partition_id", partition_logging_id);
-
-    Modularity::partitionedLouvain(graph, compare_clusters, partitions, compare_algo_run_logging_id);
-    compare_cluster_logging_id = log_clustering(graph, compare_clusters);
-    Logging::report("clustering", compare_cluster_logging_id, "source", "computation");
-    Logging::report("clustering", compare_cluster_logging_id, "algorithm_run_id", compare_algo_run_logging_id);
-
-    log_comparison_results(base_cluster_logging_id, base_clusters, compare_cluster_logging_id, compare_clusters);
-    if (ground_proof_available) {
-      log_comparison_results(ground_proof_logging_id, ground_proof, compare_cluster_logging_id, compare_clusters);
-    }
+    run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
+      return Partitioning::chunk(graph, i, partitions);
+    });
+    run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
+      return Partitioning::deterministicGreedyWithLinearPenalty(graph, i, partitions);
+    });
+    run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
+      return Partitioning::deterministicGreedyWithLinearPenalty(graph, i, partitions, true);
+    });
+    run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
+      return Partitioning::clusteringBased(graph, i, partitions, ground_proof_available ? ground_proof : base_clusters); // TODO log cluster id?
+    });
+    run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
+      return Partitioning::random(graph, i, partitions);
+    });
   }
 }
-
