@@ -14,7 +14,6 @@
 #include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/sum.hpp>
 #include <thrill/api/join.hpp>
-#include <thrill/api/cache.hpp>
 
 #include <ostream>
 #include <iostream>
@@ -219,6 +218,7 @@ int main(int, char const *argv[]) {
 
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
+
     auto edges = thrill::ReadLines(context, argv[1])
       .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
       .template FlatMap<Edge>(

@@ -63,17 +63,21 @@ std::ostream& operator << (std::ostream& os, NodeInfo& node_info) {
 
 template<class EdgeType>
 thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
+  edge_list = edge_list.Cache();
+
   auto nodes = edge_list
+    .Keep()
     .Map([](const EdgeType & edge) { return Node { edge.tail, 1 }; })
     .ReduceByKey(
       [](const Node & node) { return node.id; },
       [](const Node & node1, const Node & node2) { return Node { node1.id, node1.degree + node2.degree }; })
     .Sort([](const Node & node1, const Node & node2) { return node1.id < node2.id; });
 
-  const uint64_t node_count = nodes.Size();
+  const uint64_t node_count = nodes.Keep().Size();
   const uint64_t total_weight = edge_list.Keep().Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
 
   auto edge_partitions = nodes
+    .Keep()
     // Map to degree times partition
     .template FlatMap<uint32_t>(
       [](const Node & node, auto emit) {
@@ -84,6 +88,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   // Local Moving
   auto bloated_node_clusters = edge_list
+    .Keep()
     .Zip(edge_partitions, [](const EdgeType & edge, const uint32_t & partition) { return std::make_pair(partition, edge); })
     .template GroupByKey<std::vector<std::pair<uint32_t, uint32_t>>>(
       [](const std::pair<uint32_t, EdgeType> & edge_with_partition) { return edge_with_partition.first; },
@@ -135,6 +140,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
     .Cache();
 
   auto cluster_sizes = bloated_node_clusters
+    .Keep()
     .Map([](const NodeInfo & node_cluster) { return std::make_pair(node_cluster.data, 1u); })
     .ReduceByKey(
       [](const std::pair<uint32_t, uint32_t> & cluster_size) { return cluster_size.first; },
@@ -155,11 +161,12 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
     .Zip(bloated_node_clusters, [](const uint32_t new_id, const NodeInfo & node_cluster) { return NodeInfo { node_cluster.id, new_id }; })
     .Cache();
 
-  if (nodes.Size() == cluster_sizes.Size()) {
+  if (nodes.Keep().Size() == cluster_sizes.Keep().Size()) {
     return node_clusters;
   }
 
   auto clusters = node_clusters
+    .Keep()
     .Sort(
       [](const NodeInfo & node_cluster1, const NodeInfo & node_cluster2) {
         return node_cluster1.id < node_cluster2.id;
@@ -256,6 +263,8 @@ int main(int, char const *argv[]) {
   Modularity::rng = std::default_random_engine(seed);
 
   return thrill::Run([&](thrill::Context& context) {
+    context.enable_consume();
+
     auto edges = thrill::ReadLines(context, argv[1])
       .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
       .template FlatMap<Edge>(
