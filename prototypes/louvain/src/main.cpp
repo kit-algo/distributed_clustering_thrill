@@ -6,12 +6,16 @@
 #include "logging.hpp"
 #include "io.hpp"
 
+#include "boost/program_options.hpp"
+
 #include <iostream>
 #include <string>
 #include <numeric>
 #include <assert.h>
 #include <random>
 #include <chrono>
+
+namespace po = boost::program_options;
 
 Logging::Id log_clustering(const Graph & graph, const ClusterStore & clusters) {
   Logging::Id logging_id = Logging::getUnusedId();
@@ -31,20 +35,46 @@ void log_comparison_results(Logging::Id base_clustering_id, const ClusterStore &
 }
 
 int main(int argc, char const *argv[]) {
+  po::options_description desc("Options");
+  desc.add_options()
+    ("graph", "The graph to perform clustering on, in metis format")
+    ("ground-proof", "A ground proof clustering to compare to")
+    ("seed,s", po::value<unsigned>(), "Fix random seed")
+    ("help", "produce help message");
+  po::positional_options_description pos_desc;
+  pos_desc.add("graph", 1);
+  po::variables_map args;
+
+  try {
+    po::store(po::command_line_parser(argc, argv).options(desc).positional(pos_desc).run(), args); // can throw
+  } catch(po::error& e) {
+    std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
+    std::cerr << desc << std::endl;
+    return 1;
+  }
+
+  if (args.count("help")) {
+    std::cout << desc << std::endl;
+    return 0;
+  }
+
+  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  if (args.count("seed")) {
+    seed = args["seed"].as<unsigned>();
+  }
+  Modularity::rng = std::default_random_engine(seed);
+
   Logging::Id run_id = Logging::getUnusedId();
 
   std::vector<std::vector<Graph::NodeId>> neighbors;
-  Graph::EdgeId edge_count = IO::read_graph(argv[1], neighbors);
+  Graph::EdgeId edge_count = IO::read_graph(args["graph"].as<std::string>(), neighbors);
   Graph graph(neighbors.size(), edge_count);
   graph.setEdgesByAdjacencyLists(neighbors);
 
   std::vector<int> partition_sizes { 4, 32, 128, 1024 };
-  // unsigned seed = 3920764003;
-  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-  Modularity::rng = std::default_random_engine(seed);
 
   Logging::report("program_run", run_id, "binary", argv[0]);
-  Logging::report("program_run", run_id, "graph", argv[1]);
+  Logging::report("program_run", run_id, "graph", args["graph"].as<std::string>());
   Logging::report("program_run", run_id, "node_count", graph.getNodeCount());
   Logging::report("program_run", run_id, "edge_count", graph.getEdgeCount());
   Logging::report("program_run", run_id, "seed", seed);
@@ -53,14 +83,14 @@ int main(int argc, char const *argv[]) {
   ClusterStore base_clusters(neighbors.size());
   ClusterStore compare_clusters(neighbors.size());
 
-  bool ground_proof_available = argc >= 3;
+  bool ground_proof_available = args.count("ground-proof");
   Logging::Id ground_proof_logging_id = 0;
   if (ground_proof_available) {
-    IO::read_clustering(argv[2], ground_proof);
+    IO::read_clustering(args["ground-proof"].as<std::string>(), ground_proof);
     ground_proof_logging_id = log_clustering(graph, ground_proof);
     Logging::report("clustering", ground_proof_logging_id, "source", "ground_proof");
     Logging::report("clustering", ground_proof_logging_id, "program_run_id", run_id);
-    Logging::report("program_run", run_id, "ground_proof", argv[2]);
+    Logging::report("program_run", run_id, "ground_proof", args["ground-proof"].as<std::string>());
   }
 
   Logging::Id base_algo_run_logging_id = Logging::getUnusedId();

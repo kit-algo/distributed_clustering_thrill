@@ -4,6 +4,9 @@ project (Louvain)
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/")
 
 # LIBS
+find_package(Boost 1.42.0 COMPONENTS program_options REQUIRED)
+include_directories(${Boost_INCLUDE_DIR})
+
 
 # Compiler-Options
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Wextra")
@@ -16,3 +19,5 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g") # debug symbols
 # Executables
 add_executable(louvain src/main.cpp)
 add_executable(evaluate_partitioning src/evaluate_partitioning.cpp)
+
+target_link_libraries(louvain ${Boost_LIBRARIES})
