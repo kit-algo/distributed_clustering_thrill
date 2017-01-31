@@ -81,8 +81,8 @@ void chunkIdsInOrder(const Graph& graph, const uint32_t partition_size, std::vec
 
   NodeId partition_target_size = partitionElementTargetSize(graph, partition_size);
 
-  for (NodeId node : ordered_node_ids) {
-    node_partition_elements[node] = node / partition_target_size;
+  for (NodeId i = 0; i < graph.getNodeCount(); i++) {
+    node_partition_elements[ordered_node_ids[i]] = i / partition_target_size;
   }
 }
 
