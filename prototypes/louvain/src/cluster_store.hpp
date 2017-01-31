@@ -46,9 +46,7 @@ public:
   }
 
   void assignSingletonClusterIds() {
-    for (NodeId id = 0; id < size(); id++) {
-      node_clusters[id] = id;
-    }
+    std::iota(node_clusters.begin(), node_clusters.end(), 0);
     resetBounds();
   }
 
