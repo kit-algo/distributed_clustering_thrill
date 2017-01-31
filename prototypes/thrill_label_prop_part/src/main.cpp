@@ -86,6 +86,7 @@ int main(int, char const *argv[]) {
 
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
+
     auto edges = thrill::ReadLines(context, argv[1])
       .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
       .template FlatMap<Edge>(
