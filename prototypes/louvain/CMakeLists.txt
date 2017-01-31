@@ -21,3 +21,4 @@ add_executable(louvain src/main.cpp)
 add_executable(evaluate_partitioning src/evaluate_partitioning.cpp)
 
 target_link_libraries(louvain ${Boost_LIBRARIES})
+target_link_libraries(evaluate_partitioning ${Boost_LIBRARIES})
