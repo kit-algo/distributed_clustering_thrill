@@ -14,6 +14,7 @@
 #include <thrill/api/join.hpp>
 #include <thrill/api/print.hpp>
 #include <thrill/api/union.hpp>
+#include <thrill/api/generate.hpp>
 
 #include <ostream>
 #include <iostream>
@@ -31,10 +32,36 @@ using ClusterWeight = std::pair<ClusterId, Weight>;
 
 struct Edge {
   NodeId tail, head;
+
+  Weight getWeight() const {
+    return 1;
+  }
+};
+
+struct Node {
+  NodeId id;
+  Weight degree;
+};
+
+struct WeightedEdge {
+  NodeId tail, head;
+  Weight weight;
+
+  Weight getWeight() const {
+    return weight;
+  }
 };
 
 std::ostream& operator << (std::ostream& os, Edge& e) {
   return os << e.tail << " -> " << e.head;
+}
+
+std::ostream& operator << (std::ostream& os, WeightedEdge& e) {
+  return os << e.tail << " -> " << e.head << " (" << e.weight << ")";
+}
+
+std::ostream& operator << (std::ostream& os, Node& node) {
+  return os << node.id << " (" << node.degree << ")";
 }
 
 namespace std {
@@ -72,15 +99,17 @@ int64_t deltaModularity(const Weight node_degree,
   return e - a;
 }
 
-auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight total_weight) {
+template<class EdgeType>
+thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, uint32_t num_iterations, Weight total_weight) {
   edge_list = edge_list.Cache();
 
   auto node_clusters = edge_list
     .Keep()
-    .Map([](const Edge& edge) { return edge.tail; })
+    .Map([](const EdgeType& edge) { return edge.tail; })
     .Uniq()
     .Map([](const NodeId& id) { return NodeCluster(id, id); })
-    .Collapse();
+    .Collapse()
+    .Cache();
 
   size_t node_count = node_clusters.Keep().Size();
   size_t cluster_count = node_count;
@@ -88,30 +117,29 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
   // node_clusters.Print("initial clusters");
 
   for (uint32_t iteration = 0; iteration < num_iterations * SUBITERATIONS; iteration++) {
-    auto cluster_weights = edge_list
+    auto node_cluster_weights = edge_list
       .Keep()
-      .InnerJoinWith(node_clusters,
-        [](const Edge& edge) { return edge.tail; },
+      .InnerJoinWith(node_clusters.Keep(),
+        [](const EdgeType& edge) { return edge.tail; },
         [](const NodeCluster& node_cluster) { return node_cluster.first; },
-        [](const Edge&, const NodeCluster& node_cluster) { return ClusterWeight(node_cluster.second, 1); })
-      .ReducePair([](const Weight weight1, const Weight weight2) { return weight1 + weight2; });
-
-    auto node_cluster_weights = node_clusters
-      .InnerJoinWith(cluster_weights,
-        [](const NodeCluster& node_cluster) { return node_cluster.second; },
+        [](const EdgeType& edge, const NodeCluster& node_cluster) { return ClusterWeight(node_cluster.second, edge.getWeight()); })
+      .ReducePair([](const Weight weight1, const Weight weight2) { return weight1 + weight2; })
+      .InnerJoinWith(node_clusters.Keep(),
         [](const std::pair<ClusterId, Weight>& cluster_weight) { return cluster_weight.first; },
-        [](const NodeCluster& node_cluster, const ClusterWeight& cluster_weight) { return std::make_pair(node_cluster.first, cluster_weight); });
+        [](const NodeCluster& node_cluster) { return node_cluster.second; },
+        [](const ClusterWeight& cluster_weight, const NodeCluster& node_cluster) { return std::make_pair(node_cluster.first, cluster_weight); });
 
-    auto new_node_clusters = edge_list
-      .Filter([iteration](const Edge& edge) { return edge.tail % SUBITERATIONS == iteration % SUBITERATIONS; })
+    auto other_node_clusters = node_clusters
+      .Filter([iteration](const NodeCluster& node_cluster) { return node_cluster.first % SUBITERATIONS != iteration % SUBITERATIONS; });
+
+    node_clusters = edge_list
+      .Filter([iteration](const EdgeType& edge) { return edge.tail % SUBITERATIONS == iteration % SUBITERATIONS; })
       .InnerJoinWith(node_cluster_weights,
-        [](const Edge& edge) { return edge.head; },
+        [](const EdgeType& edge) { return edge.head; },
         [](const std::pair<NodeId, ClusterWeight>& node_cluster_weight) { return node_cluster_weight.first; },
-        [](const Edge& edge, const std::pair<NodeId, ClusterWeight>& node_cluster_weight) {
-          return std::make_pair(edge.tail, node_cluster_weight.second);
+        [](const EdgeType& edge, const std::pair<NodeId, ClusterWeight>& node_cluster_weight) {
+          return std::make_pair(edge.tail, IncidentClusterInfo { node_cluster_weight.second.first, edge.getWeight(), node_cluster_weight.second.second });
         })
-      .Map([](const std::pair<NodeId, std::pair<ClusterId, Weight>>& node_with_incident_cluster_and_weight) {
-        return std::make_pair(node_with_incident_cluster_and_weight.first, IncidentClusterInfo { node_with_incident_cluster_and_weight.second.first, 1, node_with_incident_cluster_and_weight.second.second }); })
       .ReduceByKey(
         [](const std::pair<NodeId, IncidentClusterInfo>& node_with_incident_cluster) -> uint64_t {
           return (uint64_t) node_with_incident_cluster.first << 32 | node_with_incident_cluster.second.cluster;
@@ -165,11 +193,8 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
 
           // std::cout << "node " << local_moving_node.first.first << " best cluster " << best_cluster << " delta " << best_delta << std::endl;
           return NodeCluster(local_moving_node.first.first, best_cluster);
-        });
-
-    node_clusters = node_clusters
-      .Filter([iteration](const NodeCluster& node_cluster) { return node_cluster.first % SUBITERATIONS != iteration % SUBITERATIONS; })
-      .Union(new_node_clusters)
+        })
+      .Union(other_node_clusters)
       .Collapse()
       .Cache();
 
@@ -186,6 +211,86 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
   }
 
   return node_clusters;
+}
+
+template<class EdgeType>
+thrill::DIA<NodeCluster> louvain(thrill::DIA<EdgeType>& edge_list) {
+  edge_list = edge_list.Cache();
+
+  auto nodes = edge_list
+    .Keep()
+    .Map([](const EdgeType & edge) { return Node { edge.tail, 1 }; })
+    .ReduceByKey(
+      [](const Node & node) { return node.id; },
+      [](const Node & node1, const Node & node2) { return Node { node1.id, node1.degree + node2.degree }; });
+
+  const size_t node_count = nodes.Keep().Size();
+  const Weight total_weight = edge_list.Keep().Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
+
+  auto node_clusters = local_moving(edge_list, 16, total_weight);
+  auto distinct_cluster_ids = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq();
+  size_t cluster_count = distinct_cluster_ids.Keep().Size();
+
+  if (node_count == cluster_count) {
+    return node_clusters;
+  }
+
+  // node_clusters = distinct_cluster_ids
+  //   .ZipWithIndex([](const ClusterId cluster_id, const size_t index) { return std::make_pair(cluster_id, index); })
+  //   .InnerJoinWith(node_clusters,
+  //     [](const std::pair<ClusterId, size_t>& pair){ return pair.first; },
+  //     [](const NodeCluster& node_cluster) { return node_cluster.second; },
+  //     [](const std::pair<ClusterId, size_t>& pair, const NodeCluster& node_cluster) {
+  //       return NodeCluster(node_cluster.first, pair.second);
+  //     });
+
+  // Build Meta Graph
+  auto meta_graph_edges = edge_list
+    .InnerJoinWith(node_clusters.Keep(),
+      [](const EdgeType& edge) { return edge.tail; },
+      [](const NodeCluster& node_cluster) { return node_cluster.first; },
+      [](EdgeType edge, const NodeCluster& node_cluster) {
+          edge.tail = node_cluster.second;
+          return edge;
+      })
+    .InnerJoinWith(node_clusters.Keep(),
+      [](const EdgeType& edge) { return edge.head; },
+      [](const NodeCluster& node_cluster) { return node_cluster.first; },
+      [](EdgeType edge, const NodeCluster& node_cluster) {
+          edge.head = node_cluster.second;
+          return edge;
+      })
+    .Map([](EdgeType edge) { return WeightedEdge { edge.tail, edge.head, edge.getWeight() }; })
+    .ReduceByKey(
+      [&node_count](WeightedEdge edge) { return node_count * edge.tail + edge.head; },
+      [](WeightedEdge edge1, WeightedEdge edge2) { return WeightedEdge { edge1.tail, edge1.head, edge1.weight + edge2.weight }; })
+    // turn loops into forward and backward arc
+    .template FlatMap<WeightedEdge>(
+      [](const WeightedEdge & edge, auto emit) {
+        if (edge.tail == edge.head) {
+          emit(WeightedEdge { edge.tail, edge.head, edge.weight / 2 });
+          emit(WeightedEdge { edge.tail, edge.head, edge.weight / 2 });
+        } else {
+          emit(edge);
+        }
+      })
+    .Collapse();
+
+  meta_graph_edges.Keep().Print("meta graph edges");
+
+  // Recursion on meta graph
+  auto meta_clustering = louvain(meta_graph_edges);
+
+  meta_clustering.Keep().Print("meta_clustering");
+
+  return node_clusters
+    .Keep() // TODO why on earth is this necessary?
+    .InnerJoinWith(meta_clustering,
+      [](const NodeCluster& node_cluster) { return node_cluster.second; },
+      [](const NodeCluster& meta_node_cluster) { return meta_node_cluster.first; },
+      [](const NodeCluster& node_cluster, const NodeCluster& meta_node_cluster) {
+          return NodeCluster(node_cluster.first, meta_node_cluster.second);
+      });
 }
 
 int main(int, char const *argv[]) {
@@ -210,8 +315,8 @@ int main(int, char const *argv[]) {
         })
       .Collapse();
 
-    Weight edge_count = edges.Keep().Size() / 2;
-    auto node_clusters = local_moving(edges, 16, edge_count);
+    auto node_clusters = louvain(edges);
+    // auto node_clusters = local_moving(edges, 16, edges.Keep().Size() / 2);
 
     size_t cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
     std::cout << "Result: " << cluster_count << std::endl;
