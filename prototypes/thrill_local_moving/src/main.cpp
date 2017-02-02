@@ -13,11 +13,14 @@
 #include <thrill/api/sum.hpp>
 #include <thrill/api/join.hpp>
 #include <thrill/api/print.hpp>
+#include <thrill/api/union.hpp>
 
 #include <ostream>
 #include <iostream>
 #include <vector>
 #include <map>
+
+#define SUBITERATIONS 4
 
 using NodeId = uint32_t;
 using ClusterId = uint32_t;
@@ -78,11 +81,12 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
     .Map([](const NodeId& id) { return NodeCluster(id, id); })
     .Collapse();
 
-  size_t cluster_count = node_clusters.Size();
+  size_t node_count = node_clusters.Size();
+  size_t cluster_count = node_count;
 
   // node_clusters.Print("initial clusters");
 
-  for (uint32_t iteration = 0; iteration < num_iterations; iteration++) {
+  for (uint32_t iteration = 0; iteration < num_iterations * SUBITERATIONS; iteration++) {
     auto cluster_weights = edge_list
       .InnerJoinWith(node_clusters,
         [](const Edge& edge) { return edge.tail; },
@@ -96,7 +100,8 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
         [](const std::pair<ClusterId, Weight>& cluster_weight) { return cluster_weight.first; },
         [](const NodeCluster& node_cluster, const ClusterWeight& cluster_weight) { return std::make_pair(node_cluster.first, cluster_weight); });
 
-    node_clusters = edge_list
+    auto new_node_clusters = edge_list
+      .Filter([iteration](const Edge& edge) { return edge.tail % SUBITERATIONS == iteration % SUBITERATIONS; })
       .InnerJoinWith(node_cluster_weights,
         [](const Edge& edge) { return edge.head; },
         [](const std::pair<NodeId, ClusterWeight>& node_cluster_weight) { return node_cluster_weight.first; },
@@ -158,13 +163,24 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
 
           // std::cout << "node " << local_moving_node.first.first << " best cluster " << best_cluster << " delta " << best_delta << std::endl;
           return NodeCluster(local_moving_node.first.first, best_cluster);
-        })
-      .Collapse();
+        });
 
-    size_t round_cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
-    std::cout << "from " << cluster_count << " to " << round_cluster_count << std::endl;
-    cluster_count = round_cluster_count;
-    // node_clusters.Print("round clusters");
+    node_clusters = node_clusters
+      .Filter([iteration](const NodeCluster& node_cluster) { return node_cluster.first % SUBITERATIONS != iteration % SUBITERATIONS; })
+      .Union(new_node_clusters)
+      .Collapse()
+      .Cache();
+
+    if (iteration % SUBITERATIONS == SUBITERATIONS - 1) {
+      size_t round_cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
+      std::cout << "from " << cluster_count << " to " << round_cluster_count << std::endl;
+
+      if (cluster_count - round_cluster_count < node_count / 100) {
+        break;
+      }
+
+      cluster_count = round_cluster_count;
+    }
   }
 
   return node_clusters;
@@ -193,7 +209,7 @@ int main(int, char const *argv[]) {
       .Collapse();
 
     Weight edge_count = edges.Size() / 2;
-    auto node_clusters = local_moving(edges, 32, edge_count);
+    auto node_clusters = local_moving(edges, 16, edge_count);
 
     size_t cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
     std::cout << "Result: " << cluster_count << std::endl;
