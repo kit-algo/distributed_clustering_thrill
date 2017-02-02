@@ -58,10 +58,7 @@ int64_t deltaModularity(const Weight node_degree,
                         int64_t current_cluster_incident_edges_weight,
                         int64_t target_cluster_incident_edges_weight,
                         const Weight total_weight) {
-  assert(total_weight == 2742);
-
   if (target_cluster == current_cluster) {
-    assert(false);
     target_cluster_incident_edges_weight -= node_degree;
   }
 
@@ -77,11 +74,11 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
 
   auto node_clusters = edge_list
     .Map([](const Edge& edge) { return edge.tail; })
-    .ReduceByKey(
-      [](const NodeId& id) { return id; },
-      [](const NodeId& id, const NodeId&) { return id; })
+    .Uniq()
     .Map([](const NodeId& id) { return NodeCluster(id, id); })
     .Collapse();
+
+  size_t cluster_count = node_clusters.Size();
 
   // node_clusters.Print("initial clusters");
 
@@ -93,15 +90,11 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
         [](const Edge&, const NodeCluster& node_cluster) { return ClusterWeight(node_cluster.second, 1); })
       .ReducePair([](const Weight weight1, const Weight weight2) { return weight1 + weight2; });
 
-    // cluster_weights.Print("cluster_weights");
-
     auto node_cluster_weights = node_clusters
       .InnerJoinWith(cluster_weights,
         [](const NodeCluster& node_cluster) { return node_cluster.second; },
         [](const std::pair<ClusterId, Weight>& cluster_weight) { return cluster_weight.first; },
         [](const NodeCluster& node_cluster, const ClusterWeight& cluster_weight) { return std::make_pair(node_cluster.first, cluster_weight); });
-
-    // node_cluster_weights.Print("node_cluster_weights");
 
     node_clusters = edge_list
       .InnerJoinWith(node_cluster_weights,
@@ -149,28 +142,28 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
             }
           }
 
-          assert(degree == local_moving_node.second.size());
-          assert(degree == local_moving_node.first.second.second);
-          std::cout << "node " << local_moving_node.first.first << " degree " << degree << " weight between " << weight_between_node_and_current_cluster << std::endl;
+          // std::cout << "node " << local_moving_node.first.first << " degree " << degree << " weight between " << weight_between_node_and_current_cluster << std::endl;
 
           for (const IncidentClusterInfo& incident_cluster : local_moving_node.second) {
             int64_t delta = deltaModularity(degree, local_moving_node.first.second.first, incident_cluster.cluster,
                                             weight_between_node_and_current_cluster, incident_cluster.incident_weight,
                                             local_moving_node.first.second.second, incident_cluster.total_weight,
                                             total_weight);
-            assert(incident_cluster.incident_weight == 1);
-            std::cout << "cluster " << incident_cluster.cluster << " cluster degree " << incident_cluster.total_weight << " delta " << delta << std::endl;
+            // std::cout << "cluster " << incident_cluster.cluster << " cluster degree " << incident_cluster.total_weight << " delta " << delta << std::endl;
             if (delta > best_delta) {
               best_delta = delta;
               best_cluster = incident_cluster.cluster;
             }
           }
 
-          std::cout << "node " << local_moving_node.first.first << " best cluster " << best_cluster << " delta " << best_delta << std::endl;
+          // std::cout << "node " << local_moving_node.first.first << " best cluster " << best_cluster << " delta " << best_delta << std::endl;
           return NodeCluster(local_moving_node.first.first, best_cluster);
         })
       .Collapse();
 
+    size_t round_cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
+    std::cout << "from " << cluster_count << " to " << round_cluster_count << std::endl;
+    cluster_count = round_cluster_count;
     // node_clusters.Print("round clusters");
   }
 
@@ -200,16 +193,9 @@ int main(int, char const *argv[]) {
       .Collapse();
 
     Weight edge_count = edges.Size() / 2;
-    auto node_clusters = local_moving(edges, 16, edge_count);
+    auto node_clusters = local_moving(edges, 32, edge_count);
 
-    size_t cluster_count = node_clusters
-      .Map([](const NodeCluster& node_cluster) { return node_cluster.second; })
-      .ReduceByKey(
-        [](const ClusterId cluster) { return cluster; },
-        [](const ClusterId cluster, const ClusterId) {
-          return cluster;
-        })
-      .Size();
+    size_t cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
     std::cout << "Result: " << cluster_count << std::endl;
   });
 }
