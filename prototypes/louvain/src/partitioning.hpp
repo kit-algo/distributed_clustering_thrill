@@ -115,4 +115,14 @@ Logging::Id clusteringBased(const Graph& graph, const uint32_t partition_size, s
   return partition_logging_id;
 }
 
+void analyse(const Graph& graph, const uint32_t partition_size, std::vector<uint32_t>& node_partition_elements) {
+  Weight cut_weight = 0;
+  graph.forEachEdge([&](NodeId from, NodeId to, Weight weight) {
+    if (node_partition_elements[from] != node_partition_elements[to]) {
+      cut_weight += weight;
+    }
+  });
+  cut_weight /= 2;
+}
+
 }

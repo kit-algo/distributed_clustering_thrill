@@ -60,6 +60,15 @@ public:
     }
   }
 
+  template<class F>
+  void forEachEdge(F f) const {
+    for (NodeId node = 0; node < node_count; node++) {
+      forEachAdjacentNode(node, [&node, &f](NodeId neighbor, Weight weight) {
+        f(node, neighbor, weight);
+      });
+    }
+  }
+
   void setEdgesByAdjacencyMatrix(const std::vector<std::map<NodeId, Weight>> &adjacency_weights) {
     EdgeId current_edge_index = 0;
     NodeId current_node = 0;
