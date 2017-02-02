@@ -76,18 +76,20 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
   edge_list = edge_list.Cache();
 
   auto node_clusters = edge_list
+    .Keep()
     .Map([](const Edge& edge) { return edge.tail; })
     .Uniq()
     .Map([](const NodeId& id) { return NodeCluster(id, id); })
     .Collapse();
 
-  size_t node_count = node_clusters.Size();
+  size_t node_count = node_clusters.Keep().Size();
   size_t cluster_count = node_count;
 
   // node_clusters.Print("initial clusters");
 
   for (uint32_t iteration = 0; iteration < num_iterations * SUBITERATIONS; iteration++) {
     auto cluster_weights = edge_list
+      .Keep()
       .InnerJoinWith(node_clusters,
         [](const Edge& edge) { return edge.tail; },
         [](const NodeCluster& node_cluster) { return node_cluster.first; },
@@ -172,7 +174,7 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
       .Cache();
 
     if (iteration % SUBITERATIONS == SUBITERATIONS - 1) {
-      size_t round_cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
+      size_t round_cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
       std::cout << "from " << cluster_count << " to " << round_cluster_count << std::endl;
 
       if (cluster_count - round_cluster_count < node_count / 100) {
@@ -188,7 +190,7 @@ auto local_moving(thrill::DIA<Edge>& edge_list, uint32_t num_iterations, Weight 
 
 int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
-    // context.enable_consume();
+    context.enable_consume();
 
     auto edges = thrill::ReadLines(context, argv[1])
       .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
@@ -208,7 +210,7 @@ int main(int, char const *argv[]) {
         })
       .Collapse();
 
-    Weight edge_count = edges.Size() / 2;
+    Weight edge_count = edges.Keep().Size() / 2;
     auto node_clusters = local_moving(edges, 16, edge_count);
 
     size_t cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
