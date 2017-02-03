@@ -118,6 +118,7 @@ Logging::Id clusteringBased(const Graph& graph, const uint32_t partition_size, s
 }
 
 void analyse(const Graph& graph, const uint32_t partition_size, std::vector<uint32_t>& node_partition_elements) {
+  // CUT SIZE
   Weight cut_weight = 0;
   graph.forEachEdge([&](NodeId from, NodeId to, Weight weight) {
     if (node_partition_elements[from] != node_partition_elements[to]) {
@@ -126,6 +127,7 @@ void analyse(const Graph& graph, const uint32_t partition_size, std::vector<uint
   });
   cut_weight /= 2;
 
+  // CONNECTED COMPONENT
   std::vector<std::vector<uint32_t>> connect_component_sizes(partition_size);
   boost::dynamic_bitset<> reached_nodes(graph.getNodeCount());
 
@@ -150,6 +152,20 @@ void analyse(const Graph& graph, const uint32_t partition_size, std::vector<uint
 
       connect_component_sizes[node_partition_elements[node]].push_back(component_size);
     }
+  }
+
+  // GHOST COUNT
+  std::vector<uint32_t> ghost_vertex_counts(partition_size, 0);
+  boost::dynamic_bitset<> reachable_from_partition(partition_size);
+
+  for (NodeId node = 0; node < graph.getNodeCount(); node++) {
+    graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight) {
+      if (node_partition_elements[neighbor] != node_partition_elements[node] && !reachable_from_partition[node_partition_elements[neighbor]]) {
+        reachable_from_partition[node_partition_elements[neighbor]] = true;
+        ghost_vertex_counts[node_partition_elements[neighbor]] += 1;
+      }
+    });
+    reachable_from_partition.reset();
   }
 }
 
