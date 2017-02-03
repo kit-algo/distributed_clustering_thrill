@@ -59,10 +59,10 @@ public:
     po::positional_options_description pos_desc;
     pos_desc.add("graph", 1);
     pos_desc.add("partition", -1);
-    po::variables_map args;
 
     try {
       po::store(po::command_line_parser(argc, argv).options(desc).positional(pos_desc).run(), args); // can throw
+      po::notify(args);
     } catch(po::error& e) {
       std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
       std::cerr << desc << std::endl;
