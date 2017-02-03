@@ -76,6 +76,7 @@ int64_t deltaModularity(const Graph &graph,
 }
 
 bool localMoving(const Graph& graph, ClusterStore &clusters);
+template<bool move_to_ghosts = true>
 bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move);
 
 bool localMoving(const Graph& graph, ClusterStore &clusters) {
@@ -84,11 +85,13 @@ bool localMoving(const Graph& graph, ClusterStore &clusters) {
   return localMoving(graph, clusters, nodes_to_move);
 }
 
+template<bool move_to_ghosts>
 bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move) {
-  bool move_to_ghosts = true; // TODO Template arg
-  boost::dynamic_bitset<> included_nodes(graph.getNodeCount());
-  for (NodeId node : nodes_to_move) {
-    included_nodes[node] = true;
+  boost::dynamic_bitset<> included_nodes(move_to_ghosts ? 0 : graph.getNodeCount());
+  if (!move_to_ghosts) {
+    for (NodeId node : nodes_to_move) {
+      included_nodes[node] = true;
+    }
   }
 
   bool changed = false;
@@ -181,6 +184,7 @@ void louvain(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id, u
   }
 }
 
+template<bool move_to_ghosts = true>
 void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::vector<uint32_t>& partitions, uint64_t algo_run_id, uint32_t level = 0) {
   assert(partitions.size() == graph.getNodeCount());
   clusters.resetBounds();
@@ -194,7 +198,7 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::v
   ClusterStore partition_clustering(graph.getNodeCount());
   for (uint32_t partition = 0; partition < partition_nodes.size(); partition++) {
     partition_clustering.resetBounds();
-    localMoving(graph, partition_clustering, partition_nodes[partition]);
+    localMoving<move_to_ghosts>(graph, partition_clustering, partition_nodes[partition]);
     minimum_partition_cluster_id = partition_clustering.rewriteClusterIds(partition_nodes[partition], minimum_partition_cluster_id);
 
     for (NodeId node : partition_nodes[partition]) {
