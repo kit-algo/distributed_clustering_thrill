@@ -15,6 +15,11 @@ void report(const std::string & type, const IdType id, const KeyType & key, cons
   std::cout << type << '/' << id << '/' << key << ": " << value << std::endl;
 }
 
+template<class IdType, class KeyType>
+void report(const std::string & type, const IdType id, const KeyType & key, const bool & value) {
+  std::cout << type << '/' << id << '/' << key << ": " << (value ? "true" : "false") << std::endl;
+}
+
 template<class IdType, class KeyType, class ValueType>
 void report(const std::string & type, const IdType id, const KeyType & key, const std::vector<ValueType> & values) {
   std::cout << type << '/' << id << '/' << key << ": " << "[";

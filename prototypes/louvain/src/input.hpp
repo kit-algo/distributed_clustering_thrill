@@ -50,8 +50,8 @@ public:
     run_id(run_id),
     seed(std::chrono::system_clock::now().time_since_epoch().count()) {
     desc.add_options()
-      ("graph", "The graph to perform clustering on, in metis format")
-      ("ground-proof", "A ground proof clustering to compare to")
+      ("graph", po::value<std::string>(), "The graph to perform clustering on, in metis format")
+      ("ground-proof,g", po::value<std::string>(), "A ground proof clustering to compare to")
       ("partition,p", po::value<std::vector<PartitionInput>>()->composing(), "Partition with reporting UUID (comma seperated)")
       ("seed,s", po::value<unsigned>(), "Fix random seed")
       ("snap-format,f", po::bool_switch()->default_value(false), "Graph is in SNAP Edge List Format rather than DIMACS graph")
