@@ -3,6 +3,7 @@
 #include "cluster_store.hpp"
 #include "logging.hpp"
 #include "io.hpp"
+#include "partitioning.hpp"
 
 #include "boost/program_options.hpp"
 
@@ -81,6 +82,7 @@ int main(int argc, char const *argv[]) {
   for (const auto& partition_input : args["partition"].as<std::vector<PartitionInput>>()) {
     std::vector<uint32_t> node_partition_elements(graph.getNodeCount());
     IO::read_partition(partition_input.first, node_partition_elements);
+    std::vector<Logging::Id> partition_element_logging_ids = Partitioning::analyse(graph, node_partition_elements, partition_input.second);
 
     uint64_t algo_run_logging_id = Logging::getUnusedId();
     Logging::report("algorithm_run", algo_run_logging_id, "program_run_id", run_id);
@@ -88,7 +90,7 @@ int main(int argc, char const *argv[]) {
     Logging::report("algorithm_run", algo_run_logging_id, "order", "original");
     Logging::report("algorithm_run", algo_run_logging_id, "partition_id", partition_input.second);
 
-    Modularity::partitionedLouvain(graph, clusters, node_partition_elements, algo_run_logging_id);
+    Modularity::partitionedLouvain(graph, clusters, node_partition_elements, algo_run_logging_id, partition_element_logging_ids);
   }
 }
 

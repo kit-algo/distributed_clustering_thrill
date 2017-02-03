@@ -123,7 +123,7 @@ int main(int argc, char const *argv[]) {
   std::vector<uint32_t> partitions(graph.getNodeCount());
   auto run_and_log_partitioned_louvain = [&](auto calculate_partition) {
     Logging::Id partition_logging_id = calculate_partition(partitions);
-    Partitioning::analyse(graph, partitions, partition_logging_id);
+    std::vector<Logging::Id> partition_element_logging_ids = Partitioning::analyse(graph, partitions, partition_logging_id);
 
     for (bool allow_move_to_ghosts : { true, false }) {
       compare_algo_run_logging_id = Logging::getUnusedId();
@@ -133,9 +133,9 @@ int main(int argc, char const *argv[]) {
       Logging::report("algorithm_run", compare_algo_run_logging_id, "allow_move_to_ghosts", allow_move_to_ghosts);
 
       if (allow_move_to_ghosts) {
-        Modularity::partitionedLouvain<true>(graph, compare_clusters, partitions, compare_algo_run_logging_id);
+        Modularity::partitionedLouvain<true>(graph, compare_clusters, partitions, compare_algo_run_logging_id, partition_element_logging_ids);
       } else {
-        Modularity::partitionedLouvain<false>(graph, compare_clusters, partitions, compare_algo_run_logging_id);
+        Modularity::partitionedLouvain<false>(graph, compare_clusters, partitions, compare_algo_run_logging_id, partition_element_logging_ids);
       }
       compare_cluster_logging_id = log_clustering(graph, compare_clusters);
       Logging::report("clustering", compare_cluster_logging_id, "source", "computation");

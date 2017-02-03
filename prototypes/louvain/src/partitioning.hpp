@@ -113,8 +113,10 @@ Logging::Id clusteringBased(const Graph& graph, const uint32_t partition_size, s
   return partition_logging_id;
 }
 
-void analyse(const Graph& graph, std::vector<uint32_t>& node_partition_elements, const Logging::Id partition_logging_id) {
+template<class LoggingId>
+std::vector<Logging::Id> analyse(const Graph& graph, std::vector<uint32_t>& node_partition_elements, const LoggingId partition_logging_id) {
   const uint32_t partition_size = *std::max_element(node_partition_elements.begin(), node_partition_elements.end()) + 1;
+  std::vector<Logging::Id> partition_element_logging_ids(partition_size);
   // CUT SIZE
   Weight cut_weight = 0;
   graph.forEachEdge([&](NodeId from, NodeId to, Weight weight) {
@@ -176,11 +178,14 @@ void analyse(const Graph& graph, std::vector<uint32_t>& node_partition_elements,
   // LOG
   for (PartitionElementId partition_element = 0; partition_element < partition_size; partition_element++) {
     Logging::Id element_logging_id = Logging::getUnusedId();
+    partition_element_logging_ids[partition_element] = element_logging_id;
     Logging::report("partition_element", element_logging_id, "partition_id", partition_logging_id);
     Logging::report("partition_element", element_logging_id, "node_count", node_counts[partition_element]);
     Logging::report("partition_element", element_logging_id, "ghost_count", ghost_vertex_counts[partition_element]);
     Logging::report("partition_element", element_logging_id, "connected_components", connect_component_sizes[partition_element]);
   }
+
+  return partition_element_logging_ids;
 }
 
 }
