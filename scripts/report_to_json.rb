@@ -14,6 +14,7 @@ end
 
 def typify value
   case value
+    when /\A\[.*\]\Z]/ then value[1..-2].split(',').map(&:strip).map { |it| typify(it) }
     when ->(it) { Integer(it) rescue false } then Integer(value)
     when ->(it) { Float(it) rescue false } then Float(value)
     else value
