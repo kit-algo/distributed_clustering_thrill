@@ -26,6 +26,8 @@ Logging::Id deterministicGreedyWithLinearPenalty(const Graph& graph, const uint3
 
   std::vector<NodeId> partition_sizes(partition_size, 0);
   std::vector<NodeId> neighbor_partition_intersection_sizes(partition_size, 0);
+  std::vector<PartitionElementId> partition_elements(partition_size);
+  std::iota(partition_elements.begin(), partition_elements.end(), 0);
 
   std::vector<NodeId> node_ids(graph.getNodeCount());
   std::iota(node_ids.begin(), node_ids.end(), 0);
@@ -40,9 +42,10 @@ Logging::Id deterministicGreedyWithLinearPenalty(const Graph& graph, const uint3
       }
     });
 
+    std::shuffle(partition_elements.begin(), partition_elements.end(), Modularity::rng);
     double best_partition_value = -std::numeric_limits<double>::max();
     PartitionElementId best_partition = partition_size;
-    for (PartitionElementId partition = 0; partition < partition_size; partition++) {
+    for (PartitionElementId partition : partition_elements) {
       double value = (1. - (double(partition_sizes[partition]) / partition_target_size)) * neighbor_partition_intersection_sizes[partition];
 
       if (value > best_partition_value) {
