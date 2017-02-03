@@ -11,7 +11,6 @@
 #include <numeric>
 #include <assert.h>
 #include <random>
-#include <chrono>
 
 namespace po = boost::program_options;
 

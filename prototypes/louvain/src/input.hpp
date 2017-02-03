@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <iostream>
+#include <chrono>
 
 #include "boost/program_options.hpp"
 
@@ -40,6 +41,7 @@ private:
 
   std::unique_ptr<Graph> graph;
   std::unique_ptr<ClusterStore> ground_proof;
+  std::unordered_map<Graph::NodeId, Graph::NodeId> id_mapping;
   unsigned seed;
 
 public:
@@ -52,6 +54,7 @@ public:
       ("ground-proof", "A ground proof clustering to compare to")
       ("partition,p", po::value<std::vector<PartitionInput>>()->composing(), "Partition with reporting UUID (comma seperated)")
       ("seed,s", po::value<unsigned>(), "Fix random seed")
+      ("snap-format,f", po::bool_switch()->default_value(false), "Graph is in SNAP Edge List Format rather than DIMACS graph")
       ("help", "produce help message");
     po::positional_options_description pos_desc;
     pos_desc.add("graph", 1);
@@ -80,11 +83,17 @@ public:
     }
 
     std::vector<std::vector<Graph::NodeId>> neighbors;
-    Graph::EdgeId edge_count = IO::read_graph(args["graph"].as<std::string>(), neighbors);
+    Graph::EdgeId edge_count = 0;
+    if (args["snap-format"].as<bool>()) {
+      establishIdMapping(args["graph"].as<std::string>());
+      neighbors.resize(id_mapping.size());
+      edge_count = IO::read_graph_txt(args["graph"].as<std::string>(), neighbors, id_mapping);
+    } else {
+      edge_count = IO::read_graph(args["graph"].as<std::string>(), neighbors);
+    }
     graph = std::make_unique<Graph>(neighbors.size(), edge_count);
     graph->setEdgesByAdjacencyLists(neighbors);
 
-    initialized = true;
 
     Logging::report("program_run", run_id, "graph", args["graph"].as<std::string>());
     Logging::report("program_run", run_id, "node_count", graph->getNodeCount());
@@ -93,10 +102,15 @@ public:
 
     if (args.count("ground-proof")) {
       ground_proof = std::make_unique<ClusterStore>(graph->getNodeCount());
-      IO::read_clustering(args["ground-proof"].as<std::string>(), *ground_proof);
+      if (args["snap-format"].as<bool>()) {
+        IO::read_snap_clustering(args["ground-proof"].as<std::string>(), *ground_proof, id_mapping);
+      } else {
+        IO::read_clustering(args["ground-proof"].as<std::string>(), *ground_proof);
+      }
       Logging::report("program_run", run_id, "ground_proof", args["ground-proof"].as<std::string>());
     }
 
+    initialized = true;
   }
 
   int getExitCode() { return exit; }
@@ -116,5 +130,28 @@ public:
   }
 
 private:
+
+  void establishIdMapping(const std::string& graph_file) {
+    std::set<NodeId> node_ids;
+    IO::open_file(graph_file, [&](auto& file) {
+      std::string line;
+
+      while (std::getline(file, line)) {
+        if (!line.empty() && line[0] != '#') {
+          std::istringstream line_stream(line);
+          Graph::NodeId tail, head;
+          if (line_stream >> tail >> head) {
+            node_ids.insert(tail);
+            node_ids.insert(head);
+          }
+        }
+      }
+    });
+
+    NodeId new_id = 0;
+    for (NodeId old_id : node_ids) {
+      id_mapping[old_id] = new_id++;
+    }
+  }
 
 };
