@@ -114,7 +114,7 @@ Logging::Id clusteringBased(const Graph& graph, const uint32_t partition_size, s
 }
 
 template<class LoggingId>
-std::vector<Logging::Id> analyse(const Graph& graph, std::vector<uint32_t>& node_partition_elements, const LoggingId partition_logging_id) {
+std::vector<Logging::Id> analyse(const Graph& graph, const std::vector<uint32_t>& node_partition_elements, const LoggingId partition_logging_id) {
   const uint32_t partition_size = *std::max_element(node_partition_elements.begin(), node_partition_elements.end()) + 1;
   std::vector<Logging::Id> partition_element_logging_ids(partition_size);
   // CUT SIZE
