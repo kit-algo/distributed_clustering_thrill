@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <cstdint>
+#include <vector>
 
 namespace Logging {
 
@@ -12,6 +13,15 @@ Id id_counter = 0;
 template<class KeyType, class ValueType>
 void report(const std::string & type, const Id id, const KeyType & key, const ValueType & value) {
   std::cout << type << '/' << id << '/' << key << ": " << value << std::endl;
+}
+
+template<class KeyType, class ValueType>
+void report(const std::string & type, const Id id, const KeyType & key, const std::vector<ValueType> & values) {
+  std::cout << type << '/' << id << '/' << key << ": " << "[";
+  for (const ValueType& value : values) {
+    std::cout << value << ", ";
+  }
+  std::cout << "]" << std::endl;
 }
 
 Id getUnusedId() {

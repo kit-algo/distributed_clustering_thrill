@@ -124,6 +124,7 @@ int main(int argc, char const *argv[]) {
   auto run_and_log_partitioned_louvain = [&](auto calculate_partition) {
     compare_algo_run_logging_id = Logging::getUnusedId();
     Logging::Id partition_logging_id = calculate_partition(partitions);
+    Partitioning::analyse(graph, partitions, partition_logging_id);
     Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
     Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "partitioned louvain");
     Logging::report("algorithm_run", compare_algo_run_logging_id, "partition_id", partition_logging_id);
@@ -139,7 +140,7 @@ int main(int argc, char const *argv[]) {
     }
   };
 
-  for (int i : partition_sizes) {
+  for (uint32_t i : partition_sizes) {
     run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
       return Partitioning::chunk(graph, i, partitions);
     });

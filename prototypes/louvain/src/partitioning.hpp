@@ -59,7 +59,6 @@ Logging::Id deterministicGreedyWithLinearPenalty(const Graph& graph, const uint3
 
   Logging::Id partition_logging_id = Logging::getUnusedId();
   Logging::report("partition", partition_logging_id, "algorithm", shuffled ? "random_order_deterministic_greedy_with_linear_penalty" : "deterministic_greedy_with_linear_penalty");
-  Logging::report("partition", partition_logging_id, "size", partition_size);
   return partition_logging_id;
 }
 
@@ -73,7 +72,6 @@ Logging::Id chunk(const Graph& graph, const uint32_t partition_size, std::vector
 
   Logging::Id partition_logging_id = Logging::getUnusedId();
   Logging::report("partition", partition_logging_id, "algorithm", "chunk");
-  Logging::report("partition", partition_logging_id, "size", partition_size);
   return partition_logging_id;
 }
 
@@ -96,7 +94,6 @@ Logging::Id random(const Graph& graph, const uint32_t partition_size, std::vecto
 
   Logging::Id partition_logging_id = Logging::getUnusedId();
   Logging::report("partition", partition_logging_id, "algorithm", "random");
-  Logging::report("partition", partition_logging_id, "size", partition_size);
   return partition_logging_id;
 }
 
@@ -113,11 +110,11 @@ Logging::Id clusteringBased(const Graph& graph, const uint32_t partition_size, s
 
   Logging::Id partition_logging_id = Logging::getUnusedId();
   Logging::report("partition", partition_logging_id, "algorithm", "cluster_based");
-  Logging::report("partition", partition_logging_id, "size", partition_size);
   return partition_logging_id;
 }
 
-void analyse(const Graph& graph, const uint32_t partition_size, std::vector<uint32_t>& node_partition_elements) {
+void analyse(const Graph& graph, std::vector<uint32_t>& node_partition_elements, const Logging::Id partition_logging_id) {
+  const uint32_t partition_size = *std::max_element(node_partition_elements.begin(), node_partition_elements.end()) + 1;
   // CUT SIZE
   Weight cut_weight = 0;
   graph.forEachEdge([&](NodeId from, NodeId to, Weight weight) {
@@ -126,6 +123,8 @@ void analyse(const Graph& graph, const uint32_t partition_size, std::vector<uint
     }
   });
   cut_weight /= 2;
+  Logging::report("partition", partition_logging_id, "cut_weight", cut_weight);
+  Logging::report("partition", partition_logging_id, "size", partition_size);
 
   // CONNECTED COMPONENT
   std::vector<std::vector<uint32_t>> connect_component_sizes(partition_size);
@@ -166,6 +165,21 @@ void analyse(const Graph& graph, const uint32_t partition_size, std::vector<uint
       }
     });
     reachable_from_partition.reset();
+  }
+
+  // COUNT
+  std::vector<uint32_t> node_counts(partition_size, 0);
+  for (NodeId node = 0; node < graph.getNodeCount(); node++) {
+    node_counts[node_partition_elements[node]]++;
+  }
+
+  // LOG
+  for (PartitionElementId partition_element = 0; partition_element < partition_size; partition_element++) {
+    Logging::Id element_logging_id = Logging::getUnusedId();
+    Logging::report("partition_element", element_logging_id, "partition_id", partition_logging_id);
+    Logging::report("partition_element", element_logging_id, "node_count", node_counts[partition_element]);
+    Logging::report("partition_element", element_logging_id, "ghost_count", ghost_vertex_counts[partition_element]);
+    Logging::report("partition_element", element_logging_id, "connected_components", connect_component_sizes[partition_element]);
   }
 }
 
