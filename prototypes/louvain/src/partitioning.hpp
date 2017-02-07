@@ -158,7 +158,7 @@ std::vector<Logging::Id> analyse(const Graph& graph, const std::vector<uint32_t>
 
   // GHOST COUNT
   std::vector<uint32_t> ghost_vertex_counts(partition_size, 0);
-  boost::dynamic_bitset<> reachable_from_partition(partition_size);
+  std::vector<bool> reachable_from_partition(partition_size, false);
 
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight) {
@@ -167,7 +167,7 @@ std::vector<Logging::Id> analyse(const Graph& graph, const std::vector<uint32_t>
         ghost_vertex_counts[node_partition_elements[neighbor]] += 1;
       }
     });
-    reachable_from_partition.reset();
+    reachable_from_partition.assign(reachable_from_partition.size(), false);
   }
 
   // COUNT
