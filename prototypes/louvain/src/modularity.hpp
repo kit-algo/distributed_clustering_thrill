@@ -14,8 +14,6 @@
 #include <algorithm>
 #include <random>
 
-#include "boost/dynamic_bitset.hpp"
-
 namespace Modularity {
 
 std::default_random_engine rng;
@@ -87,7 +85,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters) {
 
 template<bool move_to_ghosts>
 bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move) {
-  boost::dynamic_bitset<> included_nodes(move_to_ghosts ? 0 : graph.getNodeCount());
+  std::vector<bool> included_nodes(move_to_ghosts ? 0 : graph.getNodeCount(), false);
   if (!move_to_ghosts) {
     for (NodeId node : nodes_to_move) {
       included_nodes[node] = true;

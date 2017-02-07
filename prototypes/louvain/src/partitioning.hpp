@@ -8,8 +8,6 @@
 #include <cstdint>
 #include <limits>
 
-#include "boost/dynamic_bitset.hpp"
-
 namespace Partitioning {
 
 using NodeId = typename Graph::NodeId;
@@ -133,7 +131,7 @@ std::vector<Logging::Id> analyse(const Graph& graph, const std::vector<uint32_t>
 
   // CONNECTED COMPONENT
   std::vector<std::vector<uint32_t>> connect_component_sizes(partition_size);
-  boost::dynamic_bitset<> reached_nodes(graph.getNodeCount());
+  std::vector<bool> reached_nodes(graph.getNodeCount(), false);
 
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     if (!reached_nodes[node]) {
