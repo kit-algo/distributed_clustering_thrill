@@ -8,33 +8,15 @@
 #include <memory>
 #include <iostream>
 #include <chrono>
+#include <set>
 
-#include "boost/program_options.hpp"
-
-namespace po = boost::program_options;
+#include <thrill/common/cmdline_parser.hpp>
 
 using PartitionInput = std::pair<std::string, std::string>;
-
-namespace std {
-  istream& operator>>(istream& in, PartitionInput& ss) {
-    string s;
-    in >> s;
-    const size_t sep = s.find(',');
-    if (sep == string::npos) {
-      throw po::error("invalid pair");
-    } else {
-      ss.first  = s.substr(0, sep);
-      ss.second = s.substr(sep+1);
-    }
-    return in;
-  }
-}
 
 class Input {
 private:
 
-  po::variables_map args;
-  po::options_description desc;
   int exit = 0;
   bool initialized = false;
   Logging::Id run_id;
@@ -42,30 +24,28 @@ private:
   std::unique_ptr<Graph> graph;
   std::unique_ptr<ClusterStore> ground_proof;
   std::unordered_map<Graph::NodeId, Graph::NodeId> id_mapping;
+
+  std::string graph_file = "";
+  std::string ground_proof_file = "";
+  std::vector<std::string> partitions_strings;
+  std::vector<PartitionInput> partitions;
+  bool snao_format = false;
   unsigned seed;
 
 public:
   Input(int argc, char const *argv[], Logging::Id run_id) :
-    desc("Options"),
     run_id(run_id),
     seed(std::chrono::system_clock::now().time_since_epoch().count()) {
-    desc.add_options()
-      ("graph", po::value<std::string>(), "The graph to perform clustering on, in metis format")
-      ("ground-proof,g", po::value<std::string>(), "A ground proof clustering to compare to")
-      ("partition,p", po::value<std::vector<PartitionInput>>()->composing(), "Partition with reporting UUID (comma seperated)")
-      ("seed,s", po::value<unsigned>(), "Fix random seed")
-      ("snap-format,f", po::bool_switch()->default_value(false), "Graph is in SNAP Edge List Format rather than DIMACS graph")
-      ("help", "produce help message");
-    po::positional_options_description pos_desc;
-    pos_desc.add("graph", 1);
-    pos_desc.add("partition", -1);
 
-    try {
-      po::store(po::command_line_parser(argc, argv).options(desc).positional(pos_desc).run(), args); // can throw
-      po::notify(args);
-    } catch(po::error& e) {
-      std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
-      std::cerr << desc << std::endl;
+    thrill::common::CmdlineParser cp;
+
+    cp.AddString('g', "ground-proof", "file", ground_proof_file, "A ground proof clustering to compare to");
+    cp.AddUInt('s', "seed", "unsigned int", seed, "Fix random seed");
+    cp.AddFlag('f', "snap-format", "bool", snao_format, "Graph is in SNAP Edge List Format rather than DIMACS graph");
+    cp.AddParamString("graph", graph_file, "The graph to perform clustering on, in metis format");
+    cp.AddOptParamStringlist("partitions", partitions_strings, "Partition with reporting UUID (comma seperated)");
+
+    if (!cp.Process(argc, argv)) {
       exit = 1;
     }
 
@@ -73,41 +53,36 @@ public:
   }
 
   void initialize() {
-    if (args.count("help")) {
-      std::cout << desc << std::endl;
+    if (graph_file.empty()) {
+      exit = 1;
       return;
     }
-
-    if (args.count("seed")) {
-      seed = args["seed"].as<unsigned>();
-    }
-
     std::vector<std::vector<Graph::NodeId>> neighbors;
     Graph::EdgeId edge_count = 0;
-    if (args["snap-format"].as<bool>()) {
-      establishIdMapping(args["graph"].as<std::string>());
+    if (snao_format) {
+      establishIdMapping(graph_file);
       neighbors.resize(id_mapping.size());
-      edge_count = IO::read_graph_txt(args["graph"].as<std::string>(), neighbors, id_mapping);
+      edge_count = IO::read_graph_txt(graph_file, neighbors, id_mapping);
     } else {
-      edge_count = IO::read_graph(args["graph"].as<std::string>(), neighbors);
+      edge_count = IO::read_graph(graph_file, neighbors);
     }
     graph = std::make_unique<Graph>(neighbors.size(), edge_count);
     graph->setEdgesByAdjacencyLists(neighbors);
 
 
-    Logging::report("program_run", run_id, "graph", args["graph"].as<std::string>());
+    Logging::report("program_run", run_id, "graph", graph_file);
     Logging::report("program_run", run_id, "node_count", graph->getNodeCount());
     Logging::report("program_run", run_id, "edge_count", graph->getEdgeCount());
     Logging::report("program_run", run_id, "seed", seed);
 
-    if (args.count("ground-proof")) {
+    if (!ground_proof_file.empty()) {
       ground_proof = std::make_unique<ClusterStore>(graph->getNodeCount());
-      if (args["snap-format"].as<bool>()) {
-        IO::read_snap_clustering(args["ground-proof"].as<std::string>(), *ground_proof, id_mapping);
+      if (snao_format) {
+        IO::read_snap_clustering(ground_proof_file, *ground_proof, id_mapping);
       } else {
-        IO::read_clustering(args["ground-proof"].as<std::string>(), *ground_proof);
+        IO::read_clustering(ground_proof_file, *ground_proof);
       }
-      Logging::report("program_run", run_id, "ground_proof", args["ground-proof"].as<std::string>());
+      Logging::report("program_run", run_id, "ground_proof", ground_proof_file);
     }
 
     initialized = true;
@@ -122,7 +97,8 @@ public:
 
   template<class F>
   void forEachPartition(F f) {
-    for (const auto& partition_input : args["partition"].as<std::vector<PartitionInput>>()) {
+    for (const auto& partitions_string : partitions_strings) {
+      PartitionInput partition_input = parse_partition_input(partitions_string);
       std::vector<uint32_t> node_partition_elements(graph->getNodeCount());
       IO::read_partition(partition_input.first, node_partition_elements);
       f(node_partition_elements, partition_input.second);
@@ -152,6 +128,18 @@ private:
     for (NodeId old_id : node_ids) {
       id_mapping[old_id] = new_id++;
     }
+  }
+
+  PartitionInput parse_partition_input(const std::string& in) {
+    const size_t sep = in.find(',');
+    PartitionInput pair;
+    if (sep == std::string::npos) {
+      throw "invalid pair";
+    } else {
+      pair.first  = in.substr(0, sep);
+      pair.second = in.substr(sep+1);
+    }
+    return pair;
   }
 
 };

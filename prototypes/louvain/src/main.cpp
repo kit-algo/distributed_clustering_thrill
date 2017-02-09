@@ -12,8 +12,6 @@
 #include <assert.h>
 #include <random>
 
-namespace po = boost::program_options;
-
 Logging::Id log_clustering(const Graph & graph, const ClusterStore & clusters) {
   Logging::Id logging_id = Logging::getUnusedId();
   Logging::report("clustering", logging_id, "modularity", Modularity::modularity(graph, clusters));
