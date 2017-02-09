@@ -2,8 +2,7 @@ cmake_minimum_required (VERSION 2.8)
 project (Louvain)
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/")
-
-# LIBS
+include_directories("../../lib/thrill")
 
 # Compiler-Options
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Wextra")
@@ -14,5 +13,5 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g") # debug symbols
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNDEBUG") # disable asserts
 
 # Executables
-add_executable(louvain src/main.cpp)
-add_executable(evaluate_partitioning src/evaluate_partitioning.cpp)
+add_executable(louvain src/main.cpp ../../lib/thrill/thrill/common/string.cpp ../../lib/thrill/thrill/common/cmdline_parser.cpp)
+add_executable(evaluate_partitioning src/evaluate_partitioning.cpp ../../lib/thrill/thrill/common/string.cpp ../../lib/thrill/thrill/common/cmdline_parser.cpp)

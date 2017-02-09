@@ -2,7 +2,8 @@
 #include "modularity.hpp"
 #include "cluster_store.hpp"
 #include "logging.hpp"
-#include "io.hpp"
+#include "partitioning.hpp"
+#include "input.hpp"
 
 #include <iostream>
 #include <string>
@@ -12,36 +13,29 @@
 #include <chrono>
 
 int main(int argc, char const *argv[]) {
-  uint64_t run_id = Logging::getUnusedId();
+  Logging::Id run_id = Logging::getUnusedId();
+  Input input(argc, argv, run_id);
+  input.initialize();
 
-  std::vector<std::vector<Graph::NodeId>> neighbors;
-  Graph::EdgeId edge_count = IO::read_graph(argv[1], neighbors);
-  Graph graph(neighbors.size(), edge_count);
-  graph.setEdgesByAdjacencyLists(neighbors);
+  if (!input.shouldRun()) {
+    return input.getExitCode();
+  }
 
-  // unsigned seed = 3920764003;
-  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-  Modularity::rng = std::default_random_engine(seed);
+  Modularity::rng = std::default_random_engine(input.getSeed());
+  const Graph& graph = input.getGraph();
 
-  Logging::report("program_run", run_id, "binary", argv[0]);
-  Logging::report("program_run", run_id, "graph", argv[1]);
-  Logging::report("program_run", run_id, "node_count", graph.getNodeCount());
-  Logging::report("program_run", run_id, "edge_count", graph.getEdgeCount());
-  Logging::report("program_run", run_id, "seed", seed);
+  ClusterStore clusters(graph.getNodeCount());
 
-  ClusterStore clusters(neighbors.size());
-
-  for (int i = 2; i < argc; i += 2) {
-    std::vector<uint32_t> node_partition_elements(graph.getNodeCount());
-    IO::read_partition(argv[i], node_partition_elements);
+  input.forEachPartition([&](const std::vector<uint32_t>& node_partition_elements, const std::string& logging_id) {
+    std::vector<Logging::Id> partition_element_logging_ids = Partitioning::analyse(graph, node_partition_elements, logging_id);
 
     uint64_t algo_run_logging_id = Logging::getUnusedId();
     Logging::report("algorithm_run", algo_run_logging_id, "program_run_id", run_id);
     Logging::report("algorithm_run", algo_run_logging_id, "algorithm", "partitioned louvain");
     Logging::report("algorithm_run", algo_run_logging_id, "order", "original");
-    Logging::report("algorithm_run", algo_run_logging_id, "partition_id", argv[i+1]);
+    Logging::report("algorithm_run", algo_run_logging_id, "partition_id", logging_id);
 
-    Modularity::partitionedLouvain(graph, clusters, node_partition_elements, algo_run_logging_id);
-  }
+    Modularity::partitionedLouvain(graph, clusters, node_partition_elements, algo_run_logging_id, partition_element_logging_ids);
+  });
 }
 

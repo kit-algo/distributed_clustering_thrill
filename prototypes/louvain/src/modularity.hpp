@@ -74,6 +74,7 @@ int64_t deltaModularity(const Graph &graph,
 }
 
 bool localMoving(const Graph& graph, ClusterStore &clusters);
+template<bool move_to_ghosts = true>
 bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move);
 
 bool localMoving(const Graph& graph, ClusterStore &clusters) {
@@ -82,7 +83,15 @@ bool localMoving(const Graph& graph, ClusterStore &clusters) {
   return localMoving(graph, clusters, nodes_to_move);
 }
 
+template<bool move_to_ghosts>
 bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move) {
+  std::vector<bool> included_nodes(move_to_ghosts ? 0 : graph.getNodeCount(), false);
+  if (!move_to_ghosts) {
+    for (NodeId node : nodes_to_move) {
+      included_nodes[node] = true;
+    }
+  }
+
   bool changed = false;
 
   clusters.assignSingletonClusterIds();
@@ -112,7 +121,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
 
     graph.forEachAdjacentNode(current_node, [&](NodeId neighbor, Weight weight) {
       ClusterId neighbor_cluster = clusters[neighbor];
-      if (neighbor != current_node) {
+      if (neighbor != current_node && (move_to_ghosts || included_nodes[neighbor])) {
         if (neighbor_cluster != current_node_cluster) {
           if (node_to_cluster_weights[neighbor_cluster] == 0) {
             incident_clusters.push_back(neighbor_cluster);
@@ -173,10 +182,13 @@ void louvain(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id, u
   }
 }
 
-void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::vector<uint32_t>& partitions, uint64_t algo_run_id, uint32_t level = 0) {
+template<bool move_to_ghosts = true>
+void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::vector<uint32_t>& partitions, uint64_t algo_run_id, const std::vector<Logging::Id>& partition_element_logging_ids) {
   assert(partitions.size() == graph.getNodeCount());
   clusters.resetBounds();
   uint32_t partition_count = *std::max_element(partitions.begin(), partitions.end()) + 1;
+  assert(partition_count == partition_element_logging_ids.size());
+
   std::vector<std::vector<NodeId>> partition_nodes(partition_count);
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     partition_nodes[partitions[node]].push_back(node);
@@ -186,7 +198,18 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::v
   ClusterStore partition_clustering(graph.getNodeCount());
   for (uint32_t partition = 0; partition < partition_nodes.size(); partition++) {
     partition_clustering.resetBounds();
-    localMoving(graph, partition_clustering, partition_nodes[partition]);
+    localMoving<move_to_ghosts>(graph, partition_clustering, partition_nodes[partition]);
+
+    if (move_to_ghosts) {
+      uint32_t nodes_in_ghost_clusters = 0;
+      for (const NodeId node : partition_nodes[partition]) {
+        if (partitions[partition_clustering[node]] != partition) {
+          nodes_in_ghost_clusters++;
+        }
+      }
+      Logging::report("partition_element", partition_element_logging_ids[partition], "nodes_in_ghost_clusters", nodes_in_ghost_clusters);
+    }
+
     minimum_partition_cluster_id = partition_clustering.rewriteClusterIds(partition_nodes[partition], minimum_partition_cluster_id);
 
     for (NodeId node : partition_nodes[partition]) {
@@ -194,7 +217,7 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::v
     }
   }
 
-  contractAndReapply(graph, clusters, algo_run_id, level);
+  contractAndReapply(graph, clusters, algo_run_id, 0);
 }
 
 void contractAndReapply(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id, uint32_t level) {
