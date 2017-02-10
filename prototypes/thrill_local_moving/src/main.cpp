@@ -11,7 +11,7 @@
 #include <thrill/api/size.hpp>
 #include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/sum.hpp>
-#include <thrill/api/join.hpp>
+#include <thrill/api/inner_join.hpp>
 #include <thrill/api/print.hpp>
 #include <thrill/api/union.hpp>
 #include <thrill/api/generate.hpp>
@@ -127,12 +127,12 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::
   for (uint32_t iteration = 0; iteration < num_iterations * SUBITERATIONS; iteration++) {
     auto node_cluster_weights = edge_list
       .Keep()
-      .InnerJoinWith(node_clusters,
+      .InnerJoin(node_clusters,
         [](const EdgeType& edge) { return edge.tail; },
         [](const NodeCluster& node_cluster) { return node_cluster.first; },
         [](const EdgeType& edge, const NodeCluster& node_cluster) { return ClusterWeight(node_cluster.second, edge.getWeight()); })
       .ReducePair([](const Weight weight1, const Weight weight2) { return weight1 + weight2; })
-      .InnerJoinWith(node_clusters,
+      .InnerJoin(node_clusters,
         [](const std::pair<ClusterId, Weight>& cluster_weight) { return cluster_weight.first; },
         [](const NodeCluster& node_cluster) { return node_cluster.second; },
         [](const ClusterWeight& cluster_weight, const NodeCluster& node_cluster) { return std::make_pair(node_cluster.first, cluster_weight); });
@@ -143,7 +143,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::
     node_clusters = edge_list
       .Filter([iteration](const EdgeType& edge) { return edge.tail % SUBITERATIONS == iteration % SUBITERATIONS; })
       .Filter([iteration](const EdgeType& edge) { return edge.tail != edge.head; })
-      .InnerJoinWith(node_cluster_weights,
+      .InnerJoin(node_cluster_weights,
         [](const EdgeType& edge) { return edge.head; },
         [](const std::pair<NodeId, ClusterWeight>& node_cluster_weight) { return node_cluster_weight.first; },
         [](const EdgeType& edge, const std::pair<NodeId, ClusterWeight>& node_cluster_weight) {
@@ -156,7 +156,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::
         [](const std::pair<NodeId, IncidentClusterInfo>& node_with_incident_cluster1, const std::pair<NodeId, IncidentClusterInfo>& node_with_incident_cluster2) {
           return std::make_pair(node_with_incident_cluster1.first, IncidentClusterInfo { node_with_incident_cluster1.second.cluster, node_with_incident_cluster1.second.inbetween_weight + node_with_incident_cluster2.second.inbetween_weight , node_with_incident_cluster1.second.total_weight });
         })
-      .InnerJoinWith(node_cluster_weights,
+      .InnerJoin(node_cluster_weights,
         [](const std::pair<NodeId, IncidentClusterInfo>& node_cluster) { return node_cluster.first; },
         [](const std::pair<NodeId, std::pair<ClusterId, Weight>>& node_cluster_weight) { return node_cluster_weight.first; },
         [](const std::pair<NodeId, IncidentClusterInfo>& node_cluster, const std::pair<NodeId, std::pair<ClusterId, Weight>>& node_cluster_weight) {
@@ -173,7 +173,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::
           tmp.insert(tmp.end(), local_moving_node2.second.begin(), local_moving_node2.second.end());
           return std::make_pair(local_moving_node1.first, tmp);
         })
-      .InnerJoinWith(nodes.Keep(),
+      .InnerJoin(nodes.Keep(),
         [](const std::pair<std::pair<NodeId, std::pair<ClusterId, Weight>>, std::vector<IncidentClusterInfo>>& local_moving_node) {
           return local_moving_node.first.first;
         },
@@ -259,7 +259,7 @@ thrill::DIA<NodeCluster> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   node_clusters = distinct_cluster_ids
     .ZipWithIndex([](const ClusterId cluster_id, const size_t index) { return std::make_pair(cluster_id, index); })
-    .InnerJoinWith(node_clusters,
+    .InnerJoin(node_clusters,
       [](const std::pair<ClusterId, size_t>& pair){ return pair.first; },
       [](const NodeCluster& node_cluster) { return node_cluster.second; },
       [](const std::pair<ClusterId, size_t>& pair, const NodeCluster& node_cluster) {
@@ -268,14 +268,14 @@ thrill::DIA<NodeCluster> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   // Build Meta Graph
   auto meta_graph_edges = edge_list
-    .InnerJoinWith(node_clusters.Keep(),
+    .InnerJoin(node_clusters.Keep(),
       [](const EdgeType& edge) { return edge.tail; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
       [](EdgeType edge, const NodeCluster& node_cluster) {
           edge.tail = node_cluster.second;
           return edge;
       })
-    .InnerJoinWith(node_clusters.Keep(),
+    .InnerJoin(node_clusters.Keep(),
       [](const EdgeType& edge) { return edge.head; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
       [](EdgeType edge, const NodeCluster& node_cluster) {
@@ -307,7 +307,7 @@ thrill::DIA<NodeCluster> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   return node_clusters
     .Keep() // TODO why on earth is this necessary?
-    .InnerJoinWith(meta_clustering,
+    .InnerJoin(meta_clustering,
       [](const NodeCluster& node_cluster) { return node_cluster.second; },
       [](const NodeCluster& meta_node_cluster) { return meta_node_cluster.first; },
       [](const NodeCluster& node_cluster, const NodeCluster& meta_node_cluster) {

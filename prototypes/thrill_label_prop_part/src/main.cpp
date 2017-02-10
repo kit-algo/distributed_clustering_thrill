@@ -11,7 +11,7 @@
 #include <thrill/api/size.hpp>
 #include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/sum.hpp>
-#include <thrill/api/join.hpp>
+#include <thrill/api/inner_join.hpp>
 
 #include <ostream>
 #include <iostream>
@@ -49,7 +49,7 @@ auto partition(thrill::DIA<Edge>& edge_list, uint32_t num_iterations) {
 
   for (uint32_t iteration = 0; iteration < num_iterations; iteration++) {
     node_labels = edge_list
-      .InnerJoinWith(node_labels,
+      .InnerJoin(node_labels,
         [](const Edge& edge) { return edge.head; },
         [](const NodeLabel& node_label) { return node_label.first; },
         [](const Edge& edge, const NodeLabel& node_label) {

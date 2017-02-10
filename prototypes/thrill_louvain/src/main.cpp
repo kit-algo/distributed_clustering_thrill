@@ -13,7 +13,7 @@
 #include <thrill/api/size.hpp>
 #include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/sum.hpp>
-#include <thrill/api/join.hpp>
+#include <thrill/api/inner_join.hpp>
 
 #include <ostream>
 #include <iostream>
@@ -85,7 +85,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   auto bloated_node_clusters = edge_list
     .Keep()
-    .InnerJoinWith(node_partitions,
+    .InnerJoin(node_partitions,
       [](const EdgeType& edge) { return edge.tail; },
       [](const std::pair<uint32_t, uint32_t>& node_partition) { return node_partition.first; },
       [](const EdgeType& edge, const std::pair<uint32_t, uint32_t>& node_partition) {
@@ -149,7 +149,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   auto node_clusters = bloated_node_clusters
     .Keep() // TODO find way to do only in debugging
-    .InnerJoinWith(clean_cluster_ids_mapping,
+    .InnerJoin(clean_cluster_ids_mapping,
       [](const NodeInfo& node_cluster) { return node_cluster.data; },
       [](const std::pair<uint32_t, uint32_t>& mapping) { return mapping.first; },
       [](const NodeInfo& node_cluster, const std::pair<uint32_t, uint32_t>& mapping) {
@@ -165,14 +165,14 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   // Build Meta Graph
   auto meta_graph_edges = edge_list
-    .InnerJoinWith(node_clusters,
+    .InnerJoin(node_clusters,
       [](const EdgeType& edge) { return edge.tail; },
       [](const NodeInfo& node_cluster) { return node_cluster.id; },
       [](EdgeType edge, const NodeInfo& node_cluster) {
           edge.tail = node_cluster.data;
           return edge;
       })
-    .InnerJoinWith(node_clusters,
+    .InnerJoin(node_clusters,
       [](const EdgeType& edge) { return edge.head; },
       [](const NodeInfo& node_cluster) { return node_cluster.id; },
       [](EdgeType edge, const NodeInfo& node_cluster) {
@@ -204,7 +204,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   return node_clusters
     .Keep() // TODO why on earth is this necessary?
-    .InnerJoinWith(meta_clustering,
+    .InnerJoin(meta_clustering,
       [](const NodeInfo& node_cluster) { return node_cluster.data; },
       [](const NodeInfo& meta_node_cluster) { return meta_node_cluster.id; },
       [](const NodeInfo& node_cluster, const NodeInfo& meta_node_cluster) {
