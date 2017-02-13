@@ -14,4 +14,3 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g") # debug symbols
 
 # Executables
 add_executable(louvain src/main.cpp ../../lib/thrill/thrill/common/string.cpp ../../lib/thrill/thrill/common/cmdline_parser.cpp)
-add_executable(evaluate_partitioning src/evaluate_partitioning.cpp ../../lib/thrill/thrill/common/string.cpp ../../lib/thrill/thrill/common/cmdline_parser.cpp)

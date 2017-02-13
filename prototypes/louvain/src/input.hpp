@@ -96,10 +96,10 @@ public:
   const ClusterStore& getGroundProof() { return *ground_proof; }
 
   template<class F>
-  void forEachPartition(F f) {
+  void forEachPartition(std::vector<uint32_t>& node_partition_elements, F f) {
+    assert(node_partition_elements.size() == graph->getNodeCount());
     for (const auto& partitions_string : partitions_strings) {
       PartitionInput partition_input = parse_partition_input(partitions_string);
-      std::vector<uint32_t> node_partition_elements(graph->getNodeCount());
       IO::read_partition(partition_input.first, node_partition_elements);
       f(node_partition_elements, partition_input.second);
     }

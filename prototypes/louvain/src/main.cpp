@@ -123,4 +123,13 @@ int main(int argc, char const *argv[]) {
       return Partitioning::random(graph, i, partitions);
     });
   }
+
+  input.forEachPartition(partitions, [&](const std::vector<uint32_t>&, const std::string& logging_id) {
+    run_and_log_partitioned_louvain([&](std::vector<uint32_t>&) {
+      Logging::Id partition_logging_id = Logging::getUnusedId();
+      Logging::report("partition", partition_logging_id, "algorithm", "external");
+      Logging::report("partition", partition_logging_id, "program_run_id", logging_id);
+      return partition_logging_id;
+    });
+  });
 }
