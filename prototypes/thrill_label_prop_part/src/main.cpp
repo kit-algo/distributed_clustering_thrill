@@ -41,8 +41,9 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
   auto node_labels = nodes.Map([](const Node& node) { return node.first; }).Collapse();
 
   for (uint32_t iteration = 0; iteration < max_num_iterations; iteration++) {
-    node_labels = node_labels
-      .Zip(nodes, [](const Label label, const Node& node) { return NodeLabel(node, label); })
+    auto new_node_labels = node_labels
+      .Keep()
+      .Zip(nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); })
       .template FlatMap<NodeIdLabel>(
         [](const NodeLabel& node_label, auto emit) {
           for (const NodeId neighbor : node_label.first.second) {
@@ -72,8 +73,19 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
           }
         },
         node_count)
-      .Map([](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).second; })
-      .Collapse();
+      .Map([](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).second; });
+
+    size_t num_changed = new_node_labels
+      .Keep()
+      .Zip(node_labels, [](const Label& l1, const Label& l2) { return std::make_pair(l1, l2); })
+      .Filter([](const std::pair<Label, Label>& labels) { return labels.first != labels.second; })
+      .Size();
+
+    node_labels = new_node_labels;
+
+    if (num_changed == 0) {
+      break;
+    }
   }
 
   return node_labels.Zip(nodes, [](const Label label, const Node& node) { return NodeIdLabel(node.first, label); });
@@ -108,11 +120,12 @@ int main(int argc, char const *argv[]) {
 
           return Node(node.second - 1, neighbors);
         })
-      .Collapse();
+      .Cache();
 
-    auto node_labels = label_propagation(nodes, 32);
+    NodeId node_count = nodes.Keep().Size();
 
-    NodeId node_count = node_labels.Keep().Size();
+    auto node_labels = label_propagation(nodes, 64);
+
     uint32_t partition_count = num_partitions;
     NodeId partition_size = (node_count + partition_count - 1) / partition_count;
 
