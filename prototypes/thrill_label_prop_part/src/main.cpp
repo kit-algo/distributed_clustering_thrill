@@ -10,6 +10,8 @@
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/print.hpp>
 
+#include <thrill/common/cmdline_parser.hpp>
+
 #include <ostream>
 #include <iostream>
 #include <vector>
@@ -77,11 +79,21 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
   return node_labels.Zip(nodes, [](const Label label, const Node& node) { return NodeIdLabel(node.first, label); });
 }
 
-int main(int, char const *argv[]) {
+int main(int argc, char const *argv[]) {
+  std::string graph_file = "";
+  uint32_t num_partitions = 4;
+  thrill::common::CmdlineParser cp;
+  cp.AddParamString("graph", graph_file, "The graph to perform clustering on, in metis format");
+  cp.AddUInt('k', "num-partitions", "unsigned int", num_partitions, "Number of Partitions to split the graph into");
+
+  if (!cp.Process(argc, argv)) {
+    return 1;
+  }
+
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto nodes = thrill::ReadLines(context, argv[1])
+    auto nodes = thrill::ReadLines(context, graph_file)
       .ZipWithIndex([](const std::string line, const size_t index) { return std::make_pair(line, index); })
       .Filter([](const std::pair<std::string, size_t>& node) { return node.second > 0; })
       .Map(
@@ -101,7 +113,7 @@ int main(int, char const *argv[]) {
     auto node_labels = label_propagation(nodes, 32);
 
     NodeId node_count = node_labels.Keep().Size();
-    uint32_t partition_count = 4;
+    uint32_t partition_count = num_partitions;
     NodeId partition_size = (node_count + partition_count - 1) / partition_count;
 
     node_labels
@@ -112,7 +124,7 @@ int main(int, char const *argv[]) {
         [](const NodeIdLabel& label, const NodeIdLabel&) { throw "foo"; return label; },
         node_count)
       .Map([](const NodeIdLabel& node_label) { return std::to_string(node_label.second); })
-      .WriteLinesOne(std::string(argv[1]) + ".part");
+      .WriteLinesOne(graph_file + ".part");
   });
 }
 
