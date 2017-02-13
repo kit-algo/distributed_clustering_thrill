@@ -2,6 +2,8 @@
 
 require 'json'
 
+`./generate_external_partitions.rb #{ARGV[0]} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[1]} ./report_to_json.rb`
+
 graphs = Dir.glob(File.join(ARGV[0], '**/*.graph')) + Dir.glob(File.join(ARGV[0], '**/*.txt'))
 
 json_files = Dir.glob(File.join(ARGV[1], '*.json'))
@@ -30,7 +32,7 @@ end
 
     puts '#' * 64, name, '#' * 64
     begin
-      `./louvain #{graph} #{args} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[1]} ../../../scripts/report_to_json.rb`
+      `./louvain #{graph} #{args} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[1]} ./report_to_json.rb`
     rescue Exception => _
     end
     if File.exist?('core')
