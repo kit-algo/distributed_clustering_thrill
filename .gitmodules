@@ -1,3 +1,3 @@
 [submodule "lib/thrill"]
 	path = lib/thrill
-	url = git@github.com:SDEagle/thrill.git
+	url = https://github.com/SDEagle/thrill.git
