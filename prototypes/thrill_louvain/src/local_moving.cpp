@@ -23,6 +23,7 @@
 
 #include "util.hpp"
 #include "thrill_graph.hpp"
+#include "input.hpp"
 
 #define SUBITERATIONS 4
 
@@ -295,25 +296,9 @@ int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto edges = thrill::ReadLines(context, argv[1])
-      .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
-      .template FlatMap<Edge>(
-        [](const std::string& line, auto emit) {
-          std::istringstream line_stream(line);
-          NodeId tail, head;
+    auto graph = Input::readGraph(argv[1], context);
 
-          if (line_stream >> tail >> head) {
-            tail--;
-            head--;
-            emit(Edge { tail, head });
-            emit(Edge { head, tail });
-          } else {
-            die(std::string("malformatted edge: ") + line);
-          }
-        })
-      .Collapse();
-
-    auto node_clusters = louvain(edges);
+    auto node_clusters = louvain(graph.edge_list);
     // auto node_clusters = local_moving(edges, 16, edges.Keep().Size() / 2);
 
     size_t cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();

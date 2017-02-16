@@ -27,6 +27,7 @@
 #include <cluster_store.hpp>
 
 #include "thrill_graph.hpp"
+#include "input.hpp"
 
 using ClusterId = NodeId;
 
@@ -201,25 +202,9 @@ int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto edges = thrill::ReadLines(context, argv[1])
-      .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
-      .template FlatMap<Edge>(
-        [](const std::string& line, auto emit) {
-          std::istringstream line_stream(line);
-          uint32_t tail, head;
+    auto graph = Input::readGraph(argv[1], context);
 
-          if (line_stream >> tail >> head) {
-            tail--;
-            head--;
-            emit(Edge { tail, head });
-            emit(Edge { head, tail });
-          } else {
-            die(std::string("malformatted edge: ") + line);
-          }
-        })
-      .Collapse();
-
-    size_t cluster_count = louvain(edges)
+    size_t cluster_count = louvain(graph.edge_list)
       .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
       .ReduceByKey(
         [](const uint32_t cluster) { return cluster; },
