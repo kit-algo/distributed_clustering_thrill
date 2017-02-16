@@ -22,36 +22,18 @@
 #include <map>
 
 #include "util.hpp"
+#include "thrill_graph.hpp"
 
 #define SUBITERATIONS 4
 
-using NodeId = uint32_t;
-using ClusterId = uint32_t;
-using Weight = uint32_t;
+using ClusterId = NodeId;
 
 using NodeCluster = std::pair<NodeId, ClusterId>;
 using ClusterWeight = std::pair<ClusterId, Weight>;
 
-struct Edge {
-  NodeId tail, head;
-
-  Weight getWeight() const {
-    return 1;
-  }
-};
-
 struct Node {
   NodeId id;
   Weight degree;
-};
-
-struct WeightedEdge {
-  NodeId tail, head;
-  Weight weight;
-
-  Weight getWeight() const {
-    return weight;
-  }
 };
 
 struct IncidentClusterInfo {
@@ -66,14 +48,6 @@ struct LocalMovingNode {
   ClusterId cluster;
   Weight cluster_total_weight;
 };
-
-std::ostream& operator << (std::ostream& os, Edge& e) {
-  return os << e.tail << " -> " << e.head;
-}
-
-std::ostream& operator << (std::ostream& os, WeightedEdge& e) {
-  return os << e.tail << " -> " << e.head << " (" << e.weight << ")";
-}
 
 std::ostream& operator << (std::ostream& os, Node& node) {
   return os << node.id << " (" << node.degree << ")";

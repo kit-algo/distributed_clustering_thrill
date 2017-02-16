@@ -22,41 +22,23 @@
 #include <set>
 #include <map>
 
-#include "graph.hpp"
-#include "modularity.hpp"
-#include "cluster_store.hpp"
+#include <graph.hpp>
+#include <modularity.hpp>
+#include <cluster_store.hpp>
+
+#include "thrill_graph.hpp"
+
+using ClusterId = NodeId;
 
 struct Node {
-  uint32_t id, degree;
+  NodeId id;
+  Weight degree;
 };
 
 struct NodeInfo {
-  uint32_t id, data;
+  NodeId id;
+  ClusterId data;
 };
-
-struct Edge {
-  uint32_t tail, head;
-
-  uint32_t getWeight() const {
-    return 1;
-  }
-};
-
-struct WeightedEdge {
-  uint32_t tail, head, weight;
-
-  uint32_t getWeight() const {
-    return weight;
-  }
-};
-
-std::ostream& operator << (std::ostream& os, Edge& e) {
-  return os << e.tail << " -> " << e.head;
-}
-
-std::ostream& operator << (std::ostream& os, WeightedEdge& e) {
-  return os << e.tail << " -> " << e.head << " (" << e.weight << ")";
-}
 
 std::ostream& operator << (std::ostream& os, NodeInfo& node_info) {
   return os << node_info.id << ": " << node_info.data;
