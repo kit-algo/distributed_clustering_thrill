@@ -36,5 +36,5 @@ std::ostream& operator << (std::ostream& os, WeightedEdge& e) {
 template<typename EdgeType>
 struct DiaGraph {
   thrill::DIA<EdgeType> edge_list;
-  size_t node_count, edge_count;
+  size_t node_count, total_weight;
 };

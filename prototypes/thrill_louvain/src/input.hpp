@@ -8,6 +8,7 @@
 #include <thrill/api/zip_with_index.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/inner_join.hpp>
+#include <thrill/api/cache.hpp>
 
 #include <vector>
 #include <iostream>
@@ -25,8 +26,6 @@ DiaGraph<Edge> readEdgeListGraph(const std::string& file, thrill::Context& conte
         NodeId tail, head;
 
         if (line_stream >> tail >> head) {
-          tail--;
-          head--;
           emit(Edge { tail, head });
           emit(Edge { head, tail });
         } else {
@@ -58,7 +57,7 @@ DiaGraph<Edge> readEdgeListGraph(const std::string& file, thrill::Context& conte
 
   Weight total_weight = edges.Keep().Size() / 2;
 
-  return DiaGraph<Edge> { edges, node_count, total_weight };
+  return DiaGraph<Edge> { edges.Cache(), node_count, total_weight };
 }
 
 DiaGraph<Edge> readDimacsGraph(const std::string& file, thrill::Context& context) {
@@ -97,7 +96,7 @@ DiaGraph<Edge> readDimacsGraph(const std::string& file, thrill::Context& context
 
   Weight total_weight = edges.Keep().Size() / 2;
 
-  return DiaGraph<Edge> { edges, node_count, total_weight };
+  return DiaGraph<Edge> { edges.Cache(), node_count, total_weight };
 }
 
 DiaGraph<Edge> readBinaryGraph(const std::string& file, thrill::Context& context) {
@@ -121,7 +120,7 @@ DiaGraph<Edge> readBinaryGraph(const std::string& file, thrill::Context& context
 
   Weight total_weight = edges.Keep().Size() / 2;
 
-  return DiaGraph<Edge> { edges, node_count, total_weight };
+  return DiaGraph<Edge> { edges.Cache(), node_count, total_weight };
 }
 
 bool ends_with(const std::string& value, const std::string& ending) {

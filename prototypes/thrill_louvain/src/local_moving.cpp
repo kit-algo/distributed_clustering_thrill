@@ -85,10 +85,8 @@ int64_t deltaModularity(const Weight node_degree,
 }
 
 template<class EdgeType>
-thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::DIA<Node>& nodes, uint32_t num_iterations, Weight total_weight) {
-  edge_list = edge_list.Cache();
-
-  auto node_clusters = edge_list
+thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::DIA<Node>& nodes, uint32_t num_iterations) {
+  auto node_clusters = graph.edge_list
     .Keep()
     .Map([](const EdgeType& edge) { return edge.tail; })
     .Uniq()
@@ -102,7 +100,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::
   // node_clusters.Print("initial clusters");
 
   for (uint32_t iteration = 0; iteration < num_iterations * SUBITERATIONS; iteration++) {
-    auto node_cluster_weights = edge_list
+    auto node_cluster_weights = graph.edge_list
       .Keep()
       .InnerJoin(node_clusters,
         [](const EdgeType& edge) { return edge.tail; },
@@ -117,7 +115,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::
     auto other_node_clusters = node_clusters
       .Filter([iteration](const NodeCluster& node_cluster) { return node_cluster.first % SUBITERATIONS != iteration % SUBITERATIONS; });
 
-    node_clusters = edge_list
+    node_clusters = graph.edge_list
       .Filter([iteration](const EdgeType& edge) { return edge.tail % SUBITERATIONS == iteration % SUBITERATIONS; })
       .Filter([iteration](const EdgeType& edge) { return edge.tail != edge.head; })
       .InnerJoin(node_cluster_weights,
@@ -159,7 +157,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::
           return std::make_pair(LocalMovingNode { local_moving_node.first.first, node.degree, local_moving_node.first.second.first, local_moving_node.first.second.second }, local_moving_node.second);
         })
       .Map(
-        [total_weight](const std::pair<LocalMovingNode, std::vector<IncidentClusterInfo>>& local_moving_node) {
+        [&graph](const std::pair<LocalMovingNode, std::vector<IncidentClusterInfo>>& local_moving_node) {
           ClusterId best_cluster = local_moving_node.first.cluster;
           int64_t best_delta = 0;
           Weight degree = local_moving_node.first.degree;
@@ -178,7 +176,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::
             int64_t delta = deltaModularity(degree, local_moving_node.first.cluster, incident_cluster.cluster,
                                             weight_between_node_and_current_cluster, incident_cluster.inbetween_weight,
                                             local_moving_node.first.cluster_total_weight, incident_cluster.total_weight,
-                                            total_weight);
+                                            graph.total_weight);
             // if (std::is_same<EdgeType, WeightedEdge>::value) {
             //   std::cout << "cluster " << incident_cluster.cluster << " cluster degree " << incident_cluster.total_weight << " cluster between " << incident_cluster.inbetween_weight << " delta " << delta << std::endl;
             // }
@@ -213,24 +211,21 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::
 }
 
 template<class EdgeType>
-thrill::DIA<NodeCluster> louvain(thrill::DIA<EdgeType>& edge_list) {
-  edge_list = edge_list.Cache();
-
-  auto nodes = edge_list
+thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
+  auto nodes = graph.edge_list
     .Keep()
     .Map([](const EdgeType & edge) { return Node { edge.tail, 1 }; })
     .ReduceByKey(
       [](const Node & node) { return node.id; },
       [](const Node & node1, const Node & node2) { return Node { node1.id, node1.degree + node2.degree }; });
 
-  const size_t node_count = nodes.Keep().Size();
-  const Weight total_weight = edge_list.Keep().Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
+  // const Weight total_weight = edge_list.Keep().Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
 
-  auto node_clusters = local_moving(edge_list, nodes, 16, total_weight);
+  auto node_clusters = local_moving(graph, nodes, 16);
   auto distinct_cluster_ids = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq();
   size_t cluster_count = distinct_cluster_ids.Keep().Size();
 
-  if (node_count == cluster_count) {
+  if (graph.node_count == cluster_count) {
     return node_clusters;
   }
 
@@ -244,7 +239,7 @@ thrill::DIA<NodeCluster> louvain(thrill::DIA<EdgeType>& edge_list) {
       });
 
   // Build Meta Graph
-  auto meta_graph_edges = edge_list
+  auto meta_graph_edges = graph.edge_list
     .InnerJoin(node_clusters.Keep(),
       [](const EdgeType& edge) { return edge.tail; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
@@ -261,7 +256,7 @@ thrill::DIA<NodeCluster> louvain(thrill::DIA<EdgeType>& edge_list) {
       })
     .Map([](EdgeType edge) { return WeightedEdge { edge.tail, edge.head, edge.getWeight() }; })
     .ReduceByKey(
-      [&node_count](WeightedEdge edge) { return node_count * edge.tail + edge.head; },
+      [&graph](WeightedEdge edge) { return graph.node_count * edge.tail + edge.head; },
       [](WeightedEdge edge1, WeightedEdge edge2) { return WeightedEdge { edge1.tail, edge1.head, edge1.weight + edge2.weight }; })
     // turn loops into forward and backward arc
     .template FlatMap<WeightedEdge>(
@@ -278,7 +273,7 @@ thrill::DIA<NodeCluster> louvain(thrill::DIA<EdgeType>& edge_list) {
   // meta_graph_edges.Keep().Print("meta graph edges");
 
   // Recursion on meta graph
-  auto meta_clustering = louvain(meta_graph_edges);
+  auto meta_clustering = louvain(DiaGraph<WeightedEdge> { meta_graph_edges, cluster_count, graph.total_weight });
 
   // meta_clustering.Keep().Print("meta_clustering");
 
@@ -298,7 +293,7 @@ int main(int, char const *argv[]) {
 
     auto graph = Input::readGraph(argv[1], context);
 
-    auto node_clusters = louvain(graph.edge_list);
+    auto node_clusters = louvain(graph);
     // auto node_clusters = local_moving(edges, 16, edges.Keep().Size() / 2);
 
     size_t cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
