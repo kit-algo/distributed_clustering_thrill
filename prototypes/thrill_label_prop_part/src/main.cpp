@@ -73,7 +73,8 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
           }
         },
         node_count)
-      .Map([](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).second; });
+      .Map([](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).second; })
+      .Collapse();
 
     size_t num_changed = new_node_labels
       .Keep()
