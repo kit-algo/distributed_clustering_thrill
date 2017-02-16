@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 2.6)
 project (ThrillLouvain)
 include_directories("../louvain/src")
 include_directories("../../lib/thrill")
-add_subdirectory (../../lib/thrill ../../../lib/thrill/build)
+add_subdirectory (../../lib/thrill thrill/build)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Wextra")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3") # optimize

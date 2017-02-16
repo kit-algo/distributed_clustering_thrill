@@ -89,7 +89,6 @@ DiaGraph<Edge> readDimacsGraph(const std::string& file, thrill::Context& context
       [](const Node& node, auto emit) {
         for (const NodeId neighbor : node.second) {
           emit(Edge { node.first, neighbor });
-          emit(Edge { neighbor, node.first });
         }
       })
     .Collapse();
