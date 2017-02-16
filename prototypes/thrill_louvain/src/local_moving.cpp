@@ -21,6 +21,8 @@
 #include <vector>
 #include <map>
 
+#include "util.hpp"
+
 #define SUBITERATIONS 4
 
 using NodeId = uint32_t;
@@ -151,7 +153,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<EdgeType>& edge_list, thrill::
         })
       .ReduceByKey(
         [](const std::pair<NodeId, IncidentClusterInfo>& node_with_incident_cluster) -> uint64_t {
-          return (uint64_t) node_with_incident_cluster.first << 32 | node_with_incident_cluster.second.cluster;
+          return Util::combine_u32ints(node_with_incident_cluster.first, node_with_incident_cluster.second.cluster);
         },
         [](const std::pair<NodeId, IncidentClusterInfo>& node_with_incident_cluster1, const std::pair<NodeId, IncidentClusterInfo>& node_with_incident_cluster2) {
           return std::make_pair(node_with_incident_cluster1.first, IncidentClusterInfo { node_with_incident_cluster1.second.cluster, node_with_incident_cluster1.second.inbetween_weight + node_with_incident_cluster2.second.inbetween_weight , node_with_incident_cluster1.second.total_weight });

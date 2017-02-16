@@ -17,24 +17,14 @@
 #include <vector>
 #include <map>
 
+#include "util.hpp"
+
 using NodeId = uint32_t;
 using Label = uint32_t;
 
 using Node = std::pair<NodeId, std::vector<NodeId>>;
 using NodeLabel = std::pair<Node, Label>;
 using NodeIdLabel = std::pair<NodeId, Label>;
-
-template <typename T>
-inline std::size_t hash_combine(const T& v) { return std::hash<T>{}(v); }
-
-template <typename T, typename... Rest>
-inline std::size_t hash_combine(const T& v, Rest... rest) {
-  std::hash<T> hasher;
-  std::size_t seed = hash_combine(rest...);
-  return seed ^ (hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2));
-}
-
-inline uint64_t combine_u32ints(const uint32_t int1, const uint32_t int2) { return (uint64_t) int1 << 32 | int2; }
 
 auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
   size_t node_count = nodes.Keep().Size();
@@ -52,7 +42,7 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
         })
       .Map([](const NodeIdLabel& label) { return std::make_tuple(label, 1u, 1u); })
       .ReduceByKey(
-        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return combine_u32ints(std::get<0>(label_info).first, std::get<0>(label_info).second); },
+        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return Util::combine_u32ints(std::get<0>(label_info).first, std::get<0>(label_info).second); },
         [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info2) {
           return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1) + std::get<1>(label_info2), 1u);
         })
@@ -65,7 +55,7 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
             return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), 1u);
           } else { // different labels, some occurence count, choose random
             uint32_t random_challenge_counter_sum = std::get<2>(label_info1) + std::get<2>(label_info2);
-            if (hash_combine(std::get<0>(label_info1).second, std::get<0>(label_info2).second, iteration) % random_challenge_counter_sum < std::get<2>(label_info1)) {
+            if (Util::combined_hash(std::get<0>(label_info1).second, std::get<0>(label_info2).second, iteration) % random_challenge_counter_sum < std::get<2>(label_info1)) {
               return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), random_challenge_counter_sum);
             } else {
               return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), random_challenge_counter_sum);
