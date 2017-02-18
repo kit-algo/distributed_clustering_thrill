@@ -29,7 +29,7 @@ private:
   std::string ground_proof_file = "";
   std::vector<std::string> partitions_strings;
   std::vector<PartitionInput> partitions;
-  bool snao_format = false;
+  bool snap_format = false;
   unsigned seed;
 
 public:
@@ -41,7 +41,7 @@ public:
 
     cp.AddString('g', "ground-proof", "file", ground_proof_file, "A ground proof clustering to compare to");
     cp.AddUInt('s', "seed", "unsigned int", seed, "Fix random seed");
-    cp.AddFlag('f', "snap-format", "bool", snao_format, "Graph is in SNAP Edge List Format rather than DIMACS graph");
+    cp.AddFlag('f', "snap-format", "bool", snap_format, "Graph is in SNAP Edge List Format rather than DIMACS graph");
     cp.AddParamString("graph", graph_file, "The graph to perform clustering on, in metis format");
     cp.AddOptParamStringlist("partitions", partitions_strings, "Partition with reporting UUID (comma seperated)");
 
@@ -59,7 +59,7 @@ public:
     }
     std::vector<std::vector<Graph::NodeId>> neighbors;
     Graph::EdgeId edge_count = 0;
-    if (snao_format) {
+    if (snap_format) {
       establishIdMapping(graph_file);
       neighbors.resize(id_mapping.size());
       edge_count = IO::read_graph_txt(graph_file, neighbors, id_mapping);
@@ -77,7 +77,7 @@ public:
 
     if (!ground_proof_file.empty()) {
       ground_proof = std::make_unique<ClusterStore>(graph->getNodeCount());
-      if (snao_format) {
+      if (snap_format) {
         IO::read_snap_clustering(ground_proof_file, *ground_proof, id_mapping);
       } else {
         IO::read_clustering(ground_proof_file, *ground_proof);

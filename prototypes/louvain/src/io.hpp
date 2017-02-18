@@ -52,7 +52,7 @@ Graph::EdgeId read_graph(const std::string& filename, std::vector<std::vector<Gr
 }
 
 Graph::EdgeId read_graph_txt(const std::string& filename, std::vector<std::vector<Graph::NodeId>> &neighbors, std::unordered_map<Graph::NodeId, Graph::NodeId>& id_mapping) {
-  Graph::EdgeId edge_count;
+  Graph::EdgeId edge_count = 0;
   open_file(filename, [&](auto& file) {
     std::string line;
 
