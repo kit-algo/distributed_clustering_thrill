@@ -27,10 +27,8 @@
 #include "input.hpp"
 #include "thrill_modularity.hpp"
 
-#include <io.hpp>
-#include <modularity.hpp>
-
 #define SUBITERATIONS 4
+#define SUPER_ITERATIONS 16
 
 using ClusterId = NodeId;
 
@@ -89,6 +87,13 @@ int64_t deltaModularity(const Weight node_degree,
   return e - a;
 }
 
+bool included(const NodeId node, const uint32_t iteration) {
+  return node % SUBITERATIONS == iteration % SUBITERATIONS;
+  // size_t hash = Util::combined_hash(node, iteration);
+  // uint32_t sizes[] = { 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 4, 4, 4, 4, 3, 3, 3, 2, 2, 1, 1 };
+  // return hash % sizes[iteration] == 0;
+}
+
 template<class EdgeType>
 thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::DIA<Node>& nodes, uint32_t num_iterations) {
   auto node_clusters = graph.edge_list
@@ -115,11 +120,11 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
         [](const ClusterWeight& cluster_weight, const NodeCluster& node_cluster) { return std::make_pair(node_cluster.first, cluster_weight); });
 
     auto other_node_clusters = node_clusters
-      .Filter([iteration](const NodeCluster& node_cluster) { return node_cluster.first % SUBITERATIONS != iteration % SUBITERATIONS; });
+      .Filter([iteration](const NodeCluster& node_cluster) { return !included(node_cluster.first, iteration); });
 
     node_clusters = graph.edge_list
       // filter out nodes not in subiteration
-      .Filter([iteration](const EdgeType& edge) { return edge.tail % SUBITERATIONS == iteration % SUBITERATIONS; })
+      .Filter([iteration](const EdgeType& edge) { return included(edge.tail, iteration); })
       // join cluster weight onto edge targets
       .InnerJoin(node_cluster_weights,
         [](const EdgeType& edge) { return edge.head; },
@@ -196,6 +201,7 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
           }
 
           return NodeCluster(local_moving_node.first.id, best_cluster);
+          // return NodeCluster(local_moving_node.first.id, (iteration % 2 == 0 && best_cluster > local_moving_node.first.cluster) || (iteration % 2 != 0 && best_cluster < local_moving_node.first.cluster) ? best_cluster : local_moving_node.first.cluster);
         })
       // bring back other clusters
       .Union(other_node_clusters)
@@ -229,10 +235,11 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
     .ReduceByKey(
       [](const Node & node) { return node.id; },
       [](const Node & node1, const Node & node2) { return Node { node1.id, node1.degree + node2.degree }; });
+    // .Cache(); ? is recalculated, but worth it?
 
   assert(nodes.Keep().Size() == graph.node_count);
 
-  auto node_clusters = local_moving(graph, nodes, 16);
+  auto node_clusters = local_moving(graph, nodes, SUPER_ITERATIONS);
   auto distinct_cluster_ids = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq();
   size_t cluster_count = distinct_cluster_ids.Keep().Size();
 
