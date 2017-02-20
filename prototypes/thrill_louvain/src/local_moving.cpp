@@ -96,13 +96,10 @@ bool included(const NodeId node, const uint32_t iteration) {
 
 template<class EdgeType>
 thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::DIA<Node>& nodes, uint32_t num_iterations) {
-  auto node_clusters = graph.edge_list
+  auto node_clusters = nodes
     .Keep()
-    .Map([](const EdgeType& edge) { return edge.tail; })
-    .Uniq()
-    .Map([](const NodeId& id) { return NodeCluster(id, id); })
-    .Collapse()
-    .Cache();
+    .Map([](const Node& node) { return NodeCluster(node.id, node.id); })
+    .Collapse();
 
   size_t cluster_count = graph.node_count;
 
@@ -117,7 +114,15 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
       .InnerJoin(node_clusters,
         [](const std::pair<ClusterId, Weight>& cluster_weight) { return cluster_weight.first; },
         [](const NodeCluster& node_cluster) { return node_cluster.second; },
-        [](const ClusterWeight& cluster_weight, const NodeCluster& node_cluster) { return std::make_pair(node_cluster.first, cluster_weight); });
+        [](const ClusterWeight& cluster_weight, const NodeCluster& node_cluster) { return std::make_pair(node_cluster.first, cluster_weight); })
+      // .ReduceToIndex(
+      //   [](const std::pair<NodeId, ClusterWeight>& node_cluster_weight) -> size_t { return node_cluster_weight.first; },
+      //   [](const std::pair<NodeId, ClusterWeight>& ncw1, const std::pair<NodeId, ClusterWeight>&) {
+      //     throw "should be all unique";
+      //     return ncw1;
+      //   },
+      //   graph.node_count)
+      ;
 
     auto other_node_clusters = node_clusters
       .Filter([iteration](const NodeCluster& node_cluster) { return !included(node_cluster.first, iteration); });
@@ -147,25 +152,25 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
         [](const std::pair<NodeId, IncidentClusterInfo>& node_with_incident_cluster1, const std::pair<NodeId, IncidentClusterInfo>& node_with_incident_cluster2) {
           return std::make_pair(node_with_incident_cluster1.first, IncidentClusterInfo { node_with_incident_cluster1.second.cluster, node_with_incident_cluster1.second.inbetween_weight + node_with_incident_cluster2.second.inbetween_weight , node_with_incident_cluster1.second.total_weight });
         })
-      // join cluster weight of each node
-      .InnerJoin(node_cluster_weights,
-        [](const std::pair<NodeId, IncidentClusterInfo>& node_cluster) { return node_cluster.first; },
-        [](const std::pair<NodeId, std::pair<ClusterId, Weight>>& node_cluster_weight) { return node_cluster_weight.first; },
-        [](const std::pair<NodeId, IncidentClusterInfo>& node_cluster, const std::pair<NodeId, std::pair<ClusterId, Weight>>& node_cluster_weight) {
-          return std::make_pair(node_cluster_weight, node_cluster.second);
-        })
       // map to vector of neighbor clusters
       .Map(
-        [](const std::pair<std::pair<NodeId, std::pair<ClusterId, Weight>>, IncidentClusterInfo>& local_moving_edge) {
+        [](const std::pair<NodeId, IncidentClusterInfo>& local_moving_edge) {
           return std::make_pair(local_moving_edge.first, std::vector<IncidentClusterInfo>({ local_moving_edge.second }));
         })
       // reduce by each node so the vector is filled with all neighbors
       .ReduceByKey(
-        [](const std::pair<std::pair<NodeId, std::pair<ClusterId, Weight>>, std::vector<IncidentClusterInfo>>& local_moving_node) { return local_moving_node.first.first; },
-        [](const std::pair<std::pair<NodeId, std::pair<ClusterId, Weight>>, std::vector<IncidentClusterInfo>>& local_moving_node1, const std::pair<std::pair<NodeId, std::pair<ClusterId, Weight>>, std::vector<IncidentClusterInfo>>& local_moving_node2) {
+        [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& local_moving_node) { return local_moving_node.first; },
+        [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& local_moving_node1, const std::pair<NodeId, std::vector<IncidentClusterInfo>>& local_moving_node2) {
           std::vector<IncidentClusterInfo> tmp(local_moving_node1.second.begin(), local_moving_node1.second.end());
           tmp.insert(tmp.end(), local_moving_node2.second.begin(), local_moving_node2.second.end());
           return std::make_pair(local_moving_node1.first, tmp);
+        })
+      // join cluster weight of each node
+      .InnerJoin(node_cluster_weights,
+        [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& node_cluster) { return node_cluster.first; },
+        [](const std::pair<NodeId, std::pair<ClusterId, Weight>>& node_cluster_weight) { return node_cluster_weight.first; },
+        [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& node_cluster, const std::pair<NodeId, std::pair<ClusterId, Weight>>& node_cluster_weight) {
+          return std::make_pair(node_cluster_weight, node_cluster.second);
         })
       // join node degree
       .InnerJoin(nodes.Keep(),
@@ -233,7 +238,7 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
     .Keep()
     .Map([](const EdgeType & edge) { return Node { edge.tail, edge.getWeight() }; })
     .ReduceByKey(
-      [](const Node & node) { return node.id; },
+      [](const Node & node) -> size_t { return node.id; },
       [](const Node & node1, const Node & node2) { return Node { node1.id, node1.degree + node2.degree }; });
     // .Cache(); ? is recalculated, but worth it?
 
