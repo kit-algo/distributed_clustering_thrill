@@ -15,6 +15,7 @@
 #include <thrill/api/print.hpp>
 #include <thrill/api/union.hpp>
 #include <thrill/api/generate.hpp>
+#include <thrill/api/all_gather.hpp>
 
 #include <ostream>
 #include <iostream>
@@ -24,6 +25,10 @@
 #include "util.hpp"
 #include "thrill_graph.hpp"
 #include "input.hpp"
+#include "thrill_modularity.hpp"
+
+#include <io.hpp>
+#include <modularity.hpp>
 
 #define SUBITERATIONS 4
 
@@ -95,8 +100,6 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
     .Cache();
 
   size_t cluster_count = graph.node_count;
-
-  // node_clusters.Print("initial clusters");
 
   for (uint32_t iteration = 0; iteration < num_iterations * SUBITERATIONS; iteration++) {
     auto node_cluster_weights = graph.edge_list
@@ -181,27 +184,17 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
             }
           }
 
-          // if (std::is_same<EdgeType, WeightedEdge>::value) {
-          //   std::cout << "node " << local_moving_node.first.first << " degree " << degree << " weight between " << weight_between_node_and_current_cluster << std::endl;
-          // }
-
           for (const IncidentClusterInfo& incident_cluster : local_moving_node.second) {
             int64_t delta = deltaModularity(degree, local_moving_node.first.cluster, incident_cluster.cluster,
                                             weight_between_node_and_current_cluster, incident_cluster.inbetween_weight,
                                             local_moving_node.first.cluster_total_weight, incident_cluster.total_weight,
                                             graph.total_weight);
-            // if (std::is_same<EdgeType, WeightedEdge>::value) {
-            //   std::cout << "cluster " << incident_cluster.cluster << " cluster degree " << incident_cluster.total_weight << " cluster between " << incident_cluster.inbetween_weight << " delta " << delta << std::endl;
-            // }
             if (delta > best_delta) {
               best_delta = delta;
               best_cluster = incident_cluster.cluster;
             }
           }
 
-          // if (std::is_same<EdgeType, WeightedEdge>::value) {
-          //   std::cout << "node " << local_moving_node.first.first << " best cluster " << best_cluster << " delta " << best_delta << std::endl;
-          // }
           return NodeCluster(local_moving_node.first.id, best_cluster);
         })
       // bring back other clusters
@@ -210,14 +203,12 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
       .Cache();
 
     if (iteration % SUBITERATIONS == SUBITERATIONS - 1) {
-      // node_clusters.Keep().Print("clusters");
       assert(graph.node_count == node_clusters.Keep().Size());
 
       size_t round_cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
       std::cout << "from " << cluster_count << " to " << round_cluster_count << std::endl;
 
       if (cluster_count - round_cluster_count <= graph.node_count / 100) {
-        // std::cout << "break" << std::endl;
         break;
       }
 
@@ -234,14 +225,12 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
 
   auto nodes = graph.edge_list
     .Keep()
-    .Map([](const EdgeType & edge) { return Node { edge.tail, 1 }; })
+    .Map([](const EdgeType & edge) { return Node { edge.tail, edge.getWeight() }; })
     .ReduceByKey(
       [](const Node & node) { return node.id; },
       [](const Node & node1, const Node & node2) { return Node { node1.id, node1.degree + node2.degree }; });
 
   assert(nodes.Keep().Size() == graph.node_count);
-
-  // const Weight total_weight = edge_list.Keep().Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
 
   auto node_clusters = local_moving(graph, nodes, 16);
   auto distinct_cluster_ids = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq();
@@ -292,12 +281,10 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
       })
     .Collapse();
 
-  // meta_graph_edges.Keep().Print("meta graph edges");
+  assert(meta_graph_edges.Keep().Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
   // Recursion on meta graph
   auto meta_clustering = louvain(DiaGraph<WeightedEdge> { meta_graph_edges, cluster_count, graph.total_weight });
-
-  // meta_clustering.Keep().Print("meta_clustering");
 
   return node_clusters
     .Keep() // TODO why on earth is this necessary?
@@ -317,8 +304,12 @@ int main(int, char const *argv[]) {
 
     auto node_clusters = louvain(graph);
 
+    double modularity = Modularity::modularity(graph, node_clusters);
     size_t cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
-    std::cout << "Result: " << cluster_count << std::endl;
+
+    if (context.my_rank() == 0) {
+      std::cout << "Modularity: " << modularity << " Result: " << cluster_count << std::endl;
+    }
   });
 }
 

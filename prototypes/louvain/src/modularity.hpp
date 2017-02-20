@@ -116,7 +116,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
     int64_t best_delta_modularity = 0;
 
     // double current_modularity = 0;
-    // current_modularity = graph.modularity(clusters);
+    // current_modularity = modularity(graph, clusters);
     // assert(deltaModularity(current_node, graph, clusters[current_node], clusters, cluster_weights) == 0);
 
     graph.forEachAdjacentNode(current_node, [&](NodeId neighbor, Weight weight) {
@@ -154,7 +154,7 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
       changed = true;
       // assert(deltaModularity(current_node, graph, current_node_cluster, clusters, cluster_weights) == -best_delta_modularity);
       // std::cout << current_modularity << "," << (best_delta_modularity / (2.*graph.getTotalWeight()*graph.getTotalWeight())) << "," << graph.modularity(clusters);
-      // assert(abs(current_modularity + (best_delta_modularity / (2.*graph.getTotalWeight()*graph.getTotalWeight())) - graph.modularity(clusters)) < 0.0001);
+      // assert(std::abs(current_modularity + (best_delta_modularity / (2.*graph.getTotalWeight()*graph.getTotalWeight())) - modularity(graph, clusters)) < 0.0001);
     } else {
       unchanged_count++;
     }

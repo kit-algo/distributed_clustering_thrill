@@ -7,6 +7,7 @@
 
 using NodeId = uint32_t;
 using Weight = uint32_t;
+using ClusterId = uint32_t;
 
 struct Edge {
   NodeId tail, head;
