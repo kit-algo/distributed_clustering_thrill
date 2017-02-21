@@ -1,34 +1,26 @@
-#include <thrill/api/read_lines.hpp>
-#include <thrill/api/write_lines.hpp>
-#include <thrill/api/sort.hpp>
-#include <thrill/api/all_reduce.hpp>
 #include <thrill/api/cache.hpp>
 #include <thrill/api/collapse.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/zip_with_index.hpp>
-#include <thrill/api/zip.hpp>
-#include <thrill/api/group_by_key.hpp>
 #include <thrill/api/size.hpp>
-#include <thrill/api/reduce_to_index.hpp>
-#include <thrill/api/sum.hpp>
 #include <thrill/api/inner_join.hpp>
-#include <thrill/api/print.hpp>
 #include <thrill/api/union.hpp>
-#include <thrill/api/generate.hpp>
-#include <thrill/api/all_gather.hpp>
+#include <thrill/api/gather.hpp>
 
 #include <ostream>
 #include <iostream>
 #include <vector>
 #include <map>
 
+#include <cluster_store.hpp>
+
 #include "util.hpp"
 #include "thrill_graph.hpp"
 #include "input.hpp"
 #include "thrill_modularity.hpp"
 
-#define SUBITERATIONS 4
-#define SUPER_ITERATIONS 16
+#define SUBITERATIONS 1
+#define SUPER_ITERATIONS 32
 
 using ClusterId = NodeId;
 
@@ -93,9 +85,10 @@ int64_t deltaModularity(const Weight node_degree,
   return e - a;
 }
 
-bool included(const NodeId node, const uint32_t iteration) {
-  return node % SUBITERATIONS == iteration % SUBITERATIONS;
-  // size_t hash = Util::combined_hash(node, iteration);
+bool included(const NodeId node, const uint32_t iteration, const uint32_t rate) {
+  // return node % SUBITERATIONS == iteration % SUBITERATIONS;
+  size_t hash = Util::combined_hash(node, iteration);
+  return hash % 1000 < rate;
   // uint32_t sizes[] = { 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 4, 4, 4, 4, 3, 3, 3, 2, 2, 1, 1 };
   // return hash % sizes[iteration] == 0;
 }
@@ -108,8 +101,13 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
     .Collapse();
 
   size_t cluster_count = graph.node_count;
+  uint32_t rate = 200;
 
   for (uint32_t iteration = 0; iteration < num_iterations * SUBITERATIONS; iteration++) {
+    if (node_clusters.context().my_rank() == 0) {
+      std::cout << "Iteration: " << iteration << " Rate: " << rate << std::endl;
+    }
+
     auto node_cluster_weights = node_clusters
       .Keep()
       .Map([](const FullNodeCluster& node_cluster) { return std::make_pair(node_cluster.cluster, node_cluster.degree); })
@@ -117,23 +115,15 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
       .InnerJoin(node_clusters,
         [](const std::pair<ClusterId, Weight>& cluster_weight) { return cluster_weight.first; },
         [](const FullNodeCluster& node_cluster) { return node_cluster.cluster; },
-        [](const ClusterWeight& cluster_weight, const FullNodeCluster& node_cluster) { return std::make_pair(node_cluster, cluster_weight.second); })
-      // .ReduceToIndex(
-      //   [](const std::pair<NodeId, ClusterWeight>& node_cluster_weight) -> size_t { return node_cluster_weight.first; },
-      //   [](const std::pair<NodeId, ClusterWeight>& ncw1, const std::pair<NodeId, ClusterWeight>&) {
-      //     throw "should be all unique";
-      //     return ncw1;
-      //   },
-      //   graph.node_count)
-      ;
+        [](const ClusterWeight& cluster_weight, const FullNodeCluster& node_cluster) { return std::make_pair(node_cluster, cluster_weight.second); });
 
     auto other_node_clusters = node_clusters
-      .Filter([iteration](const FullNodeCluster& node_cluster) { return !included(node_cluster.id, iteration); });
+      .Filter([iteration, rate](const FullNodeCluster& node_cluster) { return !included(node_cluster.id, iteration, rate); });
 
-    node_clusters = graph.edge_list
+    auto new_node_clusters = graph.edge_list
       .Keep()
       // filter out nodes not in subiteration
-      .Filter([iteration](const EdgeType& edge) { return included(edge.tail, iteration); })
+      .Filter([iteration, rate](const EdgeType& edge) { return included(edge.tail, iteration, rate); })
       // join cluster weight onto edge targets
       .InnerJoin(node_cluster_weights,
         [](const EdgeType& edge) { return edge.head; },
@@ -181,6 +171,7 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
         [&graph](const std::pair<LocalMovingNode, std::vector<IncidentClusterInfo>>& local_moving_node) {
           ClusterId best_cluster = local_moving_node.first.cluster;
           int64_t best_delta = 0;
+          bool move = false;
           Weight weight_between_node_and_current_cluster = 0;
           for (const IncidentClusterInfo& incident_cluster : local_moving_node.second) {
             if (incident_cluster.cluster == local_moving_node.first.cluster) {
@@ -196,12 +187,19 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
             if (delta > best_delta) {
               best_delta = delta;
               best_cluster = incident_cluster.cluster;
+              move = true;
             }
           }
 
-          return FullNodeCluster { local_moving_node.first.id, local_moving_node.first.degree, best_cluster };
+          return std::make_pair(FullNodeCluster { local_moving_node.first.id, local_moving_node.first.degree, best_cluster }, move);
           // return NodeCluster(local_moving_node.first.id, (iteration % 2 == 0 && best_cluster > local_moving_node.first.cluster) || (iteration % 2 != 0 && best_cluster < local_moving_node.first.cluster) ? best_cluster : local_moving_node.first.cluster);
-        })
+        });
+
+    rate = 1000 - (new_node_clusters.Keep().Filter([](const std::pair<FullNodeCluster, bool>& pair) { return pair.second; }).Size() * 1000 / new_node_clusters.Keep().Size());
+    if (rate < 200) { rate = 200; }
+
+    node_clusters = new_node_clusters
+      .Map([](const std::pair<FullNodeCluster, bool>& pair) { return pair.first; })
       // bring back other clusters
       .Union(other_node_clusters)
       .Collapse()
@@ -211,7 +209,9 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
       assert(graph.node_count == node_clusters.Keep().Size());
 
       size_t round_cluster_count = node_clusters.Keep().Map([](const FullNodeCluster& node_cluster) { return node_cluster.cluster; }).Uniq().Size();
-      std::cout << "from " << cluster_count << " to " << round_cluster_count << std::endl;
+      if (node_clusters.context().my_rank() == 0) {
+        std::cout << "from " << cluster_count << " to " << round_cluster_count << std::endl;
+      }
 
       if (cluster_count - round_cluster_count <= graph.node_count / 100) {
         break;
@@ -257,6 +257,7 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
 
   // Build Meta Graph
   auto meta_graph_edges = graph.edge_list
+    .Keep()
     .InnerJoin(node_clusters.Keep(),
       [](const EdgeType& edge) { return edge.tail; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
@@ -311,10 +312,16 @@ int main(int, char const *argv[]) {
     auto node_clusters = louvain(graph);
 
     double modularity = Modularity::modularity(graph, node_clusters);
-    size_t cluster_count = node_clusters.Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
+    size_t cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
 
+    // auto local_node_clusters = node_clusters.Gather();
     if (context.my_rank() == 0) {
       std::cout << "Modularity: " << modularity << " Result: " << cluster_count << std::endl;
+
+      // ClusterStore clusters(graph.node_count);
+      // for (const auto& node_cluster : local_node_clusters) {
+      //   clusters.set(node_cluster.first, node_cluster.second);
+      // }
     }
   });
 }
