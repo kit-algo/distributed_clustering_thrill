@@ -3,6 +3,7 @@
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/zip_with_index.hpp>
 #include <thrill/api/size.hpp>
+#include <thrill/api/sum.hpp>
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/union.hpp>
 #include <thrill/api/gather.hpp>
@@ -13,14 +14,15 @@
 #include <map>
 
 #include <cluster_store.hpp>
+#include <logging.hpp>
 
 #include "util.hpp"
 #include "thrill_graph.hpp"
 #include "input.hpp"
 #include "thrill_modularity.hpp"
 
-#define SUBITERATIONS 1
-#define SUPER_ITERATIONS 32
+// #define SUBITERATIONS 1
+#define ITERATIONS 32
 
 using ClusterId = NodeId;
 
@@ -102,11 +104,12 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
 
   size_t cluster_count = graph.node_count;
   uint32_t rate = 200;
+  uint32_t rate_sum = 0;
 
-  for (uint32_t iteration = 0; iteration < num_iterations * SUBITERATIONS; iteration++) {
-    if (node_clusters.context().my_rank() == 0) {
-      std::cout << "Iteration: " << iteration << " Rate: " << rate << std::endl;
-    }
+  for (uint32_t iteration = 0; iteration < num_iterations; iteration++) {
+    // if (node_clusters.context().my_rank() == 0) {
+    //   std::cout << "Iteration: " << iteration << " Rate: " << rate << std::endl;
+    // }
 
     auto node_cluster_weights = node_clusters
       .Keep()
@@ -195,8 +198,15 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
           // return NodeCluster(local_moving_node.first.id, (iteration % 2 == 0 && best_cluster > local_moving_node.first.cluster) || (iteration % 2 != 0 && best_cluster < local_moving_node.first.cluster) ? best_cluster : local_moving_node.first.cluster);
         });
 
-    rate = 1000 - (new_node_clusters.Keep().Filter([](const std::pair<FullNodeCluster, bool>& pair) { return pair.second; }).Size() * 1000 / new_node_clusters.Keep().Size());
-    if (rate < 200) { rate = 200; }
+    size_t considered_nodes = new_node_clusters.Keep().Size();
+    if (considered_nodes != 0) {
+      rate_sum += rate;
+      rate = 1000 - (new_node_clusters.Keep().Filter([](const std::pair<FullNodeCluster, bool>& pair) { return pair.second; }).Size() * 1000 / considered_nodes);
+      if (rate < 200) { rate = 200; }
+    } else {
+      rate += 200;
+      if (rate > 1000) { rate = 1000; }
+    }
 
     node_clusters = new_node_clusters
       .Map([](const std::pair<FullNodeCluster, bool>& pair) { return pair.first; })
@@ -205,19 +215,20 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
       .Collapse()
       .Cache();
 
-    if (iteration % SUBITERATIONS == SUBITERATIONS - 1) {
+    if (rate_sum >= 1000) {
       assert(graph.node_count == node_clusters.Keep().Size());
 
       size_t round_cluster_count = node_clusters.Keep().Map([](const FullNodeCluster& node_cluster) { return node_cluster.cluster; }).Uniq().Size();
-      if (node_clusters.context().my_rank() == 0) {
-        std::cout << "from " << cluster_count << " to " << round_cluster_count << std::endl;
-      }
+      // if (node_clusters.context().my_rank() == 0) {
+      //   std::cout << "from " << cluster_count << " to " << round_cluster_count << std::endl;
+      // }
 
       if (cluster_count - round_cluster_count <= graph.node_count / 100) {
         break;
       }
 
       cluster_count = round_cluster_count;
+      rate_sum -= 1000;
     }
   }
 
@@ -226,7 +237,7 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
 
 template<class EdgeType>
 thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
-  std::cout << "louvain" << std::endl;
+  // std::cout << "louvain" << std::endl;
 
   auto nodes = graph.edge_list
     .Keep()
@@ -238,7 +249,7 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
 
   assert(nodes.Keep().Size() == graph.node_count);
 
-  auto node_clusters = local_moving(graph, nodes, SUPER_ITERATIONS);
+  auto node_clusters = local_moving(graph, nodes, ITERATIONS);
   auto distinct_cluster_ids = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq();
   size_t cluster_count = distinct_cluster_ids.Keep().Size();
 
@@ -303,25 +314,67 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
       });
 }
 
-int main(int, char const *argv[]) {
+int main(int argc, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
     auto graph = Input::readGraph(argv[1], context);
+
+    Logging::Id program_run_logging_id;
+    if (context.my_rank() == 0) {
+      program_run_logging_id = Logging::getUnusedId();
+      Logging::report("program_run", program_run_logging_id, "binary", argv[0]);
+      Logging::report("program_run", program_run_logging_id, "graph", argv[1]);
+      Logging::report("program_run", program_run_logging_id, "node_count", graph.node_count);
+      Logging::report("program_run", program_run_logging_id, "edge_count", graph.total_weight);
+    }
 
     auto node_clusters = louvain(graph);
 
     double modularity = Modularity::modularity(graph, node_clusters);
     size_t cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
 
-    // auto local_node_clusters = node_clusters.Gather();
-    if (context.my_rank() == 0) {
-      std::cout << "Modularity: " << modularity << " Result: " << cluster_count << std::endl;
+    auto local_node_clusters = node_clusters.Gather();
 
-      // ClusterStore clusters(graph.node_count);
-      // for (const auto& node_cluster : local_node_clusters) {
-      //   clusters.set(node_cluster.first, node_cluster.second);
-      // }
+    ClusterStore clusters(context.my_rank() == 0 ? graph.node_count : 0);
+    Logging::Id clusters_logging_id;
+    if (context.my_rank() == 0) {
+      Logging::Id algorithm_run_id = Logging::getUnusedId();
+      Logging::report("algorithm_run", algorithm_run_id, "program_run_id", program_run_logging_id);
+      Logging::report("algorithm_run", algorithm_run_id, "algorithm", "thrill louvain fully distributed local moving");
+      clusters_logging_id = Logging::getUnusedId();
+      Logging::report("clustering", clusters_logging_id, "source", "computation");
+      Logging::report("clustering", clusters_logging_id, "algorithm_run_id", algorithm_run_id);
+      Logging::report("clustering", clusters_logging_id, "modularity", modularity);
+      Logging::report("clustering", clusters_logging_id, "cluster_count", cluster_count);
+
+      for (const auto& node_cluster : local_node_clusters) {
+        clusters.set(node_cluster.first, node_cluster.second);
+      }
+    }
+    if (argc > 2) {
+      auto ground_proof = thrill::ReadBinary<NodeCluster>(context, argv[2]);
+
+      modularity = Modularity::modularity(graph, ground_proof);
+      cluster_count = ground_proof.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
+
+      auto local_ground_proof = ground_proof.Gather();
+
+      if (context.my_rank() == 0) {
+        Logging::report("program_run", program_run_logging_id, "ground_proof", argv[2]);
+
+        ClusterStore ground_proof_clusters(graph.node_count);
+        for (const auto& node_cluster : local_ground_proof) {
+          ground_proof_clusters.set(node_cluster.first, node_cluster.second);
+        }
+
+        Logging::Id ground_proof_logging_id = Logging::getUnusedId();
+        Logging::report("clustering", ground_proof_logging_id, "source", "ground_proof");
+        Logging::report("clustering", ground_proof_logging_id, "program_run_id", program_run_logging_id);
+        Logging::report("clustering", ground_proof_logging_id, "modularity", modularity);
+        Logging::report("clustering", ground_proof_logging_id, "cluster_count", cluster_count);
+        Logging::log_comparison_results(ground_proof_logging_id, ground_proof_clusters, clusters_logging_id, clusters);
+      }
     }
   });
 }

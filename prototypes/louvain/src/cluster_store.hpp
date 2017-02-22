@@ -26,7 +26,7 @@ public:
   ClusterStore(const NodeId node_count, const ClusterId initial_cluster_id = 0) :
     node_clusters(node_count, initial_cluster_id),
     id_range_lower_bound(initial_cluster_id),
-    id_range_upper_bound(node_count) {
+    id_range_upper_bound(node_count == 0 ? 1 : node_count) {
     assert(initial_cluster_id >= id_range_lower_bound);
     assert(initial_cluster_id < id_range_upper_bound);
   }
