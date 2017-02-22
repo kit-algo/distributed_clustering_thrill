@@ -2,9 +2,9 @@
 
 require 'json'
 
-`./generate_external_partitions.rb #{ARGV[0]} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[1]} ./report_to_json.rb`
+# `./generate_external_partitions.rb #{ARGV[0]} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[1]} ./report_to_json.rb`
 
-graphs = Dir.glob(File.join(ARGV[0], '**/*.graph')) + Dir.glob(File.join(ARGV[0], '**/*.txt'))
+graphs = Dir.glob(File.join(ARGV[0], '**/*.graph')) # + Dir.glob(File.join(ARGV[0], '**/*.txt'))
 
 json_files = Dir.glob(File.join(ARGV[1], '*.json'))
 data = {}
@@ -31,6 +31,7 @@ end
     args << data['program_run'].select { |key, run| run['graph'] == graph }.map { |key, run| "#{run['output']},#{key}" }.join(" ")
 
     puts '#' * 64, name, '#' * 64
+    puts "./louvain #{graph} #{args}"
     begin
       `./louvain #{graph} #{args} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[1]} ./report_to_json.rb`
     rescue Exception => _

@@ -264,4 +264,10 @@ void contractAndReapply(const Graph& graph, ClusterStore &clusters, uint64_t alg
   }
 }
 
+Logging::Id log_clustering(const Graph & graph, const ClusterStore & clusters) {
+  Logging::Id logging_id = Logging::getUnusedId();
+  Logging::report("clustering", logging_id, "modularity", Modularity::modularity(graph, clusters));
+  return logging_id;
+}
+
 }
