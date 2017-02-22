@@ -24,9 +24,9 @@ end
     name = graph.split('/').last.split('.').first
     ground_proof = "#{graph}.cmty"
 
-    args = ''
-    args << ' -g ' << ground_proof if File.exist?(ground_proof)
-    args << ' -f ' if graph.end_with?('.txt')
+    args = ' '
+    args << '-g ' << ground_proof << ' ' if File.exist?(ground_proof)
+    args << '-f ' if graph.end_with?('.txt')
 
     args << data['program_run'].select { |key, run| run['graph'] == graph }.map { |key, run| "#{run['output']},#{key}" }.join(" ")
 
