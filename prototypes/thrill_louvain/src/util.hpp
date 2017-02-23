@@ -1,21 +1,22 @@
 #pragma once
 
-#include <assert.h>
 #include <cstdint>
-#include <functional>
+
+#include <thrill/common/hash.hpp>
 
 namespace Util {
 
 template <typename T>
-inline std::size_t combined_hash(const T& v) { return std::hash<T>{}(v); }
+inline uint32_t combined_hash(const T& v) { return thrill::common::hash<T>{}(v); }
 
 template <typename T, typename... Rest>
-inline std::size_t combined_hash(const T& v, Rest... rest) {
-  std::hash<T> hasher;
-  std::size_t seed = combined_hash(rest...);
-  return seed ^ (hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2));
+inline uint32_t combined_hash(const T& v, Rest... rest) {
+  thrill::common::hash<T> hasher;
+  uint32_t seed = combined_hash(rest...);
+  uint32_t value_hash = hasher(v);
+  return seed ^ (value_hash + 0x9e3779b9 + (seed<<6) + (seed>>2));
 }
 
-inline uint64_t combine_u32ints(const uint32_t int1, const uint32_t int2) { return (uint64_t) int1 << 32 | int2; }
+inline uint32_t combine_u32ints(const uint32_t int1, const uint32_t int2) { return (uint64_t) int1 << 32 | int2; }
 
 }
