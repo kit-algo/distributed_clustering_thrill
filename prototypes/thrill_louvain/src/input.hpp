@@ -9,6 +9,7 @@
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/cache.hpp>
+#include <thrill/api/size.hpp>
 
 #include <vector>
 #include <iostream>
@@ -90,8 +91,7 @@ DiaGraph<Edge> readDimacsGraph(const std::string& file, thrill::Context& context
         for (const NodeId neighbor : node.second) {
           emit(Edge { node.first, neighbor });
         }
-      })
-    .Collapse();
+      });
 
   Weight total_weight = edges.Keep().Size() / 2;
 
@@ -114,8 +114,7 @@ DiaGraph<Edge> readBinaryGraph(const std::string& file, thrill::Context& context
           emit(Edge { node.first, neighbor });
           emit(Edge { neighbor, node.first });
         }
-      })
-    .Collapse();
+      });
 
   Weight total_weight = edges.Keep().Size() / 2;
 
