@@ -17,6 +17,6 @@ inline uint32_t combined_hash(const T& v, Rest... rest) {
   return seed ^ (value_hash + 0x9e3779b9 + (seed<<6) + (seed>>2));
 }
 
-inline uint32_t combine_u32ints(const uint32_t int1, const uint32_t int2) { return (uint64_t) int1 << 32 | int2; }
+inline uint64_t combine_u32ints(const uint32_t int1, const uint32_t int2) { return (uint64_t) int1 << 32 | int2; }
 
 }
