@@ -23,6 +23,7 @@
 
 #define ITERATIONS 32
 
+using int128_t = __int128_t;
 using ClusterId = NodeId;
 
 using NodeCluster = std::pair<NodeId, ClusterId>;
@@ -67,13 +68,13 @@ namespace std {
 } // std
 
 
-int64_t deltaModularity(const Weight node_degree,
+int128_t deltaModularity(const Weight node_degree,
                         const ClusterId current_cluster,
                         const ClusterId target_cluster,
-                        const int64_t weight_between_node_and_current_cluster,
-                        const int64_t weight_between_node_and_target_cluster,
-                        int64_t current_cluster_total_weight,
-                        int64_t target_cluster_total_weight,
+                        const int128_t weight_between_node_and_current_cluster,
+                        const int128_t weight_between_node_and_target_cluster,
+                        int128_t current_cluster_total_weight,
+                        int128_t target_cluster_total_weight,
                         const Weight total_weight) {
   if (target_cluster == current_cluster) {
     target_cluster_total_weight -= node_degree;
@@ -81,8 +82,8 @@ int64_t deltaModularity(const Weight node_degree,
 
   current_cluster_total_weight -= node_degree;
 
-  int64_t e = ((weight_between_node_and_target_cluster - weight_between_node_and_current_cluster) * total_weight * 2);
-  int64_t a = (target_cluster_total_weight - current_cluster_total_weight) * node_degree;
+  int128_t e = ((weight_between_node_and_target_cluster - weight_between_node_and_current_cluster) * total_weight * 2);
+  int128_t a = (target_cluster_total_weight - current_cluster_total_weight) * node_degree;
   return e - a;
 }
 
@@ -176,7 +177,7 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
         .Map(
           [&graph](const std::pair<LocalMovingNode, std::vector<IncidentClusterInfo>>& local_moving_node) {
             ClusterId best_cluster = local_moving_node.first.cluster;
-            int64_t best_delta = 0;
+            int128_t best_delta = 0;
             bool move = false;
             Weight weight_between_node_and_current_cluster = 0;
             for (const IncidentClusterInfo& incident_cluster : local_moving_node.second) {
@@ -186,7 +187,7 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
             }
 
             for (const IncidentClusterInfo& incident_cluster : local_moving_node.second) {
-              int64_t delta = deltaModularity(local_moving_node.first.degree, local_moving_node.first.cluster, incident_cluster.cluster,
+              int128_t delta = deltaModularity(local_moving_node.first.degree, local_moving_node.first.cluster, incident_cluster.cluster,
                                               weight_between_node_and_current_cluster, incident_cluster.inbetween_weight,
                                               local_moving_node.first.cluster_total_weight, incident_cluster.total_weight,
                                               graph.total_weight);
