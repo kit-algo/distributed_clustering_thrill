@@ -222,47 +222,30 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
     if (considered_nodes > 0) {
       auto new_node_clusters = node_cluster_weights
         .Keep()
-        .Map([iteration, rate](const std::pair<std::pair<NodeType, ClusterId>, Weight>& node_cluster_weight) {
-          std::vector<std::pair<NodeId, Weight>> links;
-          links.reserve(node_cluster_weight.first.first.links.size());
-          std::for_each(node_cluster_weight.first.first.links.begin(), node_cluster_weight.first.first.links.end(), [&links, &node_cluster_weight, iteration, rate](const typename NodeType::LinkType& link) {
-            if (included(link.getTarget(), iteration, rate)) {
-              links.push_back(std::make_pair(link.getTarget(), link.getTarget() == node_cluster_weight.first.first.id ? 0ul : link.getWeight()));
+        .template FlatMap<std::pair<NodeId, std::vector<IncidentClusterInfo>>>([iteration, rate](const std::pair<std::pair<NodeType, ClusterId>, Weight>& node_cluster_weight, auto emit) {
+          std::for_each(node_cluster_weight.first.first.links.begin(), node_cluster_weight.first.first.links.end(), [iteration, rate, &node_cluster_weight, &emit](const typename NodeType::LinkType& link) {
+            if (!included(link.getTarget(), iteration, rate)) {
+              emit(std::make_pair(link.getTarget(), std::vector<IncidentClusterInfo>({ IncidentClusterInfo {
+                node_cluster_weight.first.second,
+                node_cluster_weight.first.first.id != link.getTarget() ? link.getWeight() : 0,
+                node_cluster_weight.second
+              } })));
             }
           });
-          return std::make_pair(node_cluster_weight.first.second, std::make_pair(node_cluster_weight.second, links));
         })
-        .ReducePair([node_count](const std::pair<Weight, std::vector<std::pair<NodeId, Weight>>>& cluster_links1, const std::pair<Weight, std::vector<std::pair<NodeId, Weight>>>& cluster_links2) {
-          assert(cluster_links1.first == cluster_links2.first);
-          std::vector<std::pair<NodeId, Weight>> merged;
-          merged.reserve(std::min(cluster_links1.second.size() + cluster_links2.second.size(), node_count));
-          Util::merge(cluster_links1.second, cluster_links2.second, merged,
-            [](const std::pair<NodeId, Weight>& e1, const std::pair<NodeId, Weight>& e2) {
-              return int64_t(e2.first) - int64_t(e1.first);
-            },
-            [](const std::pair<NodeId, Weight>& e1, const std::pair<NodeId, Weight>& e2) {
-              return std::make_pair(e1.first, e1.second + e2.second);
-            });
-
-          return std::make_pair(cluster_links1.first, merged);
-        })
-        .template FlatMap<std::pair<NodeId, IncidentClusterInfo>>([](const std::pair<ClusterId, std::pair<Weight, std::vector<std::pair<NodeId, Weight>>>>& cluster_links, auto emit) {
-          for (const std::pair<NodeId, Weight>& link : cluster_links.second.second) {
-            emit(std::make_pair(link.first, IncidentClusterInfo { cluster_links.first, link.second, cluster_links.second.first }));
-          }
-        })
-        // map to vector of neighbor clusters
-        .Map(
-          [](const std::pair<NodeId, IncidentClusterInfo>& local_moving_edge) {
-            return std::make_pair(local_moving_edge.first, std::vector<IncidentClusterInfo>({ local_moving_edge.second }));
-          })
         // reduce by each node so the vector is filled with all neighbors
-        .ReduceToIndex(
-          [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& local_moving_node) -> size_t { return local_moving_node.first; },
-          [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& local_moving_node1, const std::pair<NodeId, std::vector<IncidentClusterInfo>>& local_moving_node2) {
-            std::vector<IncidentClusterInfo> tmp(local_moving_node1.second.begin(), local_moving_node1.second.end());
-            tmp.insert(tmp.end(), local_moving_node2.second.begin(), local_moving_node2.second.end());
-            return std::make_pair(local_moving_node1.first, tmp);
+        .ReducePairToIndex(
+          [](const std::vector<IncidentClusterInfo>& incident_clusters1, const std::vector<IncidentClusterInfo>& incident_clusters2) {
+            std::vector<IncidentClusterInfo> merged;
+            merged.reserve(incident_clusters1.size() + incident_clusters2.size());
+            Util::merge(incident_clusters1, incident_clusters2, merged,
+              [](const IncidentClusterInfo& c1, const IncidentClusterInfo& c2) {
+                return int32_t(c2.cluster) - int32_t(c1.cluster);
+              },
+              [](const IncidentClusterInfo& c1, const IncidentClusterInfo& c2) {
+                return IncidentClusterInfo { c1.cluster, c1.inbetween_weight + c2.inbetween_weight, c1.total_weight };
+              });
+            return merged;
           }, node_count)
         // join cluster weight and node degree of each node
         .Zip(thrill::NoRebalanceTag, node_cluster_weights,
