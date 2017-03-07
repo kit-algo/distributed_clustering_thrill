@@ -9,13 +9,13 @@
 #include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/print.hpp>
+#include <thrill/api/inner_join.hpp>
 
 #include <thrill/common/cmdline_parser.hpp>
 
 #include <ostream>
 #include <iostream>
 #include <vector>
-#include <map>
 
 #include "util.hpp"
 
@@ -31,6 +31,11 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
   auto node_labels = nodes.Map([](const Node& node) { return node.first; }).Collapse();
 
   for (uint32_t iteration = 0; iteration < max_num_iterations; iteration++) {
+    auto label_counts = node_labels
+      .Keep()
+      .Map([](const Label label) { return std::make_pair(label, 1u); })
+      .ReducePair([](const uint32_t count1, const uint32_t count2) { return count1 + count2; });
+
     auto new_node_labels = node_labels
       .Keep()
       .Zip(nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); })
@@ -46,24 +51,30 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
         [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info2) {
           return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1) + std::get<1>(label_info2), 1u);
         })
+      .InnerJoin(label_counts,
+        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).second; },
+        [](const std::pair<Label, uint32_t>& label_count) { return label_count.first; },
+        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info, const std::pair<Label, uint32_t>& label_count) {
+          return std::make_tuple(std::get<0>(label_info), std::get<1>(label_info), std::get<2>(label_info), label_count.second);
+        })
       .ReduceToIndex(
-        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) -> size_t { return std::get<0>(label_info).first; },
-        [iteration](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info2) {
+        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t, uint32_t>& label_info) -> size_t { return std::get<0>(label_info).first; },
+        [iteration](const std::tuple<NodeIdLabel, uint32_t, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t, uint32_t>& label_info2) {
           if (std::get<1>(label_info1) > std::get<1>(label_info2)) { // different label - one has more occurences
-            return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), 1u);
+            return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), 1u, std::get<3>(label_info1));
           } else if (std::get<1>(label_info1) < std::get<1>(label_info2)) {
-            return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), 1u);
+            return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), 1u, std::get<3>(label_info2));
           } else { // different labels, some occurence count, choose random
             uint32_t random_challenge_counter_sum = std::get<2>(label_info1) + std::get<2>(label_info2);
             if (Util::combined_hash(std::get<0>(label_info1).second, std::get<0>(label_info2).second, iteration) % random_challenge_counter_sum < std::get<2>(label_info1)) {
-              return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), random_challenge_counter_sum);
+              return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), random_challenge_counter_sum, std::get<3>(label_info1));
             } else {
-              return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), random_challenge_counter_sum);
+              return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), random_challenge_counter_sum, std::get<3>(label_info2));
             }
           }
         },
         node_count)
-      .Map([](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).second; })
+      .Map([](const std::tuple<NodeIdLabel, uint32_t, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).second; })
       .Collapse();
 
     size_t num_changed = new_node_labels
@@ -117,7 +128,7 @@ int main(int argc, char const *argv[]) {
 
     NodeId node_count = nodes.Keep().Size();
 
-    auto node_labels = label_propagation(nodes, 128);
+    auto node_labels = label_propagation(nodes, 64);
 
     uint32_t partition_count = num_partitions;
     NodeId partition_size = (node_count + partition_count - 1) / partition_count;
