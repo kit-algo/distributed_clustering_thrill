@@ -224,7 +224,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
         .Keep()
         .template FlatMap<std::pair<NodeId, std::vector<IncidentClusterInfo>>>([iteration, rate](const std::pair<std::pair<NodeType, ClusterId>, Weight>& node_cluster_weight, auto emit) {
           std::for_each(node_cluster_weight.first.first.links.begin(), node_cluster_weight.first.first.links.end(), [iteration, rate, &node_cluster_weight, &emit](const typename NodeType::LinkType& link) {
-            if (!included(link.getTarget(), iteration, rate)) {
+            if (included(link.getTarget(), iteration, rate)) {
               emit(std::make_pair(link.getTarget(), std::vector<IncidentClusterInfo>({ IncidentClusterInfo {
                 node_cluster_weight.first.second,
                 node_cluster_weight.first.first.id != link.getTarget() ? link.getWeight() : 0,
