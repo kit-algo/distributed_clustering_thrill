@@ -1,12 +1,14 @@
 #include <thrill/api/cache.hpp>
 #include <thrill/api/collapse.hpp>
+#include <thrill/api/gather.hpp>
+#include <thrill/api/inner_join.hpp>
 #include <thrill/api/reduce_by_key.hpp>
-#include <thrill/api/zip_with_index.hpp>
+#include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/size.hpp>
 #include <thrill/api/sum.hpp>
-#include <thrill/api/inner_join.hpp>
 #include <thrill/api/union.hpp>
-#include <thrill/api/gather.hpp>
+#include <thrill/api/zip.hpp>
+#include <thrill/api/zip_with_index.hpp>
 
 #include <ostream>
 #include <iostream>
@@ -204,7 +206,11 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
       .InnerJoin(node_clusters,
         [](const std::pair<ClusterId, Weight>& cluster_weight) { return cluster_weight.first; },
         [](const std::pair<NodeType, ClusterId>& node_cluster) { return node_cluster.second; },
-        [](const ClusterWeight& cluster_weight, const std::pair<NodeType, ClusterId>& node_cluster) { return std::make_pair(node_cluster, cluster_weight.second); });
+        [](const ClusterWeight& cluster_weight, const std::pair<NodeType, ClusterId>& node_cluster) { return std::make_pair(node_cluster, cluster_weight.second); })
+      .ReduceToIndex(
+        [](const std::pair<std::pair<NodeType, ClusterId>, Weight>& node_cluster_weight) -> size_t { return node_cluster_weight.first.first.id; },
+        [](const std::pair<std::pair<NodeType, ClusterId>, Weight>& ncw1, const std::pair<std::pair<NodeType, ClusterId>, Weight>&) { assert(false); return ncw1; },
+        node_count);
 
     assert(node_cluster_weights.Keep().Size() == node_count);
 
@@ -220,8 +226,9 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
           std::vector<std::pair<NodeId, Weight>> links;
           links.reserve(node_cluster_weight.first.first.links.size());
           std::for_each(node_cluster_weight.first.first.links.begin(), node_cluster_weight.first.first.links.end(), [&links, &node_cluster_weight, iteration, rate](const typename NodeType::LinkType& link) {
-            if (included(link.getTarget(), iteration, rate))
-            links.push_back(std::make_pair(link.getTarget(), link.getTarget() == node_cluster_weight.first.first.id ? 0ul : link.getWeight()));
+            if (included(link.getTarget(), iteration, rate)) {
+              links.push_back(std::make_pair(link.getTarget(), link.getTarget() == node_cluster_weight.first.first.id ? 0ul : link.getWeight()));
+            }
           });
           return std::make_pair(node_cluster_weight.first.second, std::make_pair(node_cluster_weight.second, links));
         })
@@ -250,18 +257,17 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
             return std::make_pair(local_moving_edge.first, std::vector<IncidentClusterInfo>({ local_moving_edge.second }));
           })
         // reduce by each node so the vector is filled with all neighbors
-        .ReduceByKey(
-          [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& local_moving_node) { return local_moving_node.first; },
+        .ReduceToIndex(
+          [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& local_moving_node) -> size_t { return local_moving_node.first; },
           [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& local_moving_node1, const std::pair<NodeId, std::vector<IncidentClusterInfo>>& local_moving_node2) {
             std::vector<IncidentClusterInfo> tmp(local_moving_node1.second.begin(), local_moving_node1.second.end());
             tmp.insert(tmp.end(), local_moving_node2.second.begin(), local_moving_node2.second.end());
             return std::make_pair(local_moving_node1.first, tmp);
-          })
+          }, node_count)
         // join cluster weight and node degree of each node
-        .InnerJoin(node_cluster_weights,
-          [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& node_cluster) { return node_cluster.first; },
-          [](const std::pair<std::pair<NodeType, ClusterId>, Weight>& node_cluster_weight) { return node_cluster_weight.first.first.id; },
+        .Zip(thrill::NoRebalanceTag, node_cluster_weights,
           [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& node_cluster, const std::pair<std::pair<NodeType, ClusterId>, Weight>& node_cluster_weight) {
+            assert(node_cluster.second.empty() || node_cluster.first == node_cluster_weight.first.first.id);
             return std::make_pair(LocalMovingNode { node_cluster_weight.first.first.id, node_cluster_weight.first.first.weightedDegree(), node_cluster_weight.first.second, node_cluster_weight.second }, node_cluster.second);
           })
         // map to best neighbor cluster
@@ -295,18 +301,20 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
         .Cache();
 
       rate_sum += rate;
-      rate = 1000 - (new_node_clusters.Keep().Filter([](const std::pair<FullNodeCluster, bool>& pair) { return pair.second; }).Size() * 1000 / considered_nodes);
+      uint32_t old_rate = rate;
+      rate = 1000 - (new_node_clusters.Keep().Filter([iteration, old_rate](const std::pair<FullNodeCluster, bool>& pair) { return pair.second && included(pair.first.id, iteration, old_rate); }).Size() * 1000 / considered_nodes);
 
       node_clusters = new_node_clusters
-        .InnerJoin(node_clusters,
-          [](const std::pair<FullNodeCluster, bool>& new_node_cluster) { return new_node_cluster.first.id; },
-          [](const std::pair<NodeType, ClusterId>& old_node_cluster) { return old_node_cluster.first.id; },
-          [](const std::pair<FullNodeCluster, bool>& new_node_cluster, const std::pair<NodeType, ClusterId>& old_node_cluster) {
-            return std::make_pair(old_node_cluster.first, new_node_cluster.first.cluster);
+        .Zip(thrill::NoRebalanceTag, node_clusters,
+          [iteration, old_rate](const std::pair<FullNodeCluster, bool>& new_node_cluster, const std::pair<NodeType, ClusterId>& old_node_cluster) {
+            assert(new_node_cluster.first.id == old_node_cluster.first.id);
+            if (included(new_node_cluster.first.id, iteration, old_rate)) {
+              return std::make_pair(old_node_cluster.first, new_node_cluster.first.cluster);
+            } else {
+              return old_node_cluster;
+            }
           })
-        // bring back other clusters
-        .Union(other_node_clusters)
-        .Cache(); // breaks if removed. TODO why?
+        .Cache(); // breaks in the other version if removed. TODO why?
 
       if (rate_sum >= 1000) {
         assert(node_count == node_clusters.Keep().Size());
@@ -338,9 +346,10 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
   auto nodes = graph.edge_list
     .Keep()
     .Map([](const EdgeType & edge) { return NodeType::fromEdge(edge); })
-    .ReduceByKey(
+    .ReduceToIndex(
       [](const NodeType & node) -> size_t { return node.id; },
-      [](const NodeType & node1, const NodeType & node2) { return node1 + node2; });
+      [](const NodeType & node1, const NodeType & node2) { return node1 + node2; },
+      graph.node_count);
     // .Cache(); ? is recalculated, but worth it?
 
   assert(nodes.Keep().Size() == graph.node_count);
