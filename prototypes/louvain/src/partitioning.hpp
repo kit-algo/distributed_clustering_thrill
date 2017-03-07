@@ -7,11 +7,13 @@
 #include <assert.h>
 #include <cstdint>
 #include <limits>
+#include <algorithm>
 
 namespace Partitioning {
 
 using NodeId = typename Graph::NodeId;
 using Weight = typename Graph::Weight;
+using ClusterId = typename ClusterStore::ClusterId;
 using PartitionElementId = uint32_t;
 
 NodeId partitionElementTargetSize(const Graph& graph, const uint32_t partition_size) {
@@ -98,16 +100,49 @@ Logging::Id random(const Graph& graph, const uint32_t partition_size, std::vecto
   return partition_logging_id;
 }
 
-Logging::Id clusteringBased(const Graph& graph, const uint32_t partition_size, std::vector<uint32_t>& node_partition_elements, const ClusterStore& clusters) {
-  assert(graph.getNodeCount() == node_partition_elements.size());
-  std::vector<NodeId> node_ids(graph.getNodeCount());
-  std::iota(node_ids.begin(), node_ids.end(), 0);
+void distributeClusters(const Graph& graph, const std::vector<uint32_t>& cluster_sizes, const uint32_t partition_size, std::vector<uint32_t>& cluster_partition_element) {
+  std::vector<NodeId> partition_element_sizes(partition_size, 0);
 
-  std::sort(node_ids.begin(), node_ids.end(), [&clusters](const NodeId node1, const NodeId node2) {
-    return (clusters[node1] == clusters[node2] && node1 < node2) || clusters[node1] < clusters[node2];
+  std::vector<std::pair<ClusterId, uint32_t>> sorted_cluster_sizes(cluster_sizes.size());
+  for (uint32_t i = 0; i < cluster_sizes.size(); i++) {
+    sorted_cluster_sizes[i] = std::make_pair(i, cluster_sizes[i]);
+  }
+  std::sort(sorted_cluster_sizes.begin(), sorted_cluster_sizes.end(), [](const std::pair<ClusterId, uint32_t>& a, const std::pair<ClusterId, uint32_t>& b) {
+    return a.second < b.second;
   });
 
-  chunkIdsInOrder(graph, partition_size, node_partition_elements, node_ids);
+  NodeId partition_target_size = partitionElementTargetSize(graph, partition_size);
+
+  for (const auto& cluster_size : sorted_cluster_sizes) {
+    uint32_t best_partition = partition_size;
+    if (cluster_size.second != 0) {
+      for (uint32_t partition = 0; partition < partition_size; partition++) {
+        if (best_partition != partition_size) {
+          if ((partition_element_sizes[best_partition] + cluster_size.second > partition_target_size && partition_element_sizes[partition] < partition_element_sizes[best_partition])
+              || (partition_element_sizes[partition] + cluster_size.second <= partition_target_size && partition_element_sizes[partition] > partition_element_sizes[best_partition])) {
+            best_partition = partition;
+          }
+        } else {
+          best_partition = partition;
+        }
+      }
+
+      cluster_partition_element[cluster_size.first] = best_partition;
+      partition_element_sizes[best_partition] += cluster_size.second;
+    }
+  }
+}
+
+Logging::Id clusteringBased(const Graph& graph, const uint32_t partition_size, std::vector<uint32_t>& node_partition_elements, const ClusterStore& clusters) {
+  std::vector<uint32_t> cluster_sizes(clusters.idRangeUpperBound(), 0);
+  clusters.clusterSizes(cluster_sizes);
+  std::vector<uint32_t> cluster_partition_element(clusters.idRangeUpperBound(), partition_size);
+
+  distributeClusters(graph, cluster_sizes, partition_size, cluster_partition_element);
+
+  for (NodeId node = 0; node < graph.getNodeCount(); node++) {
+    node_partition_elements[node] = cluster_partition_element[clusters[node]];
+  }
 
   Logging::Id partition_logging_id = Logging::getUnusedId();
   Logging::report("partition", partition_logging_id, "algorithm", "cluster_based");

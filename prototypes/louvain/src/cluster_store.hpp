@@ -45,6 +45,8 @@ public:
     return node_clusters.size();
   }
 
+  ClusterId idRangeUpperBound() const { return id_range_upper_bound; }
+
   void assignSingletonClusterIds() {
     std::iota(node_clusters.begin(), node_clusters.end(), 0);
     resetBounds();
@@ -98,11 +100,16 @@ public:
     intersection.rewriteClusterIds();
   }
 
-  void clusterSizeDistribution(std::map<uint32_t, uint32_t> & distribution) {
-    std::vector<uint32_t> cluster_sizes(size(), 0);
+  void clusterSizes(std::vector<uint32_t>& cluster_sizes) const {
+    assert(cluster_sizes.size() >= id_range_upper_bound);
     for (auto& cluster_id : node_clusters) {
       cluster_sizes[cluster_id]++;
     }
+  }
+
+  void clusterSizeDistribution(std::map<uint32_t, uint32_t> & distribution) const {
+    std::vector<uint32_t> cluster_sizes(id_range_upper_bound, 0);
+    clusterSizes(cluster_sizes);
 
     for (auto& cluster_size : cluster_sizes) {
       if (cluster_size != 0) {
