@@ -79,25 +79,24 @@ int main(int, char const *argv[]) {
 
       node_clusters
         .Keep()
-        .Map([](const std::pair<NodeWithLinks, ClusterId>& node_cluster) { return std::make_pair(node_cluster.second, std::list<NodeWithLinks>({ node_cluster.first })); })
-        // .template GroupByKey<std::pair<ClusterId, std::vector<NodeWithLinks>>>(
-        //   [](const std::pair<ClusterId, std::vector<NodeWithLinks>>& pair) { return pair.first; },
-        //   [](auto& iterator, const ClusterId cluster) {
-        //     std::vector<NodeWithLinks> merged;
-        //     while (iterator.HasNext()) {
-        //       const std::pair<ClusterId, std::vector<NodeWithLinks>>& pair = iterator.Next();
-        //       merged.insert(merged.end(), pair.second.begin(), pair.second.end());
-        //     }
-        //     return std::make_pair(cluster, merged);
-        //   })
-        .ReducePair(
-          [](const std::list<NodeWithLinks>& neighbors1, const std::list<NodeWithLinks>& neighbors2) {
-            std::list<NodeWithLinks> merged = std::move(neighbors1);
-            std::list<NodeWithLinks> tmp = std::move(neighbors2);
-            merged.splice(merged.end(), tmp);
-            return merged;
+        .Map([](const std::pair<NodeWithLinks, ClusterId>& node_cluster) { return std::make_pair(node_cluster.second, std::vector<NodeWithLinks>({ node_cluster.first })); })
+        .template GroupByKey<std::pair<ClusterId, std::vector<NodeWithLinks>>>(
+          [](const std::pair<ClusterId, std::vector<NodeWithLinks>>& pair) { return pair.first; },
+          [](auto& iterator, const ClusterId cluster) {
+            std::vector<NodeWithLinks> merged;
+            while (iterator.HasNext()) {
+              const std::pair<ClusterId, std::vector<NodeWithLinks>>& pair = iterator.Next();
+              merged.insert(merged.end(), pair.second.begin(), pair.second.end());
+            }
+            return std::make_pair(cluster, merged);
           })
-        .FlatMap([](const std::pair<ClusterId, std::list<NodeWithLinks>>& cluster, auto emit) {
+        // .ReduceByKey(
+        //   [](const std::pair<ClusterId, std::vector<NodeWithLinks>>& pair) { return pair.first; },
+        //   [](std::pair<ClusterId, std::vector<NodeWithLinks>> neighbors1, const std::pair<ClusterId, std::vector<NodeWithLinks>>& neighbors2) {
+        //     neighbors1.second.insert(neighbors1.second.end(), neighbors2.second.begin(), neighbors2.second.end());
+        //     return neighbors1;
+        //   })
+        .FlatMap([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster, auto emit) {
           Weight total_weight = 0;
           for (const NodeWithLinks& node : cluster.second) {
             total_weight += node.weightedDegree();
