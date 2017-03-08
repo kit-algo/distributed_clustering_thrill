@@ -24,7 +24,6 @@
 #define ITERATIONS 32
 
 using int128_t = __int128_t;
-using ClusterId = NodeId;
 
 using NodeCluster = std::pair<NodeId, ClusterId>;
 using ClusterWeight = std::pair<ClusterId, Weight>;
@@ -96,7 +95,7 @@ bool included(const NodeId node, const uint32_t iteration, const uint32_t rate) 
 }
 
 template<class EdgeType>
-thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::DIA<Node>& nodes, uint32_t num_iterations) {
+thrill::DIA<NodeCluster> local_moving(const DiaEdgeGraph<EdgeType>& graph, thrill::DIA<Node>& nodes, uint32_t num_iterations) {
   auto node_clusters = nodes
     .Map([](const Node& node) { return FullNodeCluster { node.id, node.degree, node.id }; })
     .Collapse();
@@ -127,7 +126,7 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
     size_t considered_nodes = graph.node_count - other_node_clusters.Keep().Size();
 
     if (considered_nodes > 0) {
-      auto new_node_clusters = graph.edge_list
+      auto new_node_clusters = graph.edges
         .Keep()
         // filter out nodes not in subiteration
         .Filter([iteration, rate](const EdgeType& edge) { return included(edge.tail, iteration, rate); })
@@ -238,8 +237,8 @@ thrill::DIA<NodeCluster> local_moving(const DiaGraph<EdgeType>& graph, thrill::D
 }
 
 template<class EdgeType>
-thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
-  auto nodes = graph.edge_list
+thrill::DIA<NodeCluster> louvain(const DiaEdgeGraph<EdgeType>& graph) {
+  auto nodes = graph.edges
     .Keep()
     .Map([](const EdgeType & edge) { return Node { edge.tail, edge.getWeight() }; })
     .ReduceByKey(
@@ -267,7 +266,7 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
       });
 
   // Build Meta Graph
-  auto meta_graph_edges = graph.edge_list
+  auto meta_graph_edges = graph.edges
     .Keep()
     .InnerJoin(node_clusters.Keep(),
       [](const EdgeType& edge) { return edge.tail; },
@@ -301,7 +300,7 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
   assert(meta_graph_edges.Keep().Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
   // Recursion on meta graph
-  auto meta_clustering = louvain(DiaGraph<WeightedEdge> { meta_graph_edges.Cache(), cluster_count, graph.total_weight });
+  auto meta_clustering = louvain(DiaEdgeGraph<WeightedEdge> { meta_graph_edges.Cache(), cluster_count, graph.total_weight });
 
   return node_clusters
     .Keep() // TODO why on earth is this necessary?
@@ -317,7 +316,7 @@ int main(int argc, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto graph = Input::readGraph(argv[1], context);
+    auto graph = Input::readToEdgeGraph(argv[1], context);
 
     Logging::Id program_run_logging_id;
     if (context.my_rank() == 0) {

@@ -12,21 +12,21 @@ namespace Modularity {
 
 using NodeCluster = std::pair<NodeId, ClusterId>;
 
-template<typename EdgeType>
-double modularity(const DiaGraph<EdgeType>& graph, const thrill::DIA<NodeCluster>& clusters) {
-  auto cluster_degrees_and_inside_weights = graph.edge_list
+template<typename Graph>
+double modularity(const Graph& graph, const thrill::DIA<NodeCluster>& clusters) {
+  auto cluster_degrees_and_inside_weights = graph.edges
     .Keep()
     .InnerJoin(clusters.Keep(),
-      [](const EdgeType& edge) { return edge.tail; },
+      [](const typename Graph::Edge& edge) { return edge.tail; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
-      [](EdgeType edge, const NodeCluster& node_cluster) {
+      [](typename Graph::Edge edge, const NodeCluster& node_cluster) {
         edge.tail = node_cluster.second;
         return edge;
       })
     .InnerJoin(clusters.Keep(),
-      [](const EdgeType& edge) { return edge.head; },
+      [](const typename Graph::Edge& edge) { return edge.head; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
-      [](EdgeType edge, const NodeCluster& node_cluster) {
+      [](typename Graph::Edge edge, const NodeCluster& node_cluster) {
         return std::make_pair(edge.tail, std::pair<uint64_t, uint64_t>(edge.getWeight(), edge.tail == node_cluster.second ? edge.getWeight() : 0));
       })
     .ReducePair(

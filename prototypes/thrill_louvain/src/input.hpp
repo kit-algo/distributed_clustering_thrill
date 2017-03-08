@@ -1,15 +1,17 @@
 #pragma once
 
-#include <thrill/api/dia.hpp>
-#include <thrill/api/read_lines.hpp>
-#include <thrill/api/read_binary.hpp>
-#include <thrill/api/collapse.hpp>
-#include <thrill/api/sort.hpp>
-#include <thrill/api/zip_with_index.hpp>
-#include <thrill/api/reduce_by_key.hpp>
-#include <thrill/api/inner_join.hpp>
 #include <thrill/api/cache.hpp>
+#include <thrill/api/collapse.hpp>
+#include <thrill/api/dia.hpp>
+#include <thrill/api/inner_join.hpp>
+#include <thrill/api/read_binary.hpp>
+#include <thrill/api/read_lines.hpp>
+#include <thrill/api/reduce_by_key.hpp>
+#include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/size.hpp>
+#include <thrill/api/sort.hpp>
+#include <thrill/api/sum.hpp>
+#include <thrill/api/zip_with_index.hpp>
 
 #include <vector>
 #include <iostream>
@@ -18,7 +20,7 @@
 
 namespace Input {
 
-DiaGraph<Edge> readEdgeListGraph(const std::string& file, thrill::Context& context) {
+DiaEdgeGraph<Edge> readEdgeListToEdgeGraph(const std::string& file, thrill::Context& context) {
   auto edges = thrill::ReadLines(context, file)
     .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
     .template FlatMap<Edge>(
@@ -54,16 +56,35 @@ DiaGraph<Edge> readEdgeListGraph(const std::string& file, thrill::Context& conte
       cleanup_mapping,
       [](const Edge& edge) { return edge.head; },
       [](const std::pair<NodeId, NodeId>& mapping) { return mapping.first; },
-      [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { edge.tail, mapping.second }; });
+      [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { edge.tail, mapping.second }; })
+    .Cache();
 
   Weight total_weight = edges.Keep().Size() / 2;
 
-  return DiaGraph<Edge> { edges.Cache(), node_count, total_weight };
+  return DiaEdgeGraph<Edge> { edges, node_count, total_weight };
 }
 
-DiaGraph<Edge> readDimacsGraph(const std::string& file, thrill::Context& context) {
-  using Node = std::pair<NodeId, std::vector<NodeId>>;
+DiaGraph<NodeWithLinks, Edge> readEdgeListGraph(const std::string& file, thrill::Context& context) {
+  auto graph = readEdgeListToEdgeGraph(file, context);
 
+  auto nodes = graph.edges
+    .Map([](const Edge& edge) { return NodeWithLinks { edge.head, std::vector<EdgeTarget>({ EdgeTarget { edge.tail } }) }; })
+    .ReduceToIndex(
+      [](const NodeWithLinks& node) -> size_t { return node.id; },
+      [](const NodeWithLinks& node1, const NodeWithLinks& node2) { return node1 + node2; },
+      graph.node_count);
+
+  return DiaGraph<NodeWithLinks, Edge> { nodes.Cache(), graph.edges, graph.node_count, graph.total_weight };
+}
+
+DiaNodeGraph<NodeWithLinks> readEdgeListToNodeGraph(const std::string& file, thrill::Context& context) {
+  auto graph = readEdgeListGraph(file, context);
+  return DiaNodeGraph<NodeWithLinks> { graph.nodes, graph.node_count, graph.total_weight };
+}
+
+
+
+DiaNodeGraph<NodeWithLinks> readDimacsToNodeGraph(const std::string& file, thrill::Context& context) {
   auto lines = thrill::ReadLines(context, file);
 
   NodeId node_count = lines.Keep().Size() - 1;
@@ -74,36 +95,130 @@ DiaGraph<Edge> readDimacsGraph(const std::string& file, thrill::Context& context
     .Map(
       [](const std::pair<std::string, size_t>& node) {
         std::istringstream line_stream(node.first);
-        std::vector<NodeId> neighbors;
+        std::vector<EdgeTarget> neighbors;
         NodeId neighbor;
 
         while (line_stream >> neighbor) {
-          neighbors.push_back(neighbor - 1);
+          neighbors.push_back(EdgeTarget { neighbor - 1 });
         }
 
-        return Node(node.second - 1, neighbors);
+        return NodeWithLinks { NodeId(node.second - 1), neighbors };
+      })
+    .Cache();
+
+  Weight total_weight = nodes
+    .Keep()
+    .Map([](const NodeWithLinks& node) { return node.links.size(); })
+    .Sum() / 2;
+
+  return DiaNodeGraph<NodeWithLinks> { nodes, node_count, total_weight };
+}
+
+DiaGraph<NodeWithLinks, Edge> readDimacsGraph(const std::string& file, thrill::Context& context) {
+  auto graph = readDimacsToNodeGraph(file, context);
+
+  auto edges = graph.nodes
+    .Keep()
+    .template FlatMap<Edge>(
+      [](const NodeWithLinks& node, auto emit) {
+        for (const EdgeTarget neighbor : node.links) {
+          emit(Edge { node.id, neighbor.target });
+        }
+      })
+    .Cache();
+
+  return DiaGraph<NodeWithLinks, Edge> { graph.nodes, edges, graph.node_count, graph.total_weight };
+}
+
+DiaEdgeGraph<Edge> readDimacsToEdgeGraph(const std::string& file, thrill::Context& context) {
+  auto graph = readDimacsGraph(file, context);
+  return DiaEdgeGraph<Edge> { graph.edges, graph.node_count, graph.total_weight };
+}
+
+DiaGraph<NodeWithLinks, Edge> readBinaryGraph(const std::string& file, thrill::Context& context) {
+  auto input = thrill::ReadBinary<std::vector<NodeId>>(context, file);
+
+  NodeId node_count = input.Keep().Size();
+
+  auto neighbors_with_node_index = input
+    .ZipWithIndex(
+      [](const std::vector<NodeId>& neighbors, const NodeId node) {
+        return std::make_pair(node, neighbors);
       });
 
-
-  auto edges = nodes
+  auto edges = neighbors_with_node_index
+    .Keep()
     .template FlatMap<Edge>(
-      [](const Node& node, auto emit) {
+      [](const std::pair<NodeId, std::vector<NodeId>>& node, auto emit) {
         for (const NodeId neighbor : node.second) {
           emit(Edge { node.first, neighbor });
+          emit(Edge { neighbor, node.first });
         }
-      });
+      })
+    .Cache();
+
+  auto nodes = neighbors_with_node_index
+    .template FlatMap<NodeWithLinks>(
+      [](const std::pair<NodeId, std::vector<NodeId>>& node_with_neighbors, auto emit) {
+        std::vector<EdgeTarget> neighbors;
+        neighbors.reserve(node_with_neighbors.second.size());
+
+        for (const NodeId neighbor : node_with_neighbors.second) {
+          emit(NodeWithLinks { neighbor, std::vector<EdgeTarget>({ EdgeTarget { node_with_neighbors.first } }) });
+          neighbors.push_back(EdgeTarget { neighbor });
+        }
+        emit(NodeWithLinks { node_with_neighbors.first, neighbors });
+      })
+    .ReduceToIndex(
+      [](const NodeWithLinks& node) -> size_t { return node.id; },
+      [](const NodeWithLinks& node1, const NodeWithLinks& node2) { return node1 + node2; },
+      node_count);
 
   Weight total_weight = edges.Keep().Size() / 2;
 
-  return DiaGraph<Edge> { edges.Cache(), node_count, total_weight };
+  return DiaGraph<NodeWithLinks, Edge> { nodes.Cache(), edges, node_count, total_weight };
 }
 
-DiaGraph<Edge> readBinaryGraph(const std::string& file, thrill::Context& context) {
-  auto nodes = thrill::ReadBinary<std::vector<NodeId>>(context, file);
+DiaNodeGraph<NodeWithLinks> readBinaryToNodeGraph(const std::string& file, thrill::Context& context) {
+  auto input = thrill::ReadBinary<std::vector<NodeId>>(context, file);
 
-  NodeId node_count = nodes.Keep().Size();
+  NodeId node_count = input.Keep().Size();
 
-  auto edges = nodes
+  Weight total_weight = input
+    .Keep()
+    .Map([](const std::vector<NodeId>& neighbors) { return neighbors.size(); })
+    .Sum();
+
+  auto nodes = input
+    .ZipWithIndex(
+      [](const std::vector<NodeId>& neighbors, const NodeId node) {
+        return std::make_pair(node, neighbors);
+      })
+    .template FlatMap<NodeWithLinks>(
+      [](const std::pair<NodeId, std::vector<NodeId>>& node_with_neighbors, auto emit) {
+        std::vector<EdgeTarget> neighbors;
+        neighbors.reserve(node_with_neighbors.second.size());
+
+        for (const NodeId neighbor : node_with_neighbors.second) {
+          emit(NodeWithLinks { neighbor, std::vector<EdgeTarget>({ EdgeTarget { node_with_neighbors.first } }) });
+          neighbors.push_back(EdgeTarget { neighbor });
+        }
+        emit(NodeWithLinks { node_with_neighbors.first, neighbors });
+      })
+    .ReduceToIndex(
+      [](const NodeWithLinks& node) -> size_t { return node.id; },
+      [](const NodeWithLinks& node1, const NodeWithLinks& node2) { return node1 + node2; },
+      node_count);
+
+  return DiaNodeGraph<NodeWithLinks> { nodes.Cache(), node_count, total_weight };
+}
+
+DiaEdgeGraph<Edge> readBinaryToEdgeGraph(const std::string& file, thrill::Context& context) {
+  auto input = thrill::ReadBinary<std::vector<NodeId>>(context, file);
+
+  NodeId node_count = input.Keep().Size();
+
+  auto edges = input
     .ZipWithIndex(
       [](const std::vector<NodeId>& neighbors, const NodeId node) {
         return std::make_pair(node, neighbors);
@@ -114,11 +229,12 @@ DiaGraph<Edge> readBinaryGraph(const std::string& file, thrill::Context& context
           emit(Edge { node.first, neighbor });
           emit(Edge { neighbor, node.first });
         }
-      });
+      })
+    .Cache();
 
   Weight total_weight = edges.Keep().Size() / 2;
 
-  return DiaGraph<Edge> { edges.Cache(), node_count, total_weight };
+  return DiaEdgeGraph<Edge> { edges, node_count, total_weight };
 }
 
 bool ends_with(const std::string& value, const std::string& ending) {
@@ -126,13 +242,38 @@ bool ends_with(const std::string& value, const std::string& ending) {
   return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
-DiaGraph<Edge> readGraph(const std::string& file, thrill::Context& context) {
+DiaGraph<NodeWithLinks, Edge> readGraph(const std::string& file, thrill::Context& context) {
   if (ends_with(file, ".graph")) {
     return readDimacsGraph(file, context);
   } else if (ends_with(file, ".txt")) {
     return readEdgeListGraph(file, context);
   } else if (ends_with(file, ".bin")) {
     return readBinaryGraph(file, context);
+  } else {
+    throw "unknown graph input";
+  }
+}
+
+DiaEdgeGraph<Edge> readToEdgeGraph(const std::string& file, thrill::Context& context) {
+  if (ends_with(file, ".graph")) {
+    return readDimacsToEdgeGraph(file, context);
+  } else if (ends_with(file, ".txt")) {
+    return readEdgeListToEdgeGraph(file, context);
+  } else if (ends_with(file, ".bin")) {
+    return readBinaryToEdgeGraph(file, context);
+  } else {
+    throw "unknown graph input";
+  }
+}
+
+
+DiaNodeGraph<NodeWithLinks> readToNodeGraph(const std::string& file, thrill::Context& context) {
+  if (ends_with(file, ".graph")) {
+    return readDimacsToNodeGraph(file, context);
+  } else if (ends_with(file, ".txt")) {
+    return readEdgeListToNodeGraph(file, context);
+  } else if (ends_with(file, ".bin")) {
+    return readBinaryToNodeGraph(file, context);
   } else {
     throw "unknown graph input";
   }

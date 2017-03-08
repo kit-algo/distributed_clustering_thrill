@@ -26,7 +26,6 @@
 #define ITERATIONS 32
 
 using int128_t = __int128_t;
-using ClusterId = NodeId;
 
 using NodeCluster = std::pair<NodeId, ClusterId>;
 using ClusterWeight = std::pair<ClusterId, Weight>;
@@ -36,94 +35,6 @@ struct Node {
   NodeId id;
   Weight degree;
 };
-
-struct Link {
-  NodeId target;
-
-  inline NodeId getTarget() const { return target; }
-  inline Weight getWeight() const { return 1; }
-};
-
-struct WeightedLink {
-  NodeId target;
-  Weight weight;
-
-  inline NodeId getTarget() const { return target; }
-  inline Weight getWeight() const { return weight; }
-};
-
-struct NodeWithLinks {
-  using LinkType = Link;
-
-  NodeId id;
-  std::vector<Link> links;
-
-  Weight weightedDegree() const { return links.size(); }
-
-  static NodeWithLinks fromEdge(const Edge& edge) {
-    return NodeWithLinks { edge.tail, { Link { edge.head } } };
-  }
-
-  NodeWithLinks operator+(const NodeWithLinks& other) const {
-    assert(id == other.id);
-    std::vector<Link> merged(links.size() + other.links.size());
-    std::merge(links.begin(), links.end(), other.links.begin(), other.links.end(), merged.begin(), [](const Link& l1, const Link& l2) { return l1.target < l2.target; });
-    return NodeWithLinks { id, merged };
-  }
-};
-
-
-struct NodeWithWeightedLinks {
-  using LinkType = WeightedLink;
-
-  NodeId id;
-  std::vector<WeightedLink> links;
-  Weight weighted_degree_cache;
-
-  Weight weightedDegree() const { return weighted_degree_cache; }
-
-  static NodeWithWeightedLinks fromEdge(const WeightedEdge& edge) {
-    return NodeWithWeightedLinks { edge.tail, { WeightedLink { edge.head, edge.weight } }, edge.weight };
-  }
-
-  NodeWithWeightedLinks operator+(const NodeWithWeightedLinks& other) const {
-    assert(id == other.id);
-    std::vector<WeightedLink> merged(links.size() + other.links.size());
-    std::merge(links.begin(), links.end(), other.links.begin(), other.links.end(), merged.begin(), [](const WeightedLink& l1, const WeightedLink& l2) { return l1.target < l2.target; });
-    return NodeWithWeightedLinks { id, merged, weighted_degree_cache + other.weighted_degree_cache };
-  }
-};
-
-namespace thrill {
-namespace data {
-template <typename Archive>
-struct Serialization<Archive, NodeWithLinks>{
-  static void Serialize(const NodeWithLinks& node, Archive& ar) {
-    Serialization<Archive, NodeId>::Serialize(node.id, ar);
-    Serialization<Archive, std::vector<Link>>::Serialize(node.links, ar);
-  }
-  static NodeWithLinks Deserialize(Archive& ar) {
-    return NodeWithLinks { Serialization<Archive, NodeId>::Deserialize(ar), Serialization<Archive, std::vector<Link>>::Deserialize(ar) };
-  }
-  static constexpr bool is_fixed_size = false;
-  static constexpr size_t fixed_size = 0;
-};
-
-template <typename Archive>
-struct Serialization<Archive, NodeWithWeightedLinks>{
-  static void Serialize(const NodeWithWeightedLinks& node, Archive& ar) {
-    Serialization<Archive, NodeId>::Serialize(node.id, ar);
-    Serialization<Archive, std::vector<WeightedLink>>::Serialize(node.links, ar);
-    Serialization<Archive, Weight>::Serialize(node.weighted_degree_cache, ar);
-  }
-  static NodeWithWeightedLinks Deserialize(Archive& ar) {
-    return NodeWithWeightedLinks { Serialization<Archive, NodeId>::Deserialize(ar), Serialization<Archive, std::vector<WeightedLink>>::Deserialize(ar), Serialization<Archive, Weight>::Deserialize(ar) };
-  }
-  static constexpr bool is_fixed_size = false;
-  static constexpr size_t fixed_size = 0;
-};
-} // data
-} // thrill
 
 struct FullNodeCluster {
   NodeId id;
@@ -186,15 +97,13 @@ bool included(const NodeId node, const uint32_t iteration, const uint32_t rate) 
   // return hash % sizes[iteration] == 0;
 }
 
-template<class NodeType>
-thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t total_weight, uint32_t num_iterations) {
-  size_t node_count = nodes.Keep().Size();
-
-  auto node_clusters = nodes
+template<class NodeType, class EdgeType>
+thrill::DIA<NodeCluster> local_moving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterations) {
+  auto node_clusters = graph.nodes
     .Map([](const NodeType& node) { return std::make_pair(node, node.id); })
     .Collapse();
 
-  size_t cluster_count = node_count;
+  size_t cluster_count = graph.node_count;
   uint32_t rate = 200;
   uint32_t rate_sum = 0;
 
@@ -210,14 +119,14 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
       .ReduceToIndex(
         [](const std::pair<std::pair<NodeType, ClusterId>, Weight>& node_cluster_weight) -> size_t { return node_cluster_weight.first.first.id; },
         [](const std::pair<std::pair<NodeType, ClusterId>, Weight>& ncw1, const std::pair<std::pair<NodeType, ClusterId>, Weight>&) { assert(false); return ncw1; },
-        node_count);
+        graph.node_count);
 
-    assert(node_cluster_weights.Keep().Size() == node_count);
+    assert(node_cluster_weights.Keep().Size() == graph.node_count);
 
     auto other_node_clusters = node_clusters
       .Filter([iteration, rate](const std::pair<NodeType, ClusterId>& node_cluster) { return !included(node_cluster.first.id, iteration, rate); });
 
-    size_t considered_nodes = node_count - other_node_clusters.Keep().Size();
+    size_t considered_nodes = graph.node_count - other_node_clusters.Keep().Size();
 
     if (considered_nodes > 0) {
       auto new_node_clusters = node_cluster_weights
@@ -246,7 +155,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
                 return IncidentClusterInfo { c1.cluster, c1.inbetween_weight + c2.inbetween_weight, c1.total_weight };
               });
             return merged;
-          }, node_count)
+          }, graph.node_count)
         // join cluster weight and node degree of each node
         .Zip(thrill::NoRebalanceTag, node_cluster_weights,
           [](const std::pair<NodeId, std::vector<IncidentClusterInfo>>& node_cluster, const std::pair<std::pair<NodeType, ClusterId>, Weight>& node_cluster_weight) {
@@ -255,7 +164,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
           })
         // map to best neighbor cluster
         .Map(
-          [&total_weight](const std::pair<LocalMovingNode, std::vector<IncidentClusterInfo>>& local_moving_node) {
+          [&graph](const std::pair<LocalMovingNode, std::vector<IncidentClusterInfo>>& local_moving_node) {
             ClusterId best_cluster = local_moving_node.first.cluster;
             int64_t best_delta = 0;
             bool move = false;
@@ -270,7 +179,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
               int64_t delta = deltaModularity(local_moving_node.first.degree, local_moving_node.first.cluster, incident_cluster.cluster,
                                               weight_between_node_and_current_cluster, incident_cluster.inbetween_weight,
                                               local_moving_node.first.cluster_total_weight, incident_cluster.total_weight,
-                                              total_weight);
+                                              graph.total_weight);
               if (delta > best_delta) {
                 best_delta = delta;
                 best_cluster = incident_cluster.cluster;
@@ -288,7 +197,7 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
       rate = 1000 - (new_node_clusters.Keep().Filter([iteration, old_rate](const std::pair<FullNodeCluster, bool>& pair) { return pair.second && included(pair.first.id, iteration, old_rate); }).Size() * 1000 / considered_nodes);
 
       node_clusters = new_node_clusters
-        .Zip(thrill::NoRebalanceTag, node_clusters,
+        .Zip(node_clusters,
           [iteration, old_rate](const std::pair<FullNodeCluster, bool>& new_node_cluster, const std::pair<NodeType, ClusterId>& old_node_cluster) {
             assert(new_node_cluster.first.id == old_node_cluster.first.id);
             if (included(new_node_cluster.first.id, iteration, old_rate)) {
@@ -300,11 +209,11 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
         .Cache(); // breaks in the other version if removed. TODO why?
 
       if (rate_sum >= 1000) {
-        assert(node_count == node_clusters.Keep().Size());
+        assert(graph.node_count == node_clusters.Keep().Size());
 
         size_t round_cluster_count = node_clusters.Keep().Map([](const std::pair<NodeType, ClusterId>& node_cluster) { return node_cluster.second; }).Uniq().Size();
 
-        if (cluster_count - round_cluster_count <= node_count / 100) {
+        if (cluster_count - round_cluster_count <= graph.node_count / 100) {
           break;
         }
 
@@ -322,22 +231,9 @@ thrill::DIA<NodeCluster> local_moving(thrill::DIA<NodeType>& nodes, const size_t
 }
 
 
-template<class EdgeType>
-thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
-  using NodeType = typename std::conditional<std::is_same<EdgeType, Edge>::value, NodeWithLinks, NodeWithWeightedLinks>::type;
-
-  auto nodes = graph.edge_list
-    .Keep()
-    .Map([](const EdgeType & edge) { return NodeType::fromEdge(edge); })
-    .ReduceToIndex(
-      [](const NodeType & node) -> size_t { return node.id; },
-      [](const NodeType & node1, const NodeType & node2) { return node1 + node2; },
-      graph.node_count);
-    // .Cache(); ? is recalculated, but worth it?
-
-  assert(nodes.Keep().Size() == graph.node_count);
-
-  auto node_clusters = local_moving(nodes, graph.total_weight, ITERATIONS);
+template<class NodeType, class EdgeType>
+thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph) {
+  auto node_clusters = local_moving(graph, ITERATIONS);
   auto distinct_cluster_ids = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq();
   size_t cluster_count = distinct_cluster_ids.Keep().Size();
 
@@ -355,7 +251,7 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
       });
 
   // Build Meta Graph
-  auto meta_graph_edges = graph.edge_list
+  auto meta_graph_edges = graph.edges
     .Keep()
     .InnerJoin(node_clusters.Keep(),
       [](const EdgeType& edge) { return edge.tail; },
@@ -384,12 +280,15 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<EdgeType>& graph) {
         } else {
           emit(edge);
         }
-      });
+      })
+    .Cache();
+
+  auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
 
   assert(meta_graph_edges.Keep().Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
   // Recursion on meta graph
-  auto meta_clustering = louvain(DiaGraph<WeightedEdge> { meta_graph_edges.Cache(), cluster_count, graph.total_weight });
+  auto meta_clustering = louvain(DiaGraph<NodeWithWeightedLinks, WeightedEdge> { nodes, meta_graph_edges, cluster_count, graph.total_weight });
 
   return node_clusters
     .Keep() // TODO why on earth is this necessary?

@@ -202,9 +202,9 @@ int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto graph = Input::readGraph(argv[1], context);
+    auto graph = Input::readToEdgeGraph(argv[1], context);
 
-    size_t cluster_count = louvain(graph.edge_list)
+    size_t cluster_count = louvain(graph.edges)
       .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
       .ReduceByKey(
         [](const uint32_t cluster) { return cluster; },

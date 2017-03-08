@@ -248,9 +248,9 @@ int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto graph = Input::readGraph(argv[1], context);
+    auto graph = Input::readToEdgeGraph(argv[1], context);
 
-    auto edges = graph.edge_list
+    auto edges = graph.edges
       .Sort([](const Edge & e1, const Edge & e2) {
         return (e1.tail == e2.tail && e1.head < e2.head) || (e1.tail < e2.tail);
       });
