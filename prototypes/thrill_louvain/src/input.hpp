@@ -3,6 +3,7 @@
 #include <thrill/api/cache.hpp>
 #include <thrill/api/collapse.hpp>
 #include <thrill/api/dia.hpp>
+#include <thrill/api/group_by_key.hpp>
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/read_binary.hpp>
 #include <thrill/api/read_lines.hpp>
@@ -67,14 +68,7 @@ DiaEdgeGraph<Edge> readEdgeListToEdgeGraph(const std::string& file, thrill::Cont
 DiaGraph<NodeWithLinks, Edge> readEdgeListGraph(const std::string& file, thrill::Context& context) {
   auto graph = readEdgeListToEdgeGraph(file, context);
 
-  auto nodes = graph.edges
-    .Map([](const Edge& edge) { return NodeWithLinks { edge.head, std::vector<EdgeTarget>({ EdgeTarget { edge.tail } }) }; })
-    .ReduceToIndex(
-      [](const NodeWithLinks& node) -> size_t { return node.id; },
-      [](const NodeWithLinks& node1, const NodeWithLinks& node2) { return node1 + node2; },
-      graph.node_count);
-
-  return DiaGraph<NodeWithLinks, Edge> { nodes.Cache(), graph.edges, graph.node_count, graph.total_weight };
+  return DiaGraph<NodeWithLinks, Edge> { edgesToNodes(graph.edges, graph.node_count).Cache(), graph.edges, graph.node_count, graph.total_weight };
 }
 
 DiaNodeGraph<NodeWithLinks> readEdgeListToNodeGraph(const std::string& file, thrill::Context& context) {
@@ -117,17 +111,7 @@ DiaNodeGraph<NodeWithLinks> readDimacsToNodeGraph(const std::string& file, thril
 DiaGraph<NodeWithLinks, Edge> readDimacsGraph(const std::string& file, thrill::Context& context) {
   auto graph = readDimacsToNodeGraph(file, context);
 
-  auto edges = graph.nodes
-    .Keep()
-    .template FlatMap<Edge>(
-      [](const NodeWithLinks& node, auto emit) {
-        for (const EdgeTarget neighbor : node.links) {
-          emit(Edge { node.id, neighbor.target });
-        }
-      })
-    .Cache();
-
-  return DiaGraph<NodeWithLinks, Edge> { graph.nodes, edges, graph.node_count, graph.total_weight };
+  return DiaGraph<NodeWithLinks, Edge> { graph.nodes, nodesToEdges(graph.nodes), graph.node_count, graph.total_weight };
 }
 
 DiaEdgeGraph<Edge> readDimacsToEdgeGraph(const std::string& file, thrill::Context& context) {
@@ -169,10 +153,15 @@ DiaGraph<NodeWithLinks, Edge> readBinaryGraph(const std::string& file, thrill::C
         }
         emit(NodeWithLinks { node_with_neighbors.first, neighbors });
       })
-    .ReduceToIndex(
+    .template GroupByKey<NodeWithLinks>(
       [](const NodeWithLinks& node) -> size_t { return node.id; },
-      [](const NodeWithLinks& node1, const NodeWithLinks& node2) { return node1 + node2; },
-      node_count);
+      [](auto iterator, const NodeId node) {
+        NodeWithLinks first { node, {} };
+        while (iterator.HasNext()) {
+          first.merge(iterator.Next());
+        }
+        return first;
+      });
 
   Weight total_weight = edges.Keep().Size() / 2;
 
@@ -205,10 +194,15 @@ DiaNodeGraph<NodeWithLinks> readBinaryToNodeGraph(const std::string& file, thril
         }
         emit(NodeWithLinks { node_with_neighbors.first, neighbors });
       })
-    .ReduceToIndex(
+    .template GroupByKey<NodeWithLinks>(
       [](const NodeWithLinks& node) -> size_t { return node.id; },
-      [](const NodeWithLinks& node1, const NodeWithLinks& node2) { return node1 + node2; },
-      node_count);
+      [](auto iterator, const NodeId node) {
+        NodeWithLinks first { node, {} };
+        while (iterator.HasNext()) {
+          first.merge(iterator.Next());
+        }
+        return first;
+      });
 
   return DiaNodeGraph<NodeWithLinks> { nodes.Cache(), node_count, total_weight };
 }

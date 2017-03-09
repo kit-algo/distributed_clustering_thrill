@@ -46,7 +46,7 @@ int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto graph = Input::readToNodeGraph(argv[1], context);
+    auto graph = Input::readGraph(argv[1], context);
 
     thrill::common::StatsTimerBase<true> timer(/* autostart */ false);
 

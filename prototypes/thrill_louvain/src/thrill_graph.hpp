@@ -1,6 +1,7 @@
 #pragma once
 
 #include <thrill/api/dia.hpp>
+#include <thrill/api/group_to_index.hpp>
 
 #include <cstdint>
 #include <iostream>
@@ -82,11 +83,9 @@ struct NodeWithLinks {
     return NodeWithLinks { edge.tail, { EdgeTarget { edge.head } } };
   }
 
-  NodeWithLinks operator+(const NodeWithLinks& other) const {
+  void merge(const NodeWithLinks& other) {
     assert(id == other.id);
-    std::vector<EdgeTarget> merged(links.size() + other.links.size());
-    std::merge(links.begin(), links.end(), other.links.begin(), other.links.end(), merged.begin(), [](const EdgeTarget& e1, const EdgeTarget& e2) { return e1.target < e2.target; });
-    return NodeWithLinks { id, merged };
+    links.insert(links.end(), other.links.begin(), other.links.end());
   }
 };
 
@@ -104,11 +103,10 @@ struct NodeWithWeightedLinks {
     return NodeWithWeightedLinks { edge.tail, { WeightedEdgeTarget { edge.head, edge.weight } }, edge.weight };
   }
 
-  NodeWithWeightedLinks operator+(const NodeWithWeightedLinks& other) const {
+  void merge(const NodeWithWeightedLinks& other) {
     assert(id == other.id);
-    std::vector<WeightedEdgeTarget> merged(links.size() + other.links.size());
-    std::merge(links.begin(), links.end(), other.links.begin(), other.links.end(), merged.begin(), [](const WeightedEdgeTarget& e1, const WeightedEdgeTarget& e2) { return e1.target < e2.target; });
-    return NodeWithWeightedLinks { id, merged, weighted_degree_cache + other.weighted_degree_cache };
+    weighted_degree_cache += other.weighted_degree_cache;
+    links.insert(links.end(), other.links.begin(), other.links.end());
   }
 };
 
@@ -176,14 +174,20 @@ inline thrill::DIA<typename EdgeType::NodeType> edgesToNodes(thrill::DIA<EdgeTyp
 
   return edges
     .Map([](const EdgeType& edge) { return NodeType::fromEdge(edge); })
-    .ReduceToIndex(
+    .template GroupToIndex<NodeType>(
       [](const NodeType& node) -> size_t { return node.id; },
-      [](const NodeType& node1, const NodeType& node2) { return node1 + node2; },
+      [](auto iterator, const NodeId node) {
+        NodeType first { node, {} };
+        while (iterator.HasNext()) {
+          first.merge(iterator.Next());
+        }
+        return first;
+      },
       node_count);
 }
 
 template<typename NodeType>
-inline thrill::DIA<typename NodeType::EdgeType> nodesToEdges(thrill::DIA<NodeType>& nodes) {
+inline thrill::DIA<typename NodeType::LinkType::EdgeType> nodesToEdges(thrill::DIA<NodeType>& nodes) {
   using LinkType = typename NodeType::LinkType;
   using EdgeType = typename LinkType::EdgeType;
 
@@ -193,5 +197,6 @@ inline thrill::DIA<typename NodeType::EdgeType> nodesToEdges(thrill::DIA<NodeTyp
         for (const LinkType link : node.links) {
           emit(EdgeType::fromLink(node.id, link));
         }
-      });
+      })
+    .Collapse();
 }
