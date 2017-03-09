@@ -100,7 +100,7 @@ struct NodeWithWeightedLinks {
 
   NodeId id;
   std::vector<WeightedEdgeTarget> links;
-  Weight weighted_degree_cache;
+  Weight weighted_degree_cache = 0;
 
   Weight weightedDegree() const { return weighted_degree_cache; }
 
