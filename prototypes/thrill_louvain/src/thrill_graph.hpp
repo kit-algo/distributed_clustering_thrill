@@ -23,6 +23,8 @@ struct EdgeTarget {
 
   inline NodeId getTarget() const { return target; }
   inline Weight getWeight() const { return 1; }
+
+  static EdgeTarget fromEdge(const Edge& edge);
 };
 
 struct WeightedEdgeTarget {
@@ -33,6 +35,8 @@ struct WeightedEdgeTarget {
 
   inline NodeId getTarget() const { return target; }
   inline Weight getWeight() const { return weight; }
+
+  static WeightedEdgeTarget fromEdge(const WeightedEdge& edge);
 };
 
 struct Edge {
@@ -50,6 +54,9 @@ struct Edge {
 };
 std::ostream& operator << (std::ostream& os, Edge& e) {
   return os << e.tail << " -> " << e.head;
+}
+EdgeTarget EdgeTarget::fromEdge(const Edge& edge) {
+  return EdgeTarget { edge.head };
 }
 
 struct WeightedEdge {
@@ -69,6 +76,9 @@ struct WeightedEdge {
 std::ostream& operator << (std::ostream& os, WeightedEdge& e) {
   return os << e.tail << " -> " << e.head << " (" << e.weight << ")";
 }
+WeightedEdgeTarget WeightedEdgeTarget::fromEdge(const WeightedEdge& edge) {
+  return WeightedEdgeTarget { edge.head, edge.weight };
+}
 
 
 struct NodeWithLinks {
@@ -79,13 +89,8 @@ struct NodeWithLinks {
 
   Weight weightedDegree() const { return links.size(); }
 
-  static NodeWithLinks fromEdge(const Edge& edge) {
-    return NodeWithLinks { edge.tail, { EdgeTarget { edge.head } } };
-  }
-
-  void merge(const NodeWithLinks& other) {
-    assert(id == other.id);
-    links.insert(links.end(), other.links.begin(), other.links.end());
+  void push_back(const EdgeTarget& link) {
+    links.push_back(link);
   }
 };
 
@@ -99,14 +104,9 @@ struct NodeWithWeightedLinks {
 
   Weight weightedDegree() const { return weighted_degree_cache; }
 
-  static NodeWithWeightedLinks fromEdge(const WeightedEdge& edge) {
-    return NodeWithWeightedLinks { edge.tail, { WeightedEdgeTarget { edge.head, edge.weight } }, edge.weight };
-  }
-
-  void merge(const NodeWithWeightedLinks& other) {
-    assert(id == other.id);
-    weighted_degree_cache += other.weighted_degree_cache;
-    links.insert(links.end(), other.links.begin(), other.links.end());
+  void push_back(const WeightedEdgeTarget& link) {
+    weighted_degree_cache += link.weight;
+    links.push_back(link);
   }
 };
 
@@ -168,35 +168,34 @@ struct DiaGraph {
   size_t node_count, total_weight;
 };
 
-template<typename EdgeType>
-inline thrill::DIA<typename EdgeType::NodeType> edgesToNodes(thrill::DIA<EdgeType>& edges, uint32_t node_count) {
+template<typename EdgeType, typename Stack>
+auto edgesToNodes(const thrill::DIA<EdgeType, Stack>& edges, uint32_t node_count) {
   using NodeType = typename EdgeType::NodeType;
+  using LinkType = typename NodeType::LinkType;
 
   return edges
-    .Map([](const EdgeType& edge) { return NodeType::fromEdge(edge); })
     .template GroupToIndex<NodeType>(
-      [](const NodeType& node) -> size_t { return node.id; },
-      [](auto iterator, const NodeId node) {
+      [](const EdgeType& edge) -> size_t { return edge.tail; },
+      [](auto& iterator, const NodeId node) {
         NodeType first { node, {} };
         while (iterator.HasNext()) {
-          first.merge(iterator.Next());
+          first.push_back(LinkType::fromEdge(iterator.Next()));
         }
         return first;
       },
       node_count);
 }
 
-template<typename NodeType>
-inline thrill::DIA<typename NodeType::LinkType::EdgeType> nodesToEdges(thrill::DIA<NodeType>& nodes) {
+template<typename NodeType, typename Stack>
+auto nodesToEdges(const thrill::DIA<NodeType, Stack>& nodes) {
   using LinkType = typename NodeType::LinkType;
   using EdgeType = typename LinkType::EdgeType;
 
   return nodes
     .template FlatMap<EdgeType>(
       [](const NodeType& node, auto emit) {
-        for (const LinkType link : node.links) {
+        for (const LinkType& link : node.links) {
           emit(EdgeType::fromLink(node.id, link));
         }
-      })
-    .Collapse();
+      });
 }

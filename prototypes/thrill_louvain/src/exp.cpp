@@ -1,5 +1,4 @@
 #include <thrill/api/cache.hpp>
-#include <thrill/api/collapse.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/zip_with_index.hpp>
 #include <thrill/api/size.hpp>
