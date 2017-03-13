@@ -26,9 +26,6 @@
 using NodeId = uint32_t;
 using Label = uint32_t;
 
-using Node = std::pair<NodeId, std::vector<NodeId>>;
-using NodeLabel = std::pair<Node, Label>;
-
 struct NodeIdLabel {
   NodeId node;
   Label label;
@@ -38,9 +35,13 @@ std::ostream& operator << (std::ostream& os, NodeIdLabel& node) {
   return os << node.node << " (" << node.label << ")";
 }
 
-auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations, uint32_t target_partition_element_size) {
-  size_t node_count = nodes.Keep().Size();
-  auto node_labels = nodes.Map([](const Node& node) { return node.first; }).Collapse();
+template<class Graph>
+auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t target_partition_element_size) {
+  using Node = typename Graph::Node;
+  using Link = typename Node::LinkType;
+  using NodeLabel = std::pair<Node, Label>;
+
+  auto node_labels = graph.nodes.Map([](const Node& node) { return node.id; }).Collapse();
 
   for (uint32_t iteration = 0; iteration < max_num_iterations; iteration++) {
     auto label_counts = node_labels
@@ -50,7 +51,7 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations, ui
 
     auto new_node_labels = node_labels
       .Keep()
-      .Zip(nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); })
+      .Zip(graph.nodes, [](const Label label, const Node& node) { return NodeLabel(node, label); })
       .InnerJoin(label_counts,
         [](const NodeLabel& node_label) { return node_label.second; },
         [](const std::pair<Label, uint32_t>& label_count) { return label_count.first; },
@@ -59,12 +60,12 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations, ui
         })
       .template FlatMap<NodeIdLabel>(
         [target_partition_element_size](const std::pair<NodeLabel, uint32_t>& node_label, auto emit) {
-          for (const NodeId neighbor : node_label.first.first.second) {
+          for (const Link& neighbor : node_label.first.first.links) {
             if (node_label.second < target_partition_element_size) {
-              emit(NodeIdLabel { neighbor, node_label.first.second });
+              emit(NodeIdLabel { neighbor.target, node_label.first.second });
             }
           }
-          emit(NodeIdLabel { node_label.first.first.first, node_label.first.second });
+          emit(NodeIdLabel { node_label.first.first.id, node_label.first.second });
         })
       .Map([](const NodeIdLabel& label) { return std::make_tuple(label, 1u, 1u); })
       .ReduceByKey(
@@ -88,7 +89,7 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations, ui
             }
           }
         },
-        node_count)
+        graph.node_count)
       .Map([](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).label; })
       .Collapse();
 
@@ -105,7 +106,7 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations, ui
     }
   }
 
-  return node_labels.Zip(nodes, [](const Label label, const Node& node) { return NodeIdLabel { node.first, label }; });
+  return node_labels.Zip(graph.nodes, [](const Label label, const Node& node) { return NodeIdLabel { node.id, label }; });
 }
 
 int main(int argc, char const *argv[]) {
@@ -124,27 +125,11 @@ int main(int argc, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto nodes = thrill::ReadLines(context, graph_file)
-      .ZipWithIndex([](const std::string line, const size_t index) { return std::make_pair(line, index); })
-      .Filter([](const std::pair<std::string, size_t>& node) { return node.second > 0; })
-      .Map(
-        [](const std::pair<std::string, size_t>& node) {
-          std::istringstream line_stream(node.first);
-          std::vector<NodeId> neighbors;
-          NodeId neighbor;
+    auto graph = Input::readToNodeGraph(graph_file, context);
 
-          while (line_stream >> neighbor) {
-            neighbors.push_back(neighbor - 1);
-          }
+    NodeId partition_element_target_size = Partitioning::partitionElementTargetSize(graph.node_count, partition_size);
 
-          return Node(node.second - 1, neighbors);
-        })
-      .Cache();
-
-    NodeId node_count = nodes.Keep().Size();
-    NodeId partition_element_target_size = Partitioning::partitionElementTargetSize(node_count, partition_size);
-
-    auto node_labels = label_propagation(nodes, 32, partition_element_target_size);
+    auto node_labels = label_propagation(graph, 32, partition_element_target_size);
 
     auto cleaned_node_labels = node_labels
       .Keep()
@@ -167,10 +152,9 @@ int main(int argc, char const *argv[]) {
       .Map([](const std::pair<Label, uint32_t>& label_count) { return label_count.second; })
       .Gather();
 
-
     std::vector<uint32_t> cluster_partition_element(context.my_rank() == 0 ? label_count : 0);
     if (context.my_rank() == 0) {
-      Partitioning::distributeClusters(node_count, label_counts, partition_size, cluster_partition_element);
+      Partitioning::distributeClusters(graph.node_count, label_counts, partition_size, cluster_partition_element);
     }
 
     thrill::Distribute(context, cluster_partition_element)
@@ -184,7 +168,7 @@ int main(int argc, char const *argv[]) {
       .ReduceToIndex(
         [](const NodeIdLabel& label) -> size_t { return label.node; },
         [](const NodeIdLabel& label, const NodeIdLabel&) { assert(false); return label; },
-        node_count)
+        graph.node_count)
       .Map([](const NodeIdLabel& label) { return std::to_string(label.label); })
       .WriteLinesOne(out_file.empty() ? graph_file + ".part" : out_file);
   });
