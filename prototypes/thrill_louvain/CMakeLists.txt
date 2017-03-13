@@ -12,7 +12,6 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")  # debug symbols
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG") # disable asserts
 
 add_executable(label_prop src/label_prop.cpp)
-add_executable(label_prop_v2 src/label_prop_v2.cpp)
 add_executable(local_moving src/local_moving.cpp)
 add_executable(node_based_local_moving src/node_based_local_moving.cpp)
 add_executable(partitioned_louvain src/partitioned_louvain.cpp)
@@ -21,7 +20,6 @@ add_executable(exp src/exp.cpp)
 add_executable(fix_bin src/fix_bin.cpp)
 
 target_link_libraries(label_prop thrill)
-target_link_libraries(label_prop_v2 thrill)
 target_link_libraries(local_moving thrill)
 target_link_libraries(node_based_local_moving thrill)
 target_link_libraries(partitioned_louvain thrill)
