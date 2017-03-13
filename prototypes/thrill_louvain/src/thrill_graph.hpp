@@ -39,6 +39,35 @@ struct WeightedEdgeTarget {
   static WeightedEdgeTarget fromEdge(const WeightedEdge& edge);
 };
 
+struct EdgeTargetWithDegree {
+  using EdgeType = Edge;
+
+  NodeId target;
+  Weight target_degree;
+
+  inline NodeId getTarget() const { return target; }
+  inline Weight getWeight() const { return 1; }
+
+  static EdgeTargetWithDegree fromLink(const EdgeTarget& link, Weight target_degree) {
+    return EdgeTargetWithDegree { link.target, target_degree };
+  }
+};
+
+struct WeightedEdgeTargetWithDegree {
+  using EdgeType = WeightedEdge;
+
+  NodeId target;
+  Weight weight;
+  Weight target_degree;
+
+  inline NodeId getTarget() const { return target; }
+  inline Weight getWeight() const { return weight; }
+
+  static WeightedEdgeTargetWithDegree fromLink(const WeightedEdgeTarget& link, Weight target_degree) {
+    return WeightedEdgeTargetWithDegree { link.target, link.weight, target_degree };
+  }
+};
+
 struct Edge {
   using NodeType = NodeWithLinks;
 
@@ -141,6 +170,66 @@ struct Serialization<Archive, NodeWithWeightedLinks>{
 } // data
 } // thrill
 
+
+struct NodeWithLinksAndTargetDegree {
+  using LinkType = EdgeTargetWithDegree;
+
+  NodeId id;
+  std::vector<EdgeTargetWithDegree> links;
+
+  Weight weightedDegree() const { return links.size(); }
+
+  void push_back(const EdgeTargetWithDegree& link) {
+    links.push_back(link);
+  }
+};
+
+
+struct NodeWithWeightedLinksAndTargetDegree {
+  using LinkType = WeightedEdgeTargetWithDegree;
+
+  NodeId id;
+  std::vector<WeightedEdgeTargetWithDegree> links;
+  Weight weighted_degree_cache = 0;
+
+  Weight weightedDegree() const { return weighted_degree_cache; }
+
+  void push_back(const WeightedEdgeTargetWithDegree& link) {
+    weighted_degree_cache += link.weight;
+    links.push_back(link);
+  }
+};
+
+namespace thrill {
+namespace data {
+template <typename Archive>
+struct Serialization<Archive, NodeWithLinksAndTargetDegree>{
+  static void Serialize(const NodeWithLinksAndTargetDegree& node, Archive& ar) {
+    Serialization<Archive, NodeId>::Serialize(node.id, ar);
+    Serialization<Archive, std::vector<EdgeTargetWithDegree>>::Serialize(node.links, ar);
+  }
+  static NodeWithLinksAndTargetDegree Deserialize(Archive& ar) {
+    return NodeWithLinksAndTargetDegree { Serialization<Archive, NodeId>::Deserialize(ar), Serialization<Archive, std::vector<EdgeTargetWithDegree>>::Deserialize(ar) };
+  }
+  static constexpr bool is_fixed_size = false;
+  static constexpr size_t fixed_size = 0;
+};
+
+template <typename Archive>
+struct Serialization<Archive, NodeWithWeightedLinksAndTargetDegree>{
+  static void Serialize(const NodeWithWeightedLinksAndTargetDegree& node, Archive& ar) {
+    Serialization<Archive, NodeId>::Serialize(node.id, ar);
+    Serialization<Archive, std::vector<WeightedEdgeTargetWithDegree>>::Serialize(node.links, ar);
+    Serialization<Archive, Weight>::Serialize(node.weighted_degree_cache, ar);
+  }
+  static NodeWithWeightedLinksAndTargetDegree Deserialize(Archive& ar) {
+    return NodeWithWeightedLinksAndTargetDegree { Serialization<Archive, NodeId>::Deserialize(ar), Serialization<Archive, std::vector<WeightedEdgeTargetWithDegree>>::Deserialize(ar), Serialization<Archive, Weight>::Deserialize(ar) };
+  }
+  static constexpr bool is_fixed_size = false;
+  static constexpr size_t fixed_size = 0;
+};
+} // data
+} // thrill
 
 template<typename EdgeType>
 struct DiaEdgeGraph {
