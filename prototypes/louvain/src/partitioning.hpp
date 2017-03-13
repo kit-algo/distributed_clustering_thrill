@@ -16,8 +16,12 @@ using Weight = typename Graph::Weight;
 using ClusterId = typename ClusterStore::ClusterId;
 using PartitionElementId = uint32_t;
 
+NodeId partitionElementTargetSize(const NodeId node_count, const uint32_t partition_size) {
+  return (node_count + partition_size - 1) / partition_size;
+}
+
 NodeId partitionElementTargetSize(const Graph& graph, const uint32_t partition_size) {
-  return (graph.getNodeCount() + partition_size - 1) / partition_size;
+  return partitionElementTargetSize(graph.getNodeCount(), partition_size);
 }
 
 Logging::Id deterministicGreedyWithLinearPenalty(const Graph& graph, const uint32_t partition_size, std::vector<PartitionElementId>& node_partition_elements, bool shuffled = false) {
@@ -100,7 +104,7 @@ Logging::Id random(const Graph& graph, const uint32_t partition_size, std::vecto
   return partition_logging_id;
 }
 
-void distributeClusters(const Graph& graph, const std::vector<uint32_t>& cluster_sizes, const uint32_t partition_size, std::vector<uint32_t>& cluster_partition_element) {
+void distributeClusters(const NodeId node_count, const std::vector<uint32_t>& cluster_sizes, const uint32_t partition_size, std::vector<uint32_t>& cluster_partition_element) {
   std::vector<NodeId> partition_element_sizes(partition_size, 0);
 
   std::vector<std::pair<ClusterId, uint32_t>> sorted_cluster_sizes(cluster_sizes.size());
@@ -111,7 +115,7 @@ void distributeClusters(const Graph& graph, const std::vector<uint32_t>& cluster
     return a.second < b.second;
   });
 
-  NodeId partition_target_size = partitionElementTargetSize(graph, partition_size);
+  NodeId partition_target_size = partitionElementTargetSize(node_count, partition_size);
 
   for (const auto& cluster_size : sorted_cluster_sizes) {
     uint32_t best_partition = partition_size;
@@ -138,7 +142,7 @@ Logging::Id clusteringBased(const Graph& graph, const uint32_t partition_size, s
   clusters.clusterSizes(cluster_sizes);
   std::vector<uint32_t> cluster_partition_element(clusters.idRangeUpperBound(), partition_size);
 
-  distributeClusters(graph, cluster_sizes, partition_size, cluster_partition_element);
+  distributeClusters(graph.getNodeCount(), cluster_sizes, partition_size, cluster_partition_element);
 
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     node_partition_elements[node] = cluster_partition_element[clusters[node]];

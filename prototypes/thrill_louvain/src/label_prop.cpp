@@ -1,15 +1,16 @@
-#include <thrill/api/read_lines.hpp>
-#include <thrill/api/write_lines_one.hpp>
-#include <thrill/api/sort.hpp>
 #include <thrill/api/cache.hpp>
 #include <thrill/api/collapse.hpp>
-#include <thrill/api/zip_with_index.hpp>
-#include <thrill/api/zip.hpp>
-#include <thrill/api/size.hpp>
-#include <thrill/api/reduce_to_index.hpp>
-#include <thrill/api/reduce_by_key.hpp>
-#include <thrill/api/print.hpp>
+#include <thrill/api/distribute.hpp>
+#include <thrill/api/gather.hpp>
 #include <thrill/api/inner_join.hpp>
+#include <thrill/api/print.hpp>
+#include <thrill/api/reduce_by_key.hpp>
+#include <thrill/api/reduce_to_index.hpp>
+#include <thrill/api/size.hpp>
+#include <thrill/api/sort.hpp>
+#include <thrill/api/write_lines_one.hpp>
+#include <thrill/api/zip.hpp>
+#include <thrill/api/zip_with_index.hpp>
 
 #include <thrill/common/cmdline_parser.hpp>
 
@@ -17,7 +18,10 @@
 #include <iostream>
 #include <vector>
 
+#include "input.hpp"
 #include "util.hpp"
+
+#include "partitioning.hpp"
 
 using NodeId = uint32_t;
 using Label = uint32_t;
@@ -29,6 +33,10 @@ struct NodeIdLabel {
   NodeId node;
   Label label;
 };
+
+std::ostream& operator << (std::ostream& os, NodeIdLabel& node) {
+  return os << node.node << " (" << node.label << ")";
+}
 
 auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations, uint32_t target_partition_element_size) {
   size_t node_count = nodes.Keep().Size();
@@ -103,10 +111,10 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations, ui
 int main(int argc, char const *argv[]) {
   std::string graph_file = "";
   std::string out_file = "";
-  uint32_t num_partitions = 4;
+  uint32_t partition_size = 4;
   thrill::common::CmdlineParser cp;
   cp.AddParamString("graph", graph_file, "The graph to perform clustering on, in metis format");
-  cp.AddUInt('k', "num-partitions", "unsigned int", num_partitions, "Number of Partitions to split the graph into");
+  cp.AddUInt('k', "num-partitions", "unsigned int", partition_size, "Number of Partitions to split the graph into");
   cp.AddString('o', "out", "file", out_file, "Where to write the result");
 
   if (!cp.Process(argc, argv)) {
@@ -134,19 +142,50 @@ int main(int argc, char const *argv[]) {
       .Cache();
 
     NodeId node_count = nodes.Keep().Size();
-    uint32_t partition_count = num_partitions;
-    NodeId partition_size = (node_count + partition_count - 1) / partition_count;
+    NodeId partition_element_target_size = Partitioning::partitionElementTargetSize(node_count, partition_size);
 
-    auto node_labels = label_propagation(nodes, 32, partition_size);
+    auto node_labels = label_propagation(nodes, 32, partition_element_target_size);
 
-    node_labels
-      .Sort([](const NodeIdLabel& node_label1, const NodeIdLabel& node_label2) { return node_label1.label < node_label2.label; })
-      .ZipWithIndex([partition_size](const NodeIdLabel& node_label, size_t index) { return NodeIdLabel { node_label.node, Label(index / partition_size) }; })
+    auto cleaned_node_labels = node_labels
+      .Keep()
+      .Map([](const NodeIdLabel label) { return label.label; })
+      .Uniq()
+      .ZipWithIndex([](const Label label, const Label new_id) { return std::make_pair(label, new_id); })
+      .InnerJoin(node_labels,
+        [](const std::pair<Label, Label>& mapping) { return mapping.first; },
+        [](const NodeIdLabel& label) { return label.label; },
+        [](const std::pair<Label, Label>& mapping, const NodeIdLabel& label) {
+          return NodeIdLabel { label.node, mapping.second };
+        });
+
+    size_t label_count = cleaned_node_labels.Keep().Size();
+
+    auto label_counts = cleaned_node_labels
+      .Keep()
+      .Map([](const NodeIdLabel& label) { return std::make_pair(label.label, 1u); })
+      .ReducePairToIndex([](const uint32_t count1, const uint32_t count2) { return count1 + count2; }, label_count)
+      .Map([](const std::pair<Label, uint32_t>& label_count) { return label_count.second; })
+      .Gather();
+
+
+    std::vector<uint32_t> cluster_partition_element(context.my_rank() == 0 ? label_count : 0);
+    if (context.my_rank() == 0) {
+      Partitioning::distributeClusters(node_count, label_counts, partition_size, cluster_partition_element);
+    }
+
+    thrill::Distribute(context, cluster_partition_element)
+      .ZipWithIndex([](const uint32_t partition, const Label label) { return std::make_pair(label, partition); })
+      .InnerJoin(cleaned_node_labels,
+        [](const std::pair<Label, Label>& label_partition) { return label_partition.first; },
+        [](const NodeIdLabel& node_label) { return node_label.label; },
+        [](const std::pair<Label, Label>& label_partition, const NodeIdLabel& node_label) {
+          return NodeIdLabel { node_label.node, label_partition.second };
+        })
       .ReduceToIndex(
         [](const NodeIdLabel& label) -> size_t { return label.node; },
         [](const NodeIdLabel& label, const NodeIdLabel&) { assert(false); return label; },
         node_count)
-      .Map([](const NodeIdLabel& node_label) { return std::to_string(node_label.label); })
+      .Map([](const NodeIdLabel& label) { return std::to_string(label.label); })
       .WriteLinesOne(out_file.empty() ? graph_file + ".part" : out_file);
   });
 }
