@@ -114,29 +114,23 @@ auto local_moving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterat
   uint32_t rate_sum = 0;
 
   for (uint32_t iteration = 0; iteration < num_iterations; iteration++) {
-    auto node_cluster_weights = node_clusters
+    size_t considered_nodes = graph.node_count - node_clusters
       .Keep()
-      .Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return std::make_pair(node_cluster.first.second, node_cluster.first.first.weightedDegree()); })
-      .ReducePair([](const Weight weight1, const Weight weight2) { return weight1 + weight2; })
-      .InnerJoin(node_clusters, // TODO PERFORMANCE aggregate with groub by may be cheaper
-        [](const std::pair<ClusterId, Weight>& cluster_weight) { return cluster_weight.first; },
-        [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
-        [](const ClusterWeight& cluster_weight, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return std::make_pair(node_cluster.first, cluster_weight.second); })
-      .ReduceToIndex( // TODO PERFORMANCE better to Union?
-        [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, Weight>& node_cluster_weight) -> size_t { return node_cluster_weight.first.first.id; },
-        [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, Weight>& ncw1, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, Weight>&) { assert(false); return ncw1; },
-        graph.node_count);
-
-    assert(node_cluster_weights.Keep().Size() == graph.node_count);
-
-    auto other_node_clusters = node_clusters
-      .Filter([iteration, rate](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return !included(node_cluster.first.first.id, iteration, rate); });
-
-    size_t considered_nodes = graph.node_count - other_node_clusters.Keep().Size();
+      .Filter(
+        [iteration, rate](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
+          return !included(node_cluster.first.first.id, iteration, rate);
+        })
+      .Size();
 
     if (considered_nodes > 0) {
-      node_clusters = node_cluster_weights
+      node_clusters = node_clusters
         .Keep()
+        .Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return std::make_pair(node_cluster.first.second, node_cluster.first.first.weightedDegree()); })
+        .ReducePair([](const Weight weight1, const Weight weight2) { return weight1 + weight2; })
+        .InnerJoin(node_clusters, // TODO PERFORMANCE aggregate with groub by may be cheaper
+          [](const std::pair<ClusterId, Weight>& cluster_weight) { return cluster_weight.first; },
+          [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
+          [](const ClusterWeight& cluster_weight, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return std::make_pair(node_cluster.first, cluster_weight.second); })
         .template FlatMap<std::pair<Node, IncidentClusterInfo>>(
           [iteration, rate](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, Weight>& node_cluster_weight, auto emit) {
             for (const typename NodeWithTargetDegreesType::LinkType& link : node_cluster_weight.first.first.links) {
@@ -208,7 +202,6 @@ auto local_moving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterat
         rate_sum -= 1000;
       }
     } else {
-      node_clusters = other_node_clusters.Collapse();
       rate += 200;
       if (rate > 1000) { rate = 1000; }
     }
