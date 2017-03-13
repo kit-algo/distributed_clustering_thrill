@@ -75,7 +75,7 @@ int128_t deltaModularity(const Node& node, const IncidentClusterInfo& neighbored
   return e - a;
 }
 
-bool included(const NodeId node, const uint32_t iteration, const uint32_t rate) {
+bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t rate) {
   uint32_t hash = Util::combined_hash(node, iteration);
   return hash % 1000 < rate;
 }
@@ -114,11 +114,13 @@ auto local_moving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterat
   uint32_t rate_sum = 0;
 
   for (uint32_t iteration = 0; iteration < num_iterations; iteration++) {
-    size_t considered_nodes = graph.node_count - node_clusters
+    auto included = [iteration, rate](const NodeId id) { return nodeIncluded(id, iteration, rate); };
+
+    size_t considered_nodes = node_clusters
       .Keep()
       .Filter(
-        [iteration, rate](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
-          return !included(node_cluster.first.first.id, iteration, rate);
+        [&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
+          return included(node_cluster.first.first.id);
         })
       .Size();
 
@@ -132,9 +134,9 @@ auto local_moving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterat
           [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
           [](const ClusterWeight& cluster_weight, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return std::make_pair(node_cluster.first, cluster_weight.second); })
         .template FlatMap<std::pair<Node, IncidentClusterInfo>>(
-          [iteration, rate](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, Weight>& node_cluster_weight, auto emit) {
+          [&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, Weight>& node_cluster_weight, auto emit) {
             for (const typename NodeWithTargetDegreesType::LinkType& link : node_cluster_weight.first.first.links) {
-              if (included(link.target, iteration, rate)) {
+              if (included(link.target)) {
                 emit(std::make_pair(
                   Node { link.target, link.target_degree },
                   IncidentClusterInfo {
@@ -145,7 +147,7 @@ auto local_moving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterat
                 ));
               }
             }
-            if (included(node_cluster_weight.first.first.id, iteration, rate)) {
+            if (included(node_cluster_weight.first.first.id)) {
               emit(std::make_pair(
                 Node { node_cluster_weight.first.first.id, node_cluster_weight.first.first.weightedDegree() },
                 IncidentClusterInfo {
@@ -175,9 +177,9 @@ auto local_moving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterat
           },
           graph.node_count)
         .Zip(thrill::NoRebalanceTag, node_clusters,
-          [iteration, rate](const std::pair<Node, IncidentClusterInfo>& lme, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& old_node_cluster) {
-            assert(!included(old_node_cluster.first.first.id, iteration, rate) || lme.first.id == old_node_cluster.first.first.id);
-            if (included(old_node_cluster.first.first.id, iteration, rate)) {
+          [&included](const std::pair<Node, IncidentClusterInfo>& lme, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& old_node_cluster) {
+            assert(!included(old_node_cluster.first.first.id) || lme.first.id == old_node_cluster.first.first.id);
+            if (included(old_node_cluster.first.first.id)) {
               return std::make_pair(std::make_pair(old_node_cluster.first.first, lme.second.cluster), lme.second.cluster != old_node_cluster.first.second);
             } else {
               return std::make_pair(old_node_cluster.first, false);
@@ -186,8 +188,7 @@ auto local_moving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterat
         .Cache();
 
       rate_sum += rate;
-      uint32_t old_rate = rate;
-      rate = 1000 - (node_clusters.Keep().Filter([iteration, old_rate](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id, iteration, old_rate); }).Size() * 1000 / considered_nodes);
+      rate = 1000 - (node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size() * 1000 / considered_nodes);
 
       if (rate_sum >= 1000) {
         assert(graph.node_count == node_clusters.Keep().Size());
