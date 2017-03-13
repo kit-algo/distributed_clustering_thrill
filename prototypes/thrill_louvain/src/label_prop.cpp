@@ -24,9 +24,13 @@ using Label = uint32_t;
 
 using Node = std::pair<NodeId, std::vector<NodeId>>;
 using NodeLabel = std::pair<Node, Label>;
-using NodeIdLabel = std::pair<NodeId, Label>;
 
-auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
+struct NodeIdLabel {
+  NodeId node;
+  Label label;
+};
+
+auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations, uint32_t target_partition_element_size) {
   size_t node_count = nodes.Keep().Size();
   auto node_labels = nodes.Map([](const Node& node) { return node.first; }).Collapse();
 
@@ -39,42 +43,45 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
     auto new_node_labels = node_labels
       .Keep()
       .Zip(nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); })
+      .InnerJoin(label_counts,
+        [](const NodeLabel& node_label) { return node_label.second; },
+        [](const std::pair<Label, uint32_t>& label_count) { return label_count.first; },
+        [](const NodeLabel& node_label, const std::pair<Label, uint32_t>& label_count) {
+          return std::make_pair(node_label, label_count.second);
+        })
       .template FlatMap<NodeIdLabel>(
-        [](const NodeLabel& node_label, auto emit) {
-          for (const NodeId neighbor : node_label.first.second) {
-            emit(NodeIdLabel(neighbor, node_label.second));
+        [target_partition_element_size](const std::pair<NodeLabel, uint32_t>& node_label, auto emit) {
+          for (const NodeId neighbor : node_label.first.first.second) {
+            if (node_label.second < target_partition_element_size) {
+              emit(NodeIdLabel { neighbor, node_label.first.second });
+            }
           }
+          emit(NodeIdLabel { node_label.first.first.first, node_label.first.second });
         })
       .Map([](const NodeIdLabel& label) { return std::make_tuple(label, 1u, 1u); })
       .ReduceByKey(
-        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return Util::combine_u32ints(std::get<0>(label_info).first, std::get<0>(label_info).second); },
+        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return Util::combine_u32ints(std::get<0>(label_info).node, std::get<0>(label_info).label); },
         [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info2) {
           return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1) + std::get<1>(label_info2), 1u);
         })
-      .InnerJoin(label_counts,
-        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).second; },
-        [](const std::pair<Label, uint32_t>& label_count) { return label_count.first; },
-        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info, const std::pair<Label, uint32_t>& label_count) {
-          return std::make_tuple(std::get<0>(label_info), std::get<1>(label_info), std::get<2>(label_info), label_count.second);
-        })
       .ReduceToIndex(
-        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t, uint32_t>& label_info) -> size_t { return std::get<0>(label_info).first; },
-        [iteration](const std::tuple<NodeIdLabel, uint32_t, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t, uint32_t>& label_info2) {
+        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) -> size_t { return std::get<0>(label_info).node; },
+        [iteration](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info2) {
           if (std::get<1>(label_info1) > std::get<1>(label_info2)) { // different label - one has more occurences
-            return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), 1u, std::get<3>(label_info1));
+            return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), 1u);
           } else if (std::get<1>(label_info1) < std::get<1>(label_info2)) {
-            return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), 1u, std::get<3>(label_info2));
+            return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), 1u);
           } else { // different labels, some occurence count, choose random
             uint32_t random_challenge_counter_sum = std::get<2>(label_info1) + std::get<2>(label_info2);
-            if (Util::combined_hash(std::get<0>(label_info1).second, std::get<0>(label_info2).second, iteration) % random_challenge_counter_sum < std::get<2>(label_info1)) {
-              return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), random_challenge_counter_sum, std::get<3>(label_info1));
+            if (Util::combined_hash(std::get<0>(label_info1).label, std::get<0>(label_info2).label, iteration) % random_challenge_counter_sum < std::get<2>(label_info1)) {
+              return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), random_challenge_counter_sum);
             } else {
-              return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), random_challenge_counter_sum, std::get<3>(label_info2));
+              return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), random_challenge_counter_sum);
             }
           }
         },
         node_count)
-      .Map([](const std::tuple<NodeIdLabel, uint32_t, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).second; })
+      .Map([](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).label; })
       .Collapse();
 
     size_t num_changed = new_node_labels
@@ -90,7 +97,7 @@ auto label_propagation(thrill::DIA<Node>& nodes, uint32_t max_num_iterations) {
     }
   }
 
-  return node_labels.Zip(nodes, [](const Label label, const Node& node) { return NodeIdLabel(node.first, label); });
+  return node_labels.Zip(nodes, [](const Label label, const Node& node) { return NodeIdLabel { node.first, label }; });
 }
 
 int main(int argc, char const *argv[]) {
@@ -127,20 +134,19 @@ int main(int argc, char const *argv[]) {
       .Cache();
 
     NodeId node_count = nodes.Keep().Size();
-
-    auto node_labels = label_propagation(nodes, 64);
-
     uint32_t partition_count = num_partitions;
     NodeId partition_size = (node_count + partition_count - 1) / partition_count;
 
+    auto node_labels = label_propagation(nodes, 32, partition_size);
+
     node_labels
-      .Sort([](const NodeIdLabel& node_label1, const NodeIdLabel& node_label2) { return node_label1.second < node_label2.second; })
-      .ZipWithIndex([partition_size](const NodeIdLabel& node_label, size_t index) { return NodeIdLabel(node_label.first, index / partition_size); })
+      .Sort([](const NodeIdLabel& node_label1, const NodeIdLabel& node_label2) { return node_label1.label < node_label2.label; })
+      .ZipWithIndex([partition_size](const NodeIdLabel& node_label, size_t index) { return NodeIdLabel { node_label.node, Label(index / partition_size) }; })
       .ReduceToIndex(
-        [](const NodeIdLabel& label) -> size_t { return label.first; },
-        [](const NodeIdLabel& label, const NodeIdLabel&) { throw "foo"; return label; },
+        [](const NodeIdLabel& label) -> size_t { return label.node; },
+        [](const NodeIdLabel& label, const NodeIdLabel&) { assert(false); return label; },
         node_count)
-      .Map([](const NodeIdLabel& node_label) { return std::to_string(node_label.second); })
+      .Map([](const NodeIdLabel& node_label) { return std::to_string(node_label.label); })
       .WriteLinesOne(out_file.empty() ? graph_file + ".part" : out_file);
   });
 }
