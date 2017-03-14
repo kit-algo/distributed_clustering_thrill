@@ -108,6 +108,7 @@ DiaNodeGraph<NodeWithLinks> readDimacsToNodeGraph(const std::string& file, thril
   return DiaNodeGraph<NodeWithLinks> { nodes, node_count, total_weight };
 }
 
+// TODO remove caches?
 DiaGraph<NodeWithLinks, Edge> readDimacsGraph(const std::string& file, thrill::Context& context) {
   auto graph = readDimacsToNodeGraph(file, context);
   return DiaGraph<NodeWithLinks, Edge> { graph.nodes, nodesToEdges(graph.nodes.Keep()).Cache(), graph.node_count, graph.total_weight };
