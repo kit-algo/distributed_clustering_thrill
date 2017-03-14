@@ -1,4 +1,5 @@
-#include <thrill/api/cache.hpp>
+#pragma once
+
 #include <thrill/api/collapse.hpp>
 #include <thrill/api/distribute.hpp>
 #include <thrill/api/gather.hpp>
