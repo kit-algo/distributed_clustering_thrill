@@ -48,7 +48,7 @@ thrill::DIA<NodeInfo> louvain(const Graph& graph) {
 
   uint32_t partition_size = graph.nodes.context().num_workers();
   uint32_t partition_element_size = Partitioning::partitionElementTargetSize(graph.node_count, partition_size);
-  if (partition_element_size < 100000 && graph.node_count < 1000000) {
+  if (partition_element_size < 1000 && graph.node_count < 10000) {
     partition_size = 1;
     partition_element_size = graph.node_count;
   }

@@ -76,20 +76,20 @@ int128_t deltaModularity(const GraphType &graph,
   static_assert(sizeof(deltaModularity(std::declval<GraphType>(), std::declval<NodeId>(), std::declval<ClusterId>(), std::declval<ClusterId>(), std::declval<Weight>(), std::declval<Weight>(), std::declval<std::vector<Weight>>())) >= 2 * sizeof(typename GraphType::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
 }
 
-template<class GraphType, class ClusterStore>
-bool localMoving(const GraphType& graph, ClusterStore &clusters);
-template<class GraphType, class ClusterStore, bool move_to_ghosts = true>
-bool localMoving(const GraphType& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move);
+template<class GraphType, class ClusterStoreType>
+bool localMoving(const GraphType& graph, ClusterStoreType &clusters);
+template<class GraphType, class ClusterStoreType, bool move_to_ghosts = true>
+bool localMoving(const GraphType& graph, ClusterStoreType &clusters, std::vector<NodeId>& nodes_to_move);
 
-template<class GraphType, class ClusterStore>
-bool localMoving(const GraphType& graph, ClusterStore &clusters) {
+template<class GraphType, class ClusterStoreType>
+bool localMoving(const GraphType& graph, ClusterStoreType &clusters) {
   std::vector<NodeId> nodes_to_move(graph.getNodeCount());
   std::iota(nodes_to_move.begin(), nodes_to_move.end(), 0);
   return localMoving(graph, clusters, nodes_to_move);
 }
 
-template<class GraphType, class ClusterStore, bool move_to_ghosts>
-bool localMoving(const GraphType& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move) {
+template<class GraphType, class ClusterStoreType, bool move_to_ghosts>
+bool localMoving(const GraphType& graph, ClusterStoreType &clusters, std::vector<NodeId>& nodes_to_move) {
   std::vector<bool> included_nodes(move_to_ghosts ? 0 : graph.getNodeCount(), false);
   if (!move_to_ghosts) {
     for (NodeId node : nodes_to_move) {

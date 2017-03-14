@@ -21,6 +21,9 @@ public:
   }
 
   inline ClusterId operator[](const NodeId node) const {
+    if (node >= clusters.size()) {
+      return node;
+    }
     return clusters[node];
   }
 
