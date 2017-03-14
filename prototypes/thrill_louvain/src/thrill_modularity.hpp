@@ -11,6 +11,7 @@
 namespace Modularity {
 
 using NodeCluster = std::pair<NodeId, ClusterId>;
+using int128_t = __int128_t;
 
 template<typename Graph>
 double modularity(const Graph& graph, const thrill::DIA<NodeCluster>& clusters) {
@@ -35,11 +36,10 @@ double modularity(const Graph& graph, const thrill::DIA<NodeCluster>& clusters) 
       })
     .Map(
       [](const std::pair<ClusterId, std::pair<uint64_t, uint64_t>>& weights) {
-        // TODO int128
-        return std::make_pair(weights.second.first * weights.second.first, weights.second.second);
+        return std::make_pair(int128_t(weights.second.first) * int128_t(weights.second.first), weights.second.second);
       })
     .AllReduce(
-      [](const std::pair<uint64_t, uint64_t>& weights1, const std::pair<uint64_t, uint64_t>& weights2) {
+      [](const std::pair<int128_t, uint64_t>& weights1, const std::pair<int128_t, uint64_t>& weights2) {
         return std::make_pair(weights1.first + weights2.first, weights1.second + weights2.second);
       });
 
