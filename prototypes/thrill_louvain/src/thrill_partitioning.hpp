@@ -22,6 +22,11 @@ struct NodeIdLabel {
   Label label;
 };
 
+struct NodePartition {
+  NodeId node_id;
+  uint32_t partition;
+};
+
 template<class Graph>
 auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t target_partition_element_size) {
   using Node = typename Graph::Node;
@@ -97,6 +102,10 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
 
 template<class Graph>
 auto partition(const Graph& graph, const uint32_t partition_size) {
+  if (partition_size == 1) {
+    return graph.nodes.Map([](const typename Graph::Node& node) { return NodePartition { node.id, 0 }; }).Collapse();
+  }
+
   auto& context = graph.nodes.context();
   NodeId partition_element_target_size = Partitioning::partitionElementTargetSize(graph.node_count, partition_size);
 
@@ -134,11 +143,11 @@ auto partition(const Graph& graph, const uint32_t partition_size) {
       [](const std::pair<Label, Label>& label_partition) { return label_partition.first; },
       [](const NodeIdLabel& node_label) { return node_label.label; },
       [](const std::pair<Label, Label>& label_partition, const NodeIdLabel& node_label) {
-        return NodeIdLabel { node_label.node, label_partition.second };
+        return NodePartition { node_label.node, label_partition.second };
       })
     .ReduceToIndex(
-      [](const NodeIdLabel& label) -> size_t { return label.node; },
-      [](const NodeIdLabel& label, const NodeIdLabel&) { assert(false); return label; },
+      [](const NodePartition& label) -> size_t { return label.node_id; },
+      [](const NodePartition& label, const NodePartition&) { assert(false); return label; },
       graph.node_count);
 }
 

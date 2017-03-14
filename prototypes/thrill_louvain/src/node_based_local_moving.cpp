@@ -250,7 +250,7 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph) {
       })
     .Map([](EdgeType edge) { return WeightedEdge { edge.tail, edge.head, edge.getWeight() }; })
     .ReduceByKey(
-      [&graph](WeightedEdge edge) { return graph.node_count * edge.tail + edge.head; },
+      [](WeightedEdge edge) { return Util::combine_u32ints(edge.tail, edge.head); },
       [](WeightedEdge edge1, WeightedEdge edge2) { return WeightedEdge { edge1.tail, edge1.head, edge1.weight + edge2.weight }; })
     // turn loops into forward and backward arc
     .template FlatMap<WeightedEdge>(

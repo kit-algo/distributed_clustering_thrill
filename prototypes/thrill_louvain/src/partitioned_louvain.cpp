@@ -22,19 +22,14 @@
 #include <set>
 #include <map>
 
-#include <graph.hpp>
-#include <modularity.hpp>
-#include <cluster_store.hpp>
+#include "seq_louvain/graph.hpp"
+#include "seq_louvain/cluster_store.hpp"
+#include "modularity.hpp"
+#include "partitioning.hpp"
 
 #include "thrill_graph.hpp"
+#include "thrill_partitioning.hpp"
 #include "input.hpp"
-
-using ClusterId = NodeId;
-
-struct Node {
-  NodeId id;
-  Weight degree;
-};
 
 struct NodeInfo {
   NodeId id;
@@ -45,71 +40,70 @@ std::ostream& operator << (std::ostream& os, NodeInfo& node_info) {
   return os << node_info.id << ": " << node_info.data;
 }
 
-std::ostream& operator << (std::ostream& os, Node& node) {
-  return os << node.id << " (" << node.degree << ")";
-}
+template<class Graph>
+thrill::DIA<NodeInfo> louvain(const Graph& graph) {
+  constexpr bool weighted = std::is_same<typename Graph::Node, NodeWithWeightedLinks>::value;
+  using Node = typename std::conditional<weighted, NodeWithWeightedLinksAndTargetDegree, NodeWithLinksAndTargetDegree>::type;
+  using EdgeType = typename Graph::Edge;
 
-template<class EdgeType>
-thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
-  edge_list = edge_list.Cache();
+  uint32_t partition_size = graph.nodes.context().num_workers();
+  uint32_t partition_element_size = Partitioning::partitionElementTargetSize(graph.node_count, partition_size);
+  if (partition_element_size < 100000 && graph.node_count < 1000000) {
+    partition_size = 1;
+    partition_element_size = graph.node_count;
+  }
+  auto node_partitions = partition(graph, partition_size);
 
-  auto nodes = edge_list
-    .Keep()
-    .Map([](const EdgeType & edge) { return Node { edge.tail, 1 }; })
-    .ReduceByKey(
-      [](const Node & node) { return node.id; },
-      [](const Node & node1, const Node & node2) { return Node { node1.id, node1.degree + node2.degree }; });
-
-  const uint64_t node_count = nodes.Keep().Size();
-  const uint64_t total_weight = edge_list.Keep().Map([](const EdgeType & edge) { return edge.getWeight(); }).Sum() / 2;
-
-  auto node_partitions = nodes
-    .Map([](const Node & node) { return std::make_pair(node.id, 0u); });
-
-  auto bloated_node_clusters = edge_list
-    .Keep()
-    .InnerJoin(node_partitions,
-      [](const EdgeType& edge) { return edge.tail; },
-      [](const std::pair<uint32_t, uint32_t>& node_partition) { return node_partition.first; },
-      [](const EdgeType& edge, const std::pair<uint32_t, uint32_t>& node_partition) {
-          return std::make_pair(node_partition.second, edge);
-      })
-  // Local Moving
-    .template GroupByKey<std::vector<std::pair<uint32_t, uint32_t>>>(
-      [](const std::pair<uint32_t, EdgeType> & edge_with_partition) { return edge_with_partition.first; },
-      [&node_count, &total_weight](auto & iterator, const uint32_t & partition) {
-        std::set<uint32_t> node_ids_in_partition;
-
-        std::vector<std::map<uint32_t, uint32_t>> adjacency_lists(node_count);
-
-        uint32_t partition_edge_count_upper_bound = 0;
-        while (iterator.HasNext()) {
-          const EdgeType& edge = iterator.Next().second;
-          node_ids_in_partition.insert(edge.tail);
-          if (edge.tail == edge.head) {
-            adjacency_lists[edge.tail][edge.head] = edge.getWeight() * 2;
-          } else {
-            adjacency_lists[edge.tail][edge.head] = edge.getWeight();
-            adjacency_lists[edge.head][edge.tail] = edge.getWeight();
-          }
-          partition_edge_count_upper_bound += 2;
+  auto nodes = graph.nodes
+    .template FlatMap<std::pair<NodeId, std::pair<typename Graph::Node::LinkType, Weight>>>(
+      [](const typename Graph::Node& node, auto emit) {
+        for (typename Graph::Node::LinkType link : node.links) {
+          NodeId old_target = link.target;
+          link.target = node.id;
+          emit(std::make_pair(old_target, std::make_pair(link, node.weightedDegree())));
         }
+      })
+    .template GroupToIndex<Node>(
+      [](const std::pair<NodeId, std::pair<typename Graph::Node::LinkType, Weight>>& edge_with_target_degree) { return edge_with_target_degree.first; },
+      [](auto& iterator, const NodeId node_id) {
+        Node node { node_id, {} };
+        while (iterator.HasNext()) {
+          const std::pair<NodeId, std::pair<typename Graph::Node::LinkType, Weight>>& edge_with_target_degree = iterator.Next();
+          node.push_back(Node::LinkType::fromLink(edge_with_target_degree.second.first, edge_with_target_degree.second.second));
+        }
+        return node;
+      },
+      graph.node_count);
 
-        Graph graph(node_count, partition_edge_count_upper_bound, std::is_same<EdgeType, WeightedEdge>::value);
-        graph.setEdgesByAdjacencyMatrix(adjacency_lists);
-        graph.overrideTotalWeight(total_weight);
-        ClusterStore clusters(node_count);
+  auto bloated_node_clusters = nodes
+    .Zip(thrill::NoRebalanceTag, node_partitions,
+      [](const Node& node, const NodePartition& node_partition) {
+        assert(node.id == node_partition.node_id);
+        return std::make_pair(node, node_partition.partition);
+      })
+    // Local Moving
+    .template GroupToIndex<std::vector<std::pair<NodeId, ClusterId>>>(
+      [](const std::pair<Node, uint32_t>& node_partition) -> size_t { return node_partition.second; },
+      [total_weight = graph.total_weight, partition_element_size](auto& iterator, const uint32_t) {
+        // TODO random
+        GhostGraph<weighted> graph(partition_element_size, total_weight);
+        const std::vector<NodeId> reverse_mapping = graph.initialize([&iterator](const auto& emit) {
+          while (iterator.HasNext()) {
+            emit(iterator.Next().first);
+          }
+        });
 
-        assert(node_ids_in_partition.size() == node_count);
-        std::vector<uint32_t> node_ids_in_partition_vector(node_ids_in_partition.begin(), node_ids_in_partition.end());
-        Modularity::localMoving(graph, clusters, node_ids_in_partition_vector);
+        GhostClusterStore clusters(graph.getNodeCount());
+        Modularity::localMoving(graph, clusters);
+        clusters.rewriteClusterIds(reverse_mapping);
 
         std::vector<std::pair<uint32_t, uint32_t>> mapping;
-        for (uint32_t node : node_ids_in_partition_vector) {
-          mapping.push_back(std::make_pair(node, clusters[node] + node_count * partition));
+        mapping.reserve(graph.getNodeCount());
+        for (NodeId node = 0; node < graph.getNodeCount(); node++) {
+          mapping.push_back(std::make_pair(reverse_mapping[node], clusters[node]));
         }
         return mapping;
-      })
+      }, partition_size)
     .template FlatMap<NodeInfo>(
       [](std::vector<std::pair<uint32_t, uint32_t>> mapping, auto emit) {
         for (const std::pair<uint32_t, uint32_t>& pair : mapping) {
@@ -142,12 +136,12 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
 
   assert(node_clusters.Keep().Size() == bloated_node_clusters.Size());
 
-  if (node_count == cluster_count) {
+  if (graph.node_count == cluster_count) {
     return node_clusters;
   }
 
   // Build Meta Graph
-  auto meta_graph_edges = edge_list
+  auto meta_graph_edges = graph.edges
     .InnerJoin(node_clusters,
       [](const EdgeType& edge) { return edge.tail; },
       [](const NodeInfo& node_cluster) { return node_cluster.id; },
@@ -164,7 +158,7 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
       })
     .Map([](EdgeType edge) { return WeightedEdge { edge.tail, edge.head, edge.getWeight() }; })
     .ReduceByKey(
-      [&node_count](WeightedEdge edge) { return node_count * edge.tail + edge.head; },
+      [](WeightedEdge edge) { return Util::combine_u32ints(edge.tail, edge.head); },
       [](WeightedEdge edge1, WeightedEdge edge2) { return WeightedEdge { edge1.tail, edge1.head, edge1.weight + edge2.weight }; })
     // turn loops into forward and backward arc
     .template FlatMap<WeightedEdge>(
@@ -176,17 +170,16 @@ thrill::DIA<NodeInfo> louvain(thrill::DIA<EdgeType>& edge_list) {
           emit(edge);
         }
       })
-    .Collapse();
+    .Cache();
 
-  // meta_graph_edges.Print("meta graph edges");
+  auto meta_nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
+
+  assert(meta_graph_edges.Keep().Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
   // Recursion on meta graph
-  auto meta_clustering = louvain(meta_graph_edges);
-
-  // meta_clustering.Print("meta_clustering");
+  auto meta_clustering = louvain(DiaGraph<NodeWithWeightedLinks, WeightedEdge> { meta_nodes, meta_graph_edges, cluster_count, graph.total_weight });
 
   return node_clusters
-    .Keep() // TODO why on earth is this necessary?
     .InnerJoin(meta_clustering,
       [](const NodeInfo& node_cluster) { return node_cluster.data; },
       [](const NodeInfo& meta_node_cluster) { return meta_node_cluster.id; },
@@ -202,9 +195,9 @@ int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto graph = Input::readToEdgeGraph(argv[1], context);
+    auto graph = Input::readGraph(argv[1], context);
 
-    size_t cluster_count = louvain(graph.edges)
+    size_t cluster_count = louvain(graph)
       .Map([](const NodeInfo& node_cluster) { return node_cluster.data; })
       .ReduceByKey(
         [](const uint32_t cluster) { return cluster; },

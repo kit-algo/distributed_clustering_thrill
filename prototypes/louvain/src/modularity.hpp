@@ -16,6 +16,8 @@
 
 namespace Modularity {
 
+using int128_t = __int128_t;
+
 std::default_random_engine rng;
 
 using NodeId = typename Graph::NodeId;
@@ -49,42 +51,45 @@ double modularity(Graph const &graph, ClusterStore const &clusters) {
 }
 
 
-int64_t deltaModularity(const Graph &graph,
+template<class GraphType>
+int128_t deltaModularity(const GraphType &graph,
                         const NodeId node,
                         const ClusterId current_cluster,
                         const ClusterId target_cluster,
-                        const int64_t weight_between_node_and_current_cluster,
-                        const int64_t weight_between_node_and_target_cluster,
+                        const int128_t weight_between_node_and_current_cluster,
+                        const int128_t weight_between_node_and_target_cluster,
                         const std::vector<Weight> &cluster_weights) {
 
-  int64_t target_cluster_incident_edges_weight = cluster_weights[target_cluster];
+  int128_t target_cluster_incident_edges_weight = cluster_weights[target_cluster];
   if (target_cluster == current_cluster) {
     target_cluster_incident_edges_weight -= graph.nodeDegree(node);
   }
 
-  int64_t current_cluster_incident_edges_weight = cluster_weights[current_cluster] - graph.nodeDegree(node);
+  int128_t current_cluster_incident_edges_weight = cluster_weights[current_cluster] - graph.nodeDegree(node);
 
-  int64_t e = (graph.getTotalWeight() * 2 * (weight_between_node_and_target_cluster - weight_between_node_and_current_cluster));
-  int64_t a = (target_cluster_incident_edges_weight - current_cluster_incident_edges_weight) * graph.nodeDegree(node);
+  int128_t e = (graph.getTotalWeight() * 2 * (weight_between_node_and_target_cluster - weight_between_node_and_current_cluster));
+  int128_t a = (target_cluster_incident_edges_weight - current_cluster_incident_edges_weight) * graph.nodeDegree(node);
   return e - a;
 
-  static_assert(sizeof(decltype(e)) >= 2 * sizeof(Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
-  static_assert(sizeof(decltype(a)) >= 2 * sizeof(Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
-  static_assert(sizeof(deltaModularity(std::declval<Graph>(), std::declval<NodeId>(), std::declval<ClusterId>(), std::declval<ClusterId>(), std::declval<Weight>(), std::declval<Weight>(), std::declval<std::vector<Weight>>())) >= 2 * sizeof(Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
+  static_assert(sizeof(decltype(e)) >= 2 * sizeof(typename GraphType::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
+  static_assert(sizeof(decltype(a)) >= 2 * sizeof(typename GraphType::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
+  static_assert(sizeof(deltaModularity(std::declval<GraphType>(), std::declval<NodeId>(), std::declval<ClusterId>(), std::declval<ClusterId>(), std::declval<Weight>(), std::declval<Weight>(), std::declval<std::vector<Weight>>())) >= 2 * sizeof(typename GraphType::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
 }
 
-bool localMoving(const Graph& graph, ClusterStore &clusters);
-template<bool move_to_ghosts = true>
-bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move);
+template<class GraphType, class ClusterStore>
+bool localMoving(const GraphType& graph, ClusterStore &clusters);
+template<class GraphType, class ClusterStore, bool move_to_ghosts = true>
+bool localMoving(const GraphType& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move);
 
-bool localMoving(const Graph& graph, ClusterStore &clusters) {
+template<class GraphType, class ClusterStore>
+bool localMoving(const GraphType& graph, ClusterStore &clusters) {
   std::vector<NodeId> nodes_to_move(graph.getNodeCount());
   std::iota(nodes_to_move.begin(), nodes_to_move.end(), 0);
   return localMoving(graph, clusters, nodes_to_move);
 }
 
-template<bool move_to_ghosts>
-bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move) {
+template<class GraphType, class ClusterStore, bool move_to_ghosts>
+bool localMoving(const GraphType& graph, ClusterStore &clusters, std::vector<NodeId>& nodes_to_move) {
   std::vector<bool> included_nodes(move_to_ghosts ? 0 : graph.getNodeCount(), false);
   if (!move_to_ghosts) {
     for (NodeId node : nodes_to_move) {
@@ -95,11 +100,11 @@ bool localMoving(const Graph& graph, ClusterStore &clusters, std::vector<NodeId>
   bool changed = false;
 
   clusters.assignSingletonClusterIds();
-  std::vector<Weight> node_to_cluster_weights(graph.getNodeCount(), 0);
+  std::vector<Weight> node_to_cluster_weights(graph.getNodeCountIncludingGhost(), 0);
   std::vector<ClusterId> incident_clusters;
-  std::vector<Weight> cluster_weights(graph.getNodeCount());
+  std::vector<Weight> cluster_weights(graph.getNodeCountIncludingGhost());
 
-  for (NodeId i = 0; i < graph.getNodeCount(); i++) {
+  for (NodeId i = 0; i < graph.getNodeCountIncludingGhost(); i++) {
     cluster_weights[i] = graph.nodeDegree(i);
   }
   std::shuffle(nodes_to_move.begin(), nodes_to_move.end(), rng);
@@ -198,7 +203,7 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::v
   ClusterStore partition_clustering(graph.getNodeCount());
   for (uint32_t partition = 0; partition < partition_nodes.size(); partition++) {
     partition_clustering.resetBounds();
-    localMoving<move_to_ghosts>(graph, partition_clustering, partition_nodes[partition]);
+    localMoving<Graph, ClusterStore, move_to_ghosts>(graph, partition_clustering, partition_nodes[partition]);
 
     if (move_to_ghosts) {
       uint32_t nodes_in_ghost_clusters = 0;

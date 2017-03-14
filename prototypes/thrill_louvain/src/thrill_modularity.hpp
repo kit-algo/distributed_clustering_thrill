@@ -35,6 +35,7 @@ double modularity(const Graph& graph, const thrill::DIA<NodeCluster>& clusters) 
       })
     .Map(
       [](const std::pair<ClusterId, std::pair<uint64_t, uint64_t>>& weights) {
+        // TODO int128
         return std::make_pair(weights.second.first * weights.second.first, weights.second.second);
       })
     .AllReduce(

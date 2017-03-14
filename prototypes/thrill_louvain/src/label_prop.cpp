@@ -28,7 +28,7 @@ int main(int argc, char const *argv[]) {
     auto graph = Input::readToNodeGraph(graph_file, context);
 
     partition(graph, partition_size)
-      .Map([](const NodeIdLabel& label) { return std::to_string(label.label); })
+      .Map([](const NodePartition& node_partition) { return std::to_string(node_partition.partition); })
       .WriteLinesOne(out_file.empty() ? graph_file + ".part" : out_file);
   });
 }

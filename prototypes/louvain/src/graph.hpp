@@ -34,6 +34,7 @@ public:
     neighbors(2 * edge_count), weights(weighted ? 2 * edge_count : 0) {}
 
   NodeId getNodeCount() const { return node_count; }
+  NodeId getNodeCountIncludingGhost() const { return node_count; }
   EdgeId getEdgeCount() const { return edge_count; }
   Weight getTotalWeight() const { return total_weight; }
 
