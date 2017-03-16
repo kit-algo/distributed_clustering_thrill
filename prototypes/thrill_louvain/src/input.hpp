@@ -111,7 +111,7 @@ DiaNodeGraph<NodeWithLinks> readDimacsToNodeGraph(const std::string& file, thril
 // TODO remove caches?
 DiaGraph<NodeWithLinks, Edge> readDimacsGraph(const std::string& file, thrill::Context& context) {
   auto graph = readDimacsToNodeGraph(file, context);
-  return DiaGraph<NodeWithLinks, Edge> { graph.nodes, nodesToEdges(graph.nodes.Keep()).Cache(), graph.node_count, graph.total_weight };
+  return DiaGraph<NodeWithLinks, Edge> { graph.nodes, nodesToEdges(graph.nodes).Cache(), graph.node_count, graph.total_weight };
 }
 
 DiaEdgeGraph<Edge> readDimacsToEdgeGraph(const std::string& file, thrill::Context& context) {
@@ -146,7 +146,7 @@ DiaEdgeGraph<Edge> readBinaryToEdgeGraph(const std::string& file, thrill::Contex
 
 DiaGraph<NodeWithLinks, Edge> readBinaryGraph(const std::string& file, thrill::Context& context) {
   auto graph = readBinaryToEdgeGraph(file, context);
-  return DiaGraph<NodeWithLinks, Edge> { edgesToNodes(graph.edges.Keep(), graph.node_count).Cache(), graph.edges, graph.node_count, graph.total_weight };
+  return DiaGraph<NodeWithLinks, Edge> { edgesToNodes(graph.edges, graph.node_count).Cache(), graph.edges, graph.node_count, graph.total_weight };
 }
 
 DiaNodeGraph<NodeWithLinks> readBinaryToNodeGraph(const std::string& file, thrill::Context& context) {

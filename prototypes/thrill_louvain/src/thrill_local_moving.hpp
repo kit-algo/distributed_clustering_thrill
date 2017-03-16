@@ -107,7 +107,6 @@ auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t 
 
     if (considered_nodes > 0) {
       node_clusters = node_clusters
-        .Keep()
         .Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return std::make_pair(node_cluster.first.second, node_cluster.first.first.weightedDegree()); })
         .ReducePair([](const Weight weight1, const Weight weight2) { return weight1 + weight2; })
         .InnerJoin(node_clusters, // TODO PERFORMANCE aggregate with groub by may be cheaper
@@ -174,7 +173,7 @@ auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t 
       if (rate_sum >= 1000) {
         assert(graph.node_count == node_clusters.Keep().Size());
 
-        size_t round_cluster_count = node_clusters.Keep().Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; }).Uniq().Size();
+        size_t round_cluster_count = node_clusters.Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; }).Uniq().Size();
 
         if (cluster_count - round_cluster_count <= graph.node_count / 100) {
           break;

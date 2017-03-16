@@ -29,6 +29,8 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph, cons
   size_t cluster_count = distinct_cluster_ids.Keep().Size();
 
   if (graph.node_count == cluster_count) {
+    // TODO consume graph.edges
+    distinct_cluster_ids.Size(); // consume it
     return node_clusters.Collapse();
   }
 
@@ -39,19 +41,20 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph, cons
       [](const NodeCluster& node_cluster) { return node_cluster.second; },
       [](const std::pair<ClusterId, size_t>& pair, const NodeCluster& node_cluster) {
         return NodeCluster(node_cluster.first, pair.second);
-      });
+      })
+    .Cache()
+    .Keep(); // consumed twice -> keep once
 
   // Build Meta Graph
   auto meta_graph_edges = graph.edges
-    .Keep()
-    .InnerJoin(cleaned_node_clusters.Keep(),
+    .InnerJoin(cleaned_node_clusters,
       [](const EdgeType& edge) { return edge.tail; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
       [](EdgeType edge, const NodeCluster& node_cluster) {
           edge.tail = node_cluster.second;
           return edge;
       })
-    .InnerJoin(cleaned_node_clusters.Keep(),
+    .InnerJoin(cleaned_node_clusters,
       [](const EdgeType& edge) { return edge.head; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
       [](EdgeType edge, const NodeCluster& node_cluster) {
@@ -72,20 +75,17 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph, cons
           emit(edge);
         }
       })
-    .Cache();
+    .Cache()
+    .Keep();
 
   auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
+  assert(meta_graph_edges.Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
-  assert(meta_graph_edges.Keep().Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
-
-  // Recursion on meta graph
-  auto meta_clustering = louvain(DiaGraph<NodeWithWeightedLinks, WeightedEdge> { nodes, meta_graph_edges, cluster_count, graph.total_weight }, local_moving);
-
-  return cleaned_node_clusters
-    .InnerJoin(meta_clustering,
-      [](const NodeCluster& node_cluster) { return node_cluster.second; },
+  return louvain(DiaGraph<NodeWithWeightedLinks, WeightedEdge> { nodes, meta_graph_edges, cluster_count, graph.total_weight }, local_moving)
+    .InnerJoin(cleaned_node_clusters,
       [](const NodeCluster& meta_node_cluster) { return meta_node_cluster.first; },
-      [](const NodeCluster& node_cluster, const NodeCluster& meta_node_cluster) {
+      [](const NodeCluster& node_cluster) { return node_cluster.second; },
+      [](const NodeCluster& meta_node_cluster, const NodeCluster& node_cluster) {
           return NodeCluster(node_cluster.first, meta_node_cluster.second);
       });
 }
@@ -106,9 +106,11 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
       Logging::report("program_run", program_run_logging_id, "edge_count", graph.total_weight);
     }
 
+    graph.edges.Keep();
     auto node_clusters = run(graph);
 
-    double modularity = Modularity::modularity(graph, node_clusters);
+    graph.edges.Keep();
+    double modularity = Modularity::modularity(graph, node_clusters.Keep());
     size_t cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
 
     auto local_node_clusters = node_clusters.Gather();
@@ -132,7 +134,7 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
     if (argc > 2) {
       auto ground_proof = thrill::ReadBinary<NodeCluster>(context, argv[2]);
 
-      modularity = Modularity::modularity(graph, ground_proof);
+      modularity = Modularity::modularity(graph, ground_proof.Keep());
       cluster_count = ground_proof.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
 
       auto local_ground_proof = ground_proof.Gather();

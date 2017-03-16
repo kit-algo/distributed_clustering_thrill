@@ -16,15 +16,14 @@ using int128_t = __int128_t;
 template<typename Graph>
 double modularity(const Graph& graph, const thrill::DIA<NodeCluster>& clusters) {
   auto cluster_degrees_and_inside_weights = graph.edges
-    .Keep()
-    .InnerJoin(clusters.Keep(),
+    .InnerJoin(clusters,
       [](const typename Graph::Edge& edge) { return edge.tail; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
       [](typename Graph::Edge edge, const NodeCluster& node_cluster) {
         edge.tail = node_cluster.second;
         return edge;
       })
-    .InnerJoin(clusters.Keep(),
+    .InnerJoin(clusters,
       [](const typename Graph::Edge& edge) { return edge.head; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
       [](typename Graph::Edge edge, const NodeCluster& node_cluster) {
