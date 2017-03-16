@@ -42,7 +42,6 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
       .ReducePair([](const uint32_t count1, const uint32_t count2) { return count1 + count2; });
 
     auto new_node_labels = node_labels
-      .Keep()
       .Zip(graph.nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); })
       .InnerJoin(label_counts,
         [](const NodeLabel& node_label) { return node_label.second; },
@@ -113,7 +112,6 @@ auto partition(const Graph& graph, const uint32_t partition_size) {
   auto node_labels = label_propagation(graph, 32, partition_element_target_size);
 
   auto cleaned_node_labels = node_labels
-    .Keep()
     .Map([](const NodeIdLabel label) { return label.label; })
     .Uniq()
     .ZipWithIndex([](const Label label, const Label new_id) { return std::make_pair(label, new_id); })
