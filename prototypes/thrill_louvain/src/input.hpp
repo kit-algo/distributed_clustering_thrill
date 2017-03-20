@@ -95,6 +95,8 @@ DiaNodeGraph<NodeWithLinks> readDimacsToNodeGraph(const std::string& file, thril
           neighbors.push_back(EdgeTarget { neighbor - 1 });
         }
 
+        assert(!neighbors.empty());
+
         return NodeWithLinks { NodeId(node.second - 1), neighbors };
       })
     .ReduceToIndex(

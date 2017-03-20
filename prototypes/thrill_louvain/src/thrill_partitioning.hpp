@@ -109,7 +109,7 @@ auto partition(const Graph& graph, const uint32_t partition_size) {
   auto& context = graph.nodes.context();
   NodeId partition_element_target_size = Partitioning::partitionElementTargetSize(graph.node_count, partition_size);
 
-  auto node_labels = label_propagation(graph, 32, partition_element_target_size);
+  auto node_labels = label_propagation(graph, 16, partition_element_target_size);
 
   auto cleaned_node_labels = node_labels
     .Map([](const NodeIdLabel label) { return label.label; })
