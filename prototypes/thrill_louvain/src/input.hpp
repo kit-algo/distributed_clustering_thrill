@@ -29,6 +29,7 @@ DiaEdgeGraph<Edge> readEdgeListToEdgeGraph(const std::string& file, thrill::Cont
         NodeId tail, head;
 
         if (line_stream >> tail >> head) {
+          assert(tail != head);
           emit(Edge { tail, head });
           emit(Edge { head, tail });
         } else {
@@ -90,6 +91,7 @@ DiaNodeGraph<NodeWithLinks> readDimacsToNodeGraph(const std::string& file, thril
         NodeId neighbor;
 
         while (line_stream >> neighbor) {
+          assert(node.second != neighbor);
           neighbors.push_back(EdgeTarget { neighbor - 1 });
         }
 
@@ -133,6 +135,7 @@ DiaEdgeGraph<Edge> readBinaryToEdgeGraph(const std::string& file, thrill::Contex
     .template FlatMap<Edge>(
       [](const std::pair<NodeId, std::vector<NodeId>>& node, auto emit) {
         for (const NodeId neighbor : node.second) {
+          assert(node.first != neighbor);
           emit(Edge { node.first, neighbor });
           emit(Edge { neighbor, node.first });
         }

@@ -69,6 +69,7 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph, cons
     .template FlatMap<WeightedEdge>(
       [](const WeightedEdge & edge, auto emit) {
         if (edge.tail == edge.head) {
+          assert(edge.weight % 2 == 0);
           emit(WeightedEdge { edge.tail, edge.head, edge.weight / 2 });
           emit(WeightedEdge { edge.tail, edge.head, edge.weight / 2 });
         } else {
