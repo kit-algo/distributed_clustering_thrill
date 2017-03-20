@@ -9,6 +9,7 @@
 #include <thrill/api/zip.hpp>
 
 #include <vector>
+#include <algorithm>
 
 #include "util.hpp"
 #include "thrill_graph.hpp"
@@ -147,7 +148,7 @@ auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t 
         // Reduce to best cluster
         .ReduceToIndex(
           [](const std::pair<Node, IncidentClusterInfo>& lme) -> size_t { return lme.first.id; },
-          [total_weight = graph.total_weight](const std::pair<Node, IncidentClusterInfo>& lme1, const std::pair<Node, IncidentClusterInfo> lme2) {
+          [total_weight = graph.total_weight](const std::pair<Node, IncidentClusterInfo>& lme1, const std::pair<Node, IncidentClusterInfo>& lme2) {
             // TODO Tie breaking
             if (deltaModularity(lme2.first, lme2.second, total_weight) > deltaModularity(lme1.first, lme1.second, total_weight)) {
               return lme2;
@@ -158,8 +159,8 @@ auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t 
           graph.node_count)
         .Zip(thrill::NoRebalanceTag, node_clusters,
           [&included](const std::pair<Node, IncidentClusterInfo>& lme, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& old_node_cluster) {
-            assert(!included(old_node_cluster.first.first.id) || lme.first.id == old_node_cluster.first.first.id);
             if (included(old_node_cluster.first.first.id)) {
+              assert(lme.first.id == old_node_cluster.first.first.id);
               return std::make_pair(std::make_pair(old_node_cluster.first.first, lme.second.cluster), lme.second.cluster != old_node_cluster.first.second);
             } else {
               return std::make_pair(old_node_cluster.first, false);
@@ -168,7 +169,7 @@ auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t 
         .Cache();
 
       rate_sum += rate;
-      rate = 1000 - (node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size() * 1000 / considered_nodes);
+      rate = std::max(1000 - (node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size() * 1000 / considered_nodes), 200ul);
 
       if (rate_sum >= 1000) {
         assert(graph.node_count == node_clusters.Keep().Size());
