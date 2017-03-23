@@ -45,12 +45,12 @@ int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto graph = Input::readGraph(argv[1], context);
+    auto graph = Input::readToNodeGraph(argv[1], context);
 
     thrill::common::StatsTimerBase<true> timer(/* autostart */ false);
 
-    for (uint32_t i : { 1, 4, 16, 64, 256, 1024 }) {
-      auto node_clusters = graph.nodes.Map([i](const NodeWithLinks& node) { return std::make_pair(node, node.id / i); });
+    for (uint32_t i = 1; i < graph.node_count; i *= 4) {
+      auto node_clusters = graph.nodes.Map([i](const NodeWithLinks& node) { return std::make_pair(node, node.id / i); }).Execute();
 
       timer.Start();
 
