@@ -7,6 +7,7 @@
 #include <thrill/api/union.hpp>
 #include <thrill/api/gather.hpp>
 #include <thrill/api/group_by_key.hpp>
+#include <thrill/api/zip.hpp>
 
 #include <thrill/common/stats_timer.hpp>
 
@@ -49,7 +50,7 @@ int main(int, char const *argv[]) {
 
     thrill::common::StatsTimerBase<true> timer(/* autostart */ false);
 
-    for (uint32_t i = 1; i < graph.node_count; i *= 4) {
+    for (uint32_t i = 1; i < graph.node_count; i *= 8) {
       auto node_clusters = graph.nodes.Map([i](const NodeWithLinks& node) { return std::make_pair(node, node.id / i); }).Execute();
 
       timer.Start();
@@ -78,23 +79,16 @@ int main(int, char const *argv[]) {
 
       node_clusters
         .Keep()
-        .Map([](const std::pair<NodeWithLinks, ClusterId>& node_cluster) { return std::make_pair(node_cluster.second, std::vector<NodeWithLinks>({ node_cluster.first })); })
         .template GroupByKey<std::pair<ClusterId, std::vector<NodeWithLinks>>>(
-          [](const std::pair<ClusterId, std::vector<NodeWithLinks>>& pair) { return pair.first; },
+          [](const std::pair<NodeWithLinks, ClusterId>& pair) { return pair.second; },
           [](auto& iterator, const ClusterId cluster) {
             std::vector<NodeWithLinks> merged;
             while (iterator.HasNext()) {
-              const std::pair<ClusterId, std::vector<NodeWithLinks>>& pair = iterator.Next();
-              merged.insert(merged.end(), pair.second.begin(), pair.second.end());
+              const std::pair<NodeWithLinks, ClusterId>& pair = iterator.Next();
+              merged.push_back(pair.first);
             }
             return std::make_pair(cluster, merged);
           })
-        // .ReduceByKey(
-        //   [](const std::pair<ClusterId, std::vector<NodeWithLinks>>& pair) { return pair.first; },
-        //   [](std::pair<ClusterId, std::vector<NodeWithLinks>> neighbors1, const std::pair<ClusterId, std::vector<NodeWithLinks>>& neighbors2) {
-        //     neighbors1.second.insert(neighbors1.second.end(), neighbors2.second.begin(), neighbors2.second.end());
-        //     return neighbors1;
-        //   })
         .FlatMap([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster, auto emit) {
           Weight total_weight = 0;
           for (const NodeWithLinks& node : cluster.second) {
@@ -110,6 +104,45 @@ int main(int, char const *argv[]) {
 
       if (context.my_rank() == 0) {
         std::cout << "Acc " << i << ": " << timer.Milliseconds() << "ms" << std::endl;
+      }
+
+      timer.Reset();
+
+      timer.Start();
+
+      node_clusters
+        .Keep()
+        .template GroupByKey<std::pair<ClusterId, std::pair<Weight, std::vector<NodeId>>>>(
+          [](const std::pair<NodeWithLinks, ClusterId>& pair) { return pair.second; },
+          [](auto& iterator, const ClusterId cluster) {
+            Weight acc = 0;
+            std::vector<NodeId> nodes;
+            while (iterator.HasNext()) {
+              const NodeWithLinks& node = iterator.Next().first;
+              acc = node.weightedDegree();
+              nodes.push_back(node.id);
+            }
+            return std::make_pair(cluster, std::make_pair(acc, nodes));
+          })
+        .template FlatMap<std::pair<std::pair<NodeId, ClusterId>, Weight>>([](const std::pair<ClusterId, std::pair<Weight, std::vector<NodeId>>>& cluster, auto emit) {
+          for (const NodeId id : cluster.second.second) {
+            emit(std::make_pair(std::make_pair(id, cluster.first), cluster.second.first));
+          }
+        })
+        .ReduceToIndex(
+          [](const std::pair<std::pair<NodeId, ClusterId>, Weight>& node_cluster_weight) -> size_t { return node_cluster_weight.first.first; },
+          [](const std::pair<std::pair<NodeId, ClusterId>, Weight>& ncw, const std::pair<std::pair<NodeId, ClusterId>, Weight>&) { assert(false); return ncw; },
+          graph.node_count)
+        .Zip(thrill::NoRebalanceTag, node_clusters, [](const std::pair<std::pair<NodeId, ClusterId>, Weight>& node_cluster_weight, const std::pair<NodeWithLinks, ClusterId>& node_cluster) {
+          assert(node_cluster.first.id == node_cluster_weight.first.first);
+          return std::make_pair(node_cluster, node_cluster_weight.second);
+        })
+        .Execute();
+
+      timer.Stop();
+
+      if (context.my_rank() == 0) {
+        std::cout << "Acc Zip " << i << ": " << timer.Milliseconds() << "ms" << std::endl;
       }
 
       timer.Reset();
