@@ -11,6 +11,8 @@ using NodeId = uint32_t;
 using Weight = uint64_t;
 using ClusterId = uint32_t;
 
+using NodeCluster = std::pair<NodeId, ClusterId>;
+
 struct Edge;
 struct WeightedEdge;
 struct NodeWithLinks;

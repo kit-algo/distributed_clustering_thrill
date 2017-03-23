@@ -20,6 +20,7 @@
 
 namespace Input {
 
+template<bool cleanup = true>
 DiaEdgeGraph<Edge> readEdgeListToEdgeGraph(const std::string& file, thrill::Context& context) {
   auto raw_edges = thrill::ReadLines(context, file)
     .Filter([](const std::string& line) { return !line.empty() && line[0] != '#'; })
@@ -37,31 +38,36 @@ DiaEdgeGraph<Edge> readEdgeListToEdgeGraph(const std::string& file, thrill::Cont
         }
       });
 
-  auto cleanup_mapping = raw_edges
-    .Keep()
-    .Map([](const Edge& edge) { return edge.tail; })
-    .Uniq()
-    .Sort()
-    .ZipWithIndex([](const NodeId old_id, const NodeId index) { return std::make_pair(old_id, index); });
+  Weight total_weight = raw_edges.Keep().Size() / 2;
 
-  NodeId node_count = cleanup_mapping.Keep().Size();
+  if (cleanup) {
+    auto cleanup_mapping = raw_edges
+      .Keep()
+      .Map([](const Edge& edge) { return edge.tail; })
+      .Uniq()
+      .Sort()
+      .ZipWithIndex([](const NodeId old_id, const NodeId index) { return std::make_pair(old_id, index); });
 
-  auto edges = raw_edges
-    .InnerJoin(
-      cleanup_mapping,
-      [](const Edge& edge) { return edge.tail; },
-      [](const std::pair<NodeId, NodeId>& mapping) { return mapping.first; },
-      [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { mapping.second, edge.head }; })
-    .InnerJoin(
-      cleanup_mapping,
-      [](const Edge& edge) { return edge.head; },
-      [](const std::pair<NodeId, NodeId>& mapping) { return mapping.first; },
-      [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { edge.tail, mapping.second }; })
-    .Cache();
+    NodeId node_count = cleanup_mapping.Keep().Size();
 
-  Weight total_weight = edges.Keep().Size() / 2;
+    auto edges = raw_edges
+      .InnerJoin(
+        cleanup_mapping,
+        [](const Edge& edge) { return edge.tail; },
+        [](const std::pair<NodeId, NodeId>& mapping) { return mapping.first; },
+        [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { mapping.second, edge.head }; })
+      .InnerJoin(
+        cleanup_mapping,
+        [](const Edge& edge) { return edge.head; },
+        [](const std::pair<NodeId, NodeId>& mapping) { return mapping.first; },
+        [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { edge.tail, mapping.second }; })
+      .Cache();
 
-  return DiaEdgeGraph<Edge> { edges, node_count, total_weight };
+    return DiaEdgeGraph<Edge> { edges, node_count, total_weight };
+  } else {
+    size_t node_count = raw_edges.Keep().Map([](const Edge& edge) { return edge.tail; }).Uniq().Size();
+    return DiaEdgeGraph<Edge> { raw_edges.Collapse(), node_count, total_weight };
+  }
 }
 
 DiaGraph<NodeWithLinks, Edge> readEdgeListGraph(const std::string& file, thrill::Context& context) {
@@ -144,14 +150,14 @@ DiaEdgeGraph<Edge> readBinaryToEdgeGraph(const std::string& file, thrill::Contex
       })
     .Cache();
 
-  Weight total_weight = edges.Keep().Size() / 2;
+  Weight total_weight = edges.Size() / 2;
 
   return DiaEdgeGraph<Edge> { edges, node_count, total_weight };
 }
 
 DiaGraph<NodeWithLinks, Edge> readBinaryGraph(const std::string& file, thrill::Context& context) {
   auto graph = readBinaryToEdgeGraph(file, context);
-  return DiaGraph<NodeWithLinks, Edge> { edgesToNodes(graph.edges, graph.node_count).Cache(), graph.edges, graph.node_count, graph.total_weight };
+  return DiaGraph<NodeWithLinks, Edge> { edgesToNodes(graph.edges.Keep(), graph.node_count).Cache(), graph.edges, graph.node_count, graph.total_weight };
 }
 
 DiaNodeGraph<NodeWithLinks> readBinaryToNodeGraph(const std::string& file, thrill::Context& context) {
@@ -177,11 +183,12 @@ DiaGraph<NodeWithLinks, Edge> readGraph(const std::string& file, thrill::Context
   }
 }
 
+template<bool cleanup = true>
 DiaEdgeGraph<Edge> readToEdgeGraph(const std::string& file, thrill::Context& context) {
   if (ends_with(file, ".graph")) {
     return readDimacsToEdgeGraph(file, context);
   } else if (ends_with(file, ".txt")) {
-    return readEdgeListToEdgeGraph(file, context);
+    return readEdgeListToEdgeGraph<cleanup>(file, context);
   } else if (ends_with(file, ".bin")) {
     return readBinaryToEdgeGraph(file, context);
   } else {
@@ -200,6 +207,10 @@ DiaNodeGraph<NodeWithLinks> readToNodeGraph(const std::string& file, thrill::Con
   } else {
     throw "unknown graph input";
   }
+}
+
+auto readClustering(const std::string& file, thrill::Context& context) {
+  return thrill::ReadBinary<NodeCluster>(context, file);
 }
 
 } // Input

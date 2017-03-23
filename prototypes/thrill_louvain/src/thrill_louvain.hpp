@@ -20,8 +20,6 @@
 
 namespace Louvain {
 
-using NodeCluster = std::pair<NodeId, ClusterId>;
-
 template<class NodeType, class EdgeType, class F>
 thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph, const F& local_moving) {
   auto node_clusters = local_moving(graph);
@@ -110,7 +108,7 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
     graph.edges.Keep();
     auto node_clusters = run(graph);
 
-    graph.edges.Keep();
+    if (argc > 2) { graph.edges.Keep(); }
     double modularity = Modularity::modularity(graph, node_clusters.Keep());
     size_t cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
 
@@ -133,27 +131,27 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
       }
     }
     if (argc > 2) {
-      auto ground_proof = thrill::ReadBinary<NodeCluster>(context, argv[2]);
+      auto ground_truth = Input::readClustering(argv[2], context);
 
-      modularity = Modularity::modularity(graph, ground_proof.Keep());
-      cluster_count = ground_proof.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
+      modularity = Modularity::modularity(graph, ground_truth.Keep());
+      cluster_count = ground_truth.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
 
-      auto local_ground_proof = ground_proof.Gather();
+      auto local_ground_truth = ground_truth.Gather();
 
       if (context.my_rank() == 0) {
-        Logging::report("program_run", program_run_logging_id, "ground_proof", argv[2]);
+        Logging::report("program_run", program_run_logging_id, "ground_truth", argv[2]);
 
-        ClusterStore ground_proof_clusters(graph.node_count);
-        for (const auto& node_cluster : local_ground_proof) {
-          ground_proof_clusters.set(node_cluster.first, node_cluster.second);
+        ClusterStore ground_truth_clusters(graph.node_count);
+        for (const auto& node_cluster : local_ground_truth) {
+          ground_truth_clusters.set(node_cluster.first, node_cluster.second);
         }
 
-        Logging::Id ground_proof_logging_id = Logging::getUnusedId();
-        Logging::report("clustering", ground_proof_logging_id, "source", "ground_proof");
-        Logging::report("clustering", ground_proof_logging_id, "program_run_id", program_run_logging_id);
-        Logging::report("clustering", ground_proof_logging_id, "modularity", modularity);
-        Logging::report("clustering", ground_proof_logging_id, "cluster_count", cluster_count);
-        Logging::log_comparison_results(ground_proof_logging_id, ground_proof_clusters, clusters_logging_id, clusters);
+        Logging::Id ground_truth_logging_id = Logging::getUnusedId();
+        Logging::report("clustering", ground_truth_logging_id, "source", "ground_truth");
+        Logging::report("clustering", ground_truth_logging_id, "program_run_id", program_run_logging_id);
+        Logging::report("clustering", ground_truth_logging_id, "modularity", modularity);
+        Logging::report("clustering", ground_truth_logging_id, "cluster_count", cluster_count);
+        Logging::log_comparison_results(ground_truth_logging_id, ground_truth_clusters, clusters_logging_id, clusters);
       }
     }
   });
