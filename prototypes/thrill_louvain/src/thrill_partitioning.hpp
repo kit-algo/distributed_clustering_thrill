@@ -111,41 +111,35 @@ auto partition(const Graph& graph, const uint32_t partition_size) {
   auto& context = graph.nodes.context();
   NodeId partition_element_target_size = Partitioning::partitionElementTargetSize(graph.node_count, partition_size);
 
-  auto node_labels = label_propagation(graph, 16, partition_element_target_size);
-
-  auto cleaned_node_labels = node_labels
-    .Map([](const NodeIdLabel label) { return label.label; })
-    .Uniq()
-    .ZipWithIndex([](const Label label, const Label new_id) { return std::make_pair(label, new_id); })
-    .InnerJoin(node_labels,
-      [](const std::pair<Label, Label>& mapping) { return mapping.first; },
-      [](const NodeIdLabel& label) { return label.label; },
-      [](const std::pair<Label, Label>& mapping, const NodeIdLabel& label) {
-        return NodeIdLabel { label.node, mapping.second };
+  auto labels_with_nodes = label_propagation(graph, 16, partition_element_target_size)
+    .template GroupByKey<std::pair<Label, std::vector<NodeId>>>(
+      [](const NodeIdLabel& node_label) { return node_label.label; },
+      [](auto& iterator, const Label label) {
+        std::vector<NodeId> nodes;
+        while (iterator.HasNext()) {
+          nodes.push_back(iterator.Next().node);
+        }
+        return std::make_pair(label, nodes);
       })
-    .Cache();
+    .ZipWithIndex([](const std::pair<Label, std::vector<NodeId>> label_nodes, const Label new_id) { return std::make_pair(new_id, label_nodes.second); });
 
-  size_t label_count = cleaned_node_labels.Keep().Size();
-
-  auto label_counts = cleaned_node_labels
+  auto label_counts = labels_with_nodes
     .Keep()
-    .Map([](const NodeIdLabel& label) { return std::make_pair(label.label, 1u); })
-    .ReducePairToIndex([](const uint32_t count1, const uint32_t count2) { return count1 + count2; }, label_count)
-    .Map([](const std::pair<Label, uint32_t>& label_count) { return label_count.second; })
+    .Map([](const std::pair<Label, std::vector<NodeId>>& label_nodes) -> uint32_t { return label_nodes.second.size(); })
     .Gather();
 
-  std::vector<uint32_t> cluster_partition_element(context.my_rank() == 0 ? label_count : 0);
+  std::vector<uint32_t> label_partition_element(label_counts.size());
   if (context.my_rank() == 0) {
-    Partitioning::distributeClusters(graph.node_count, label_counts, partition_size, cluster_partition_element);
+    Partitioning::distributeClusters(graph.node_count, label_counts, partition_size, label_partition_element);
   }
 
-  return thrill::Distribute(context, cluster_partition_element)
-    .ZipWithIndex([](const uint32_t partition, const Label label) { return std::make_pair(label, partition); })
-    .InnerJoin(cleaned_node_labels,
-      [](const std::pair<Label, Label>& label_partition) { return label_partition.first; },
-      [](const NodeIdLabel& node_label) { return node_label.label; },
-      [](const std::pair<Label, Label>& label_partition, const NodeIdLabel& node_label) {
-        return NodePartition { node_label.node, label_partition.second };
+  return thrill::Distribute(context, label_partition_element)
+    .Zip(labels_with_nodes, [](const uint32_t partition, const std::pair<Label, std::vector<NodeId>>& label_nodes) { return std::make_pair(partition, label_nodes.second); })
+    .template FlatMap<NodePartition>(
+      [](const std::pair<Label, std::vector<NodeId>>& label_nodes, auto emit) {
+        for (const NodeId& node : label_nodes.second) {
+          emit(NodePartition { node, label_nodes.first });
+        }
       })
     .ReduceToIndex(
       [](const NodePartition& label) -> size_t { return label.node_id; },
