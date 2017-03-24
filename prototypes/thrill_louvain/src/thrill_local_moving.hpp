@@ -1,6 +1,7 @@
 #pragma once
 
 #include <thrill/api/cache.hpp>
+#include <thrill/api/group_by_key.hpp>
 #include <thrill/api/group_to_index.hpp>
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/reduce_by_key.hpp>
@@ -108,12 +109,24 @@ auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t 
 
     if (considered_nodes > 0) {
       node_clusters = node_clusters
-        .Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return std::make_pair(node_cluster.first.second, node_cluster.first.first.weightedDegree()); })
-        .ReducePair([](const Weight weight1, const Weight weight2) { return weight1 + weight2; })
-        .InnerJoin(node_clusters, // TODO PERFORMANCE aggregate with groub by may be cheaper
-          [](const std::pair<ClusterId, Weight>& cluster_weight) { return cluster_weight.first; },
+        .template GroupByKey<std::pair<std::pair<std::vector<NodeWithTargetDegreesType>, ClusterId>, Weight>>(
           [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
-          [](const ClusterWeight& cluster_weight, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return std::make_pair(node_cluster.first, cluster_weight.second); })
+          [](auto& iterator, const ClusterId cluster) {
+            std::vector<NodeWithTargetDegreesType> cluster_nodes;
+            Weight cluster_weight = 0;
+            while (iterator.HasNext()) {
+              const auto& node = iterator.Next().first.first;
+              cluster_weight += node.weightedDegree();
+              cluster_nodes.push_back(node);
+            }
+            return std::make_pair(std::make_pair(cluster_nodes, cluster), cluster_weight);
+          })
+        .FlatMap(
+          [](const std::pair<std::pair<std::vector<NodeWithTargetDegreesType>, ClusterId>, Weight>& cluster_weight, auto emit) {
+            for (const NodeWithTargetDegreesType& node : cluster_weight.first.first) {
+              emit(std::make_pair(std::make_pair(node, cluster_weight.first.second), cluster_weight.second));
+            }
+          })
         .template FlatMap<std::pair<Node, IncidentClusterInfo>>(
           [&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, Weight>& node_cluster_weight, auto emit) {
             for (const typename NodeWithTargetDegreesType::LinkType& link : node_cluster_weight.first.first.links) {
