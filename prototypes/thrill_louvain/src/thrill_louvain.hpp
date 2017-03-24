@@ -22,37 +22,48 @@ namespace Louvain {
 
 template<class NodeType, class EdgeType, class F>
 thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph, const F& local_moving) {
+  graph.nodes.Keep();
   auto node_clusters = local_moving(graph);
-  auto distinct_cluster_ids = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq();
-  size_t cluster_count = distinct_cluster_ids.Keep().Size();
+
+  auto clusters_with_nodes = graph.nodes
+    .Zip(thrill::NoRebalanceTag, node_clusters, [](const NodeType& node, const NodeCluster& node_cluster) { assert(node.id == node_cluster.first); return std::make_pair(node, node_cluster.second); })
+    .template GroupByKey<std::pair<ClusterId, std::vector<NodeType>>>(
+      [](const std::pair<NodeType, ClusterId>& node_cluster) { return node_cluster.second; },
+      [](auto& iterator, const ClusterId cluster) {
+        std::vector<NodeType> nodes;
+        while (iterator.HasNext()) {
+          nodes.push_back(iterator.Next().first);
+        }
+        return std::make_pair(cluster, nodes);
+      })
+    .ZipWithIndex([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, ClusterId new_id) { return std::make_pair(new_id, cluster_nodes.second); });
+
+  size_t cluster_count = clusters_with_nodes.Keep().Size();
 
   if (graph.node_count == cluster_count) {
-    // TODO consume graph.edges
-    distinct_cluster_ids.Size(); // consume it
-    return node_clusters.Collapse();
+    return clusters_with_nodes.Map([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) { return NodeCluster(cluster_nodes.first, cluster_nodes.first); }).Collapse();
   }
 
-  auto cleaned_node_clusters = distinct_cluster_ids
-    .ZipWithIndex([](const ClusterId cluster_id, const size_t index) { return std::make_pair(cluster_id, index); })
-    .InnerJoin(node_clusters,
-      [](const std::pair<ClusterId, size_t>& pair){ return pair.first; },
-      [](const NodeCluster& node_cluster) { return node_cluster.second; },
-      [](const std::pair<ClusterId, size_t>& pair, const NodeCluster& node_cluster) {
-        return NodeCluster(node_cluster.first, pair.second);
-      })
-    .Cache()
-    .Keep(); // consumed twice -> keep once
+  auto mapping = clusters_with_nodes
+    .template FlatMap<NodeCluster>(
+      [](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
+        for (const NodeType& node : cluster_nodes.second) {
+          emit(NodeCluster(node.id, cluster_nodes.first));
+        }
+      });
 
-  // Build Meta Graph
-  auto meta_graph_edges = graph.edges
-    .InnerJoin(cleaned_node_clusters,
-      [](const EdgeType& edge) { return edge.tail; },
-      [](const NodeCluster& node_cluster) { return node_cluster.first; },
-      [](EdgeType edge, const NodeCluster& node_cluster) {
-          edge.tail = node_cluster.second;
-          return edge;
+  auto meta_graph_edges = clusters_with_nodes
+    .Keep()
+    // Build Meta Graph
+    .template FlatMap<EdgeType>(
+      [](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
+        for (const NodeType& node : cluster_nodes.second) {
+          for (const typename NodeType::LinkType& link : node.links) {
+            emit(EdgeType::fromLink(cluster_nodes.first, link));
+          }
+        }
       })
-    .InnerJoin(cleaned_node_clusters,
+    .InnerJoin(mapping,
       [](const EdgeType& edge) { return edge.head; },
       [](const NodeCluster& node_cluster) { return node_cluster.first; },
       [](EdgeType edge, const NodeCluster& node_cluster) {
@@ -74,19 +85,24 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph, cons
           emit(edge);
         }
       })
-    .Cache()
-    .Keep();
+    .Cache();
 
   auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
   assert(meta_graph_edges.Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
   return louvain(DiaGraph<NodeWithWeightedLinks, WeightedEdge> { nodes, meta_graph_edges, cluster_count, graph.total_weight }, local_moving)
-    .InnerJoin(cleaned_node_clusters,
-      [](const NodeCluster& meta_node_cluster) { return meta_node_cluster.first; },
-      [](const NodeCluster& node_cluster) { return node_cluster.second; },
-      [](const NodeCluster& meta_node_cluster, const NodeCluster& node_cluster) {
-          return NodeCluster(node_cluster.first, meta_node_cluster.second);
-      });
+    .Zip(clusters_with_nodes,
+      [](const NodeCluster& meta_cluster, const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) {
+        assert(meta_cluster.first == cluster_nodes.first);
+        return std::make_pair(meta_cluster.second, cluster_nodes.second);
+      })
+    .template FlatMap<NodeCluster>(
+      [](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
+        for (const NodeType& node : cluster_nodes.second) {
+          emit(NodeCluster(node.id, cluster_nodes.first));
+        }
+      })
+    .ReducePairToIndex([](const ClusterId id, const ClusterId) { assert(false); return id; }, graph.node_count);
 }
 
 template<class F>
@@ -105,7 +121,6 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
       Logging::report("program_run", program_run_logging_id, "edge_count", graph.total_weight);
     }
 
-    graph.edges.Keep();
     auto node_clusters = run(graph);
 
     if (argc > 2) { graph.edges.Keep(); }
