@@ -3,6 +3,7 @@
 #include <thrill/api/collapse.hpp>
 #include <thrill/api/distribute.hpp>
 #include <thrill/api/gather.hpp>
+#include <thrill/api/group_by_key.hpp>
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/reduce_to_index.hpp>
@@ -34,29 +35,30 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
   using Link = typename Node::LinkType;
   using NodeLabel = std::pair<Node, Label>;
 
-  auto node_labels = graph.nodes.Keep().Map([](const Node& node) { return node.id; }).Collapse();
+  auto node_labels = graph.nodes.Map([](const Node& node) { return node.id; }).Collapse();
 
   for (uint32_t iteration = 0; iteration < max_num_iterations; iteration++) {
-    auto label_counts = node_labels
-      .Map([](const Label label) { return std::make_pair(label, 1u); })
-      .ReducePair([](const uint32_t count1, const uint32_t count2) { return count1 + count2; });
-
     auto new_node_labels = node_labels
       .Zip(graph.nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); })
-      .InnerJoin(label_counts,
+      .template GroupByKey<std::pair<std::vector<Node>, Label>>(
         [](const NodeLabel& node_label) { return node_label.second; },
-        [](const std::pair<Label, uint32_t>& label_count) { return label_count.first; },
-        [](const NodeLabel& node_label, const std::pair<Label, uint32_t>& label_count) {
-          return std::make_pair(node_label, label_count.second);
+        [](auto& iterator, const Label label) {
+          std::vector<Node> nodes;
+          while (iterator.HasNext()) {
+            nodes.push_back(iterator.Next().first);
+          }
+          return std::make_pair(nodes, label);
         })
       .template FlatMap<NodeIdLabel>(
-        [target_partition_element_size](const std::pair<NodeLabel, uint32_t>& node_label, auto emit) {
-          for (const Link& neighbor : node_label.first.first.links) {
-            if (node_label.second < target_partition_element_size) {
-              emit(NodeIdLabel { neighbor.target, node_label.first.second });
+        [target_partition_element_size](const std::pair<std::vector<Node>, Label>& nodes_label, auto emit) {
+          for (const Node& node : nodes_label.first) {
+            for (const Link& neighbor : node.links) {
+              if (nodes_label.first.size() < target_partition_element_size) {
+                emit(NodeIdLabel { neighbor.target, nodes_label.second });
+              }
             }
+            emit(NodeIdLabel { node.id, nodes_label.second });
           }
-          emit(NodeIdLabel { node_label.first.first.id, node_label.first.second });
         })
       .Map([](const NodeIdLabel& label) { return std::make_tuple(label, 1u, 1u); })
       .ReduceByKey(
@@ -120,7 +122,8 @@ auto partition(const Graph& graph, const uint32_t partition_size) {
       [](const NodeIdLabel& label) { return label.label; },
       [](const std::pair<Label, Label>& mapping, const NodeIdLabel& label) {
         return NodeIdLabel { label.node, mapping.second };
-      });
+      })
+    .Cache();
 
   size_t label_count = cleaned_node_labels.Keep().Size();
 
