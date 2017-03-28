@@ -42,11 +42,18 @@ struct Serialization<Archive, std::list<T>>{
 } // data
 } // thrill
 
-int main(int, char const *argv[]) {
+int main(int argc, char const *argv[]) {
+  std::string graphfile;
+  if (argc > 1) {
+    graphfile = std::string(argv[1]);
+  } else {
+    graphfile = std::string(getenv("DC_GRAPH"));
+  }
+
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto graph = Input::readToNodeGraph(argv[1], context);
+    auto graph = Input::readToNodeGraph(graphfile, context);
 
     thrill::common::StatsTimerBase<true> timer(/* autostart */ false);
 
@@ -143,6 +150,36 @@ int main(int, char const *argv[]) {
 
       if (context.my_rank() == 0) {
         std::cout << "Acc Zip " << i << ": " << timer.Milliseconds() << "ms" << std::endl;
+      }
+
+      timer.Reset();
+
+      timer.Start();
+
+      node_clusters
+        .Keep()
+        .Map([](const std::pair<NodeWithLinks, ClusterId>& node_cluster) { return std::make_pair(node_cluster.second, std::vector<NodeWithLinks> { node_cluster.first }); })
+        .ReduceByKey(
+          [](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster_nodes) { return cluster_nodes.first; },
+          [](std::pair<ClusterId, std::vector<NodeWithLinks>>&& acc, const std::pair<ClusterId, std::vector<NodeWithLinks>>& nodes) {
+            acc.second.insert(acc.second.end(), nodes.second.begin(), nodes.second.end());
+            return std::move(acc);
+          })
+        .FlatMap([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster, auto emit) {
+          Weight total_weight = 0;
+          for (const NodeWithLinks& node : cluster.second) {
+            total_weight += node.weightedDegree();
+          }
+          for (const NodeWithLinks& node : cluster.second) {
+            emit(std::make_pair(std::make_pair(node, cluster.first), total_weight));
+          }
+        })
+        .Execute();
+
+      timer.Stop();
+
+      if (context.my_rank() == 0) {
+        std::cout << "Reduce with move " << i << ": " << timer.Milliseconds() << "ms" << std::endl;
       }
 
       timer.Reset();
