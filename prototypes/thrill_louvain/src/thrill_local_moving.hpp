@@ -185,9 +185,8 @@ auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t 
       rate = std::max(1000 - (node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size() * 1000 / considered_nodes), 200ul);
 
       if (rate_sum >= 1000) {
-        assert(graph.node_count == node_clusters.Keep().Size());
-
-        size_t round_cluster_count = node_clusters.Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; }).Uniq().Size();
+        size_t round_cluster_count = node_clusters.Keep().Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; }).Uniq().Size();
+        assert(graph.node_count == node_clusters.Size());
 
         if (cluster_count - round_cluster_count <= graph.node_count / 100) {
           break;
