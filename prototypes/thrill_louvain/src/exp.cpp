@@ -42,18 +42,11 @@ struct Serialization<Archive, std::list<T>>{
 } // data
 } // thrill
 
-int main(int argc, char const *argv[]) {
-  std::string graphfile;
-  if (argc > 1) {
-    graphfile = std::string(argv[1]);
-  } else {
-    graphfile = std::string(getenv("DC_GRAPH"));
-  }
-
+int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto graph = Input::readToNodeGraph(graphfile, context);
+    auto graph = Input::readToNodeGraph(argv[1], context);
 
     thrill::common::StatsTimerBase<true> timer(/* autostart */ false);
 
