@@ -52,7 +52,8 @@ int main(int, char const *argv[]) {
     thrill::common::StatsTimerBase<true> timer(/* autostart */ false);
 
     for (uint32_t i = 1; i < graph.node_count; i *= 8) {
-      auto node_clusters = graph.nodes.Map([i](const NodeWithLinks& node) { return std::make_pair(node, node.id / i); }).Execute();
+      ClusterId mod = graph.node_count / i;
+      auto node_clusters = graph.nodes.Map([mod](const NodeWithLinks& node) { return std::make_pair(node, node.id % mod); }).Execute();
 
       timer.Start();
 
@@ -66,7 +67,8 @@ int main(int, char const *argv[]) {
           [](const std::pair<ClusterId, Weight>& cluster_weight, const std::pair<NodeWithLinks, ClusterId>& node_cluster) {
             return std::make_pair(node_cluster, cluster_weight.second);
           })
-        .Execute();
+        .Map([](const std::pair<std::pair<NodeWithLinks, ClusterId>, Weight>& node_cluster_weight) { return node_cluster_weight.second; })
+        .Sum();
 
       timer.Stop();
 
@@ -90,7 +92,7 @@ int main(int, char const *argv[]) {
             }
             return std::make_pair(cluster, merged);
           })
-        .FlatMap([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster, auto emit) {
+        .template FlatMap<std::pair<std::pair<NodeWithLinks, ClusterId>, Weight>>([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster, auto emit) {
           Weight total_weight = 0;
           for (const NodeWithLinks& node : cluster.second) {
             total_weight += node.weightedDegree();
@@ -99,7 +101,8 @@ int main(int, char const *argv[]) {
             emit(std::make_pair(std::make_pair(node, cluster.first), total_weight));
           }
         })
-        .Execute();
+        .Map([](const std::pair<std::pair<NodeWithLinks, ClusterId>, Weight>& node_cluster_weight) { return node_cluster_weight.second; })
+        .Sum();
 
       timer.Stop();
 
@@ -138,7 +141,8 @@ int main(int, char const *argv[]) {
           assert(node_cluster.first.id == node_cluster_weight.first.first);
           return std::make_pair(node_cluster, node_cluster_weight.second);
         })
-        .Execute();
+        .Map([](const std::pair<std::pair<NodeWithLinks, ClusterId>, Weight>& node_cluster_weight) { return node_cluster_weight.second; })
+        .Sum();
 
       timer.Stop();
 
@@ -158,7 +162,7 @@ int main(int, char const *argv[]) {
             acc.push_back(node_cluster.first);
             return std::move(acc);
           })
-        .FlatMap([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster_nodes, auto emit) {
+        .template FlatMap<std::pair<std::pair<NodeWithLinks, ClusterId>, Weight>>([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster_nodes, auto emit) {
           Weight total_weight = 0;
           for (const NodeWithLinks& node : cluster_nodes.second) {
             total_weight += node.weightedDegree();
@@ -167,7 +171,8 @@ int main(int, char const *argv[]) {
             emit(std::make_pair(std::make_pair(node, cluster_nodes.first), total_weight));
           }
         })
-        .Execute();
+        .Map([](const std::pair<std::pair<NodeWithLinks, ClusterId>, Weight>& node_cluster_weight) { return node_cluster_weight.second; })
+        .Sum();
 
       timer.Stop();
 
@@ -188,7 +193,7 @@ int main(int, char const *argv[]) {
             acc.second.insert(acc.second.end(), nodes.second.begin(), nodes.second.end());
             return std::move(acc);
           })
-        .FlatMap([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster, auto emit) {
+        .template FlatMap<std::pair<std::pair<NodeWithLinks, ClusterId>, Weight>>([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster, auto emit) {
           Weight total_weight = 0;
           for (const NodeWithLinks& node : cluster.second) {
             total_weight += node.weightedDegree();
@@ -197,7 +202,8 @@ int main(int, char const *argv[]) {
             emit(std::make_pair(std::make_pair(node, cluster.first), total_weight));
           }
         })
-        .Execute();
+        .Map([](const std::pair<std::pair<NodeWithLinks, ClusterId>, Weight>& node_cluster_weight) { return node_cluster_weight.second; })
+        .Sum();
 
       timer.Stop();
 
@@ -207,37 +213,38 @@ int main(int, char const *argv[]) {
 
       timer.Reset();
 
-      timer.Start();
+      // timer.Start();
 
-      node_clusters
-        .Keep()
-        .Map([](const std::pair<NodeWithLinks, ClusterId>& node_cluster) { return std::make_pair(node_cluster.second, std::vector<NodeWithLinks> { node_cluster.first }); })
-        .ReduceByKey(
-          [](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster_nodes) { return cluster_nodes.first; },
-          [](const std::pair<ClusterId, std::vector<NodeWithLinks>> n1, const std::pair<ClusterId, std::vector<NodeWithLinks>>& n2) {
-            std::vector<NodeWithLinks> nodes;
-            nodes.insert(nodes.end(), n1.second.begin(), n1.second.end());
-            nodes.insert(nodes.end(), n2.second.begin(), n2.second.end());
-            return std::make_pair(n1.first, nodes);
-          })
-        .FlatMap([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster, auto emit) {
-          Weight total_weight = 0;
-          for (const NodeWithLinks& node : cluster.second) {
-            total_weight += node.weightedDegree();
-          }
-          for (const NodeWithLinks& node : cluster.second) {
-            emit(std::make_pair(std::make_pair(node, cluster.first), total_weight));
-          }
-        })
-        .Execute();
+      // node_clusters
+      //   .Keep()
+      //   .Map([](const std::pair<NodeWithLinks, ClusterId>& node_cluster) { return std::make_pair(node_cluster.second, std::vector<NodeWithLinks> { node_cluster.first }); })
+      //   .ReduceByKey(
+      //     [](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster_nodes) { return cluster_nodes.first; },
+      //     [](const std::pair<ClusterId, std::vector<NodeWithLinks>> n1, const std::pair<ClusterId, std::vector<NodeWithLinks>>& n2) {
+      //       std::vector<NodeWithLinks> nodes;
+      //       nodes.insert(nodes.end(), n1.second.begin(), n1.second.end());
+      //       nodes.insert(nodes.end(), n2.second.begin(), n2.second.end());
+      //       return std::make_pair(n1.first, nodes);
+      //     })
+      //   .template FlatMap<std::pair<std::pair<NodeWithLinks, ClusterId>, Weight>>([](const std::pair<ClusterId, std::vector<NodeWithLinks>>& cluster, auto emit) {
+      //     Weight total_weight = 0;
+      //     for (const NodeWithLinks& node : cluster.second) {
+      //       total_weight += node.weightedDegree();
+      //     }
+      //     for (const NodeWithLinks& node : cluster.second) {
+      //       emit(std::make_pair(std::make_pair(node, cluster.first), total_weight));
+      //     }
+      //   })
+      //   .Map([](const std::pair<std::pair<NodeWithLinks, ClusterId>, Weight>& node_cluster_weight) { return node_cluster_weight.second; })
+      //   .Sum();
 
-      timer.Stop();
+      // timer.Stop();
 
-      if (context.my_rank() == 0) {
-        std::cout << "Reduce with forced copying " << i << ": " << timer.Milliseconds() << "ms" << std::endl;
-      }
+      // if (context.my_rank() == 0) {
+      //   std::cout << "Reduce with forced copying " << i << ": " << timer.Milliseconds() << "ms" << std::endl;
+      // }
 
-      timer.Reset();
+      // timer.Reset();
     }
 
   });
