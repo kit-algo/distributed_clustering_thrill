@@ -67,6 +67,41 @@ template<class NodeType, class EdgeType>
 auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterations) {
   using NodeWithTargetDegreesType = typename std::conditional<std::is_same<NodeType, NodeWithLinks>::value, NodeWithLinksAndTargetDegree, NodeWithWeightedLinksAndTargetDegree>::type;
 
+  auto calculateIncoming = [](const auto& node_cluster_weights, const auto& included) {
+    return node_cluster_weights
+      .template FlatMap<std::pair<Node, IncidentClusterInfo>>(
+        [&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, Weight>& node_cluster_weight, auto emit) {
+          for (const typename NodeWithTargetDegreesType::LinkType& link : node_cluster_weight.first.first.links) {
+            if (included(link.target)) {
+              emit(std::make_pair(
+                Node { link.target, link.target_degree },
+                IncidentClusterInfo {
+                  node_cluster_weight.first.second,
+                  node_cluster_weight.first.first.id != link.getTarget() ? link.getWeight() : 0,
+                  node_cluster_weight.second
+                }
+              ));
+            }
+          }
+          if (included(node_cluster_weight.first.first.id)) {
+            emit(std::make_pair(
+              Node { node_cluster_weight.first.first.id, node_cluster_weight.first.first.weightedDegree() },
+              IncidentClusterInfo {
+                node_cluster_weight.first.second,
+                0,
+                node_cluster_weight.second - node_cluster_weight.first.first.weightedDegree()
+              }
+            ));
+          }
+        })
+      // Reduce equal clusters per node
+      .ReduceByKey(
+        [](const std::pair<Node, IncidentClusterInfo>& local_moving_edge) { return Util::combine_u32ints(local_moving_edge.first.id, local_moving_edge.second.cluster); },
+        [](const std::pair<Node, IncidentClusterInfo>& lme1, const std::pair<Node, IncidentClusterInfo>& lme2) {
+          return std::make_pair(lme1.first, lme1.second + lme2.second);
+        });
+  };
+
   auto nodes = graph.nodes
     .template FlatMap<std::pair<NodeId, std::pair<typename NodeType::LinkType, Weight>>>(
       [](const NodeType& node, auto emit) {
@@ -108,56 +143,32 @@ auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t 
       .Size();
 
     if (considered_nodes > 0) {
-      node_clusters = node_clusters
-        .template GroupByKey<std::pair<std::pair<std::vector<NodeWithTargetDegreesType>, ClusterId>, Weight>>(
-          [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
-          [](auto& iterator, const ClusterId cluster) {
-            std::vector<NodeWithTargetDegreesType> cluster_nodes;
-            Weight cluster_weight = 0;
-            while (iterator.HasNext()) {
-              const auto& node = iterator.Next().first.first;
-              cluster_weight += node.weightedDegree();
-              cluster_nodes.push_back(node);
-            }
-            return std::make_pair(std::make_pair(cluster_nodes, cluster), cluster_weight);
-          })
-        .FlatMap(
-          [](const std::pair<std::pair<std::vector<NodeWithTargetDegreesType>, ClusterId>, Weight>& cluster_weight, auto emit) {
-            for (const NodeWithTargetDegreesType& node : cluster_weight.first.first) {
-              emit(std::make_pair(std::make_pair(node, cluster_weight.first.second), cluster_weight.second));
-            }
-          })
-        .template FlatMap<std::pair<Node, IncidentClusterInfo>>(
-          [&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, Weight>& node_cluster_weight, auto emit) {
-            for (const typename NodeWithTargetDegreesType::LinkType& link : node_cluster_weight.first.first.links) {
-              if (included(link.target)) {
-                emit(std::make_pair(
-                  Node { link.target, link.target_degree },
-                  IncidentClusterInfo {
-                    node_cluster_weight.first.second,
-                    node_cluster_weight.first.first.id != link.getTarget() ? link.getWeight() : 0,
-                    node_cluster_weight.second
-                  }
-                ));
+      node_clusters = (iteration == 0 ?
+        calculateIncoming(node_clusters
+          .Map(
+            [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
+              return std::make_pair(node_cluster.first, node_cluster.first.first.weightedDegree());
+            }),
+          included) :
+        calculateIncoming(node_clusters
+          .template GroupByKey<std::pair<std::pair<std::vector<NodeWithTargetDegreesType>, ClusterId>, Weight>>(
+            [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
+            [](auto& iterator, const ClusterId cluster) {
+              std::vector<NodeWithTargetDegreesType> cluster_nodes;
+              Weight cluster_weight = 0;
+              while (iterator.HasNext()) {
+                const auto& node = iterator.Next().first.first;
+                cluster_weight += node.weightedDegree();
+                cluster_nodes.push_back(node);
               }
-            }
-            if (included(node_cluster_weight.first.first.id)) {
-              emit(std::make_pair(
-                Node { node_cluster_weight.first.first.id, node_cluster_weight.first.first.weightedDegree() },
-                IncidentClusterInfo {
-                  node_cluster_weight.first.second,
-                  0,
-                  node_cluster_weight.second - node_cluster_weight.first.first.weightedDegree()
-                }
-              ));
-            }
-          })
-        // Reduce equal clusters per node
-        .ReduceByKey(
-          [](const std::pair<Node, IncidentClusterInfo>& local_moving_edge) { return Util::combine_u32ints(local_moving_edge.first.id, local_moving_edge.second.cluster); },
-          [](const std::pair<Node, IncidentClusterInfo>& lme1, const std::pair<Node, IncidentClusterInfo>& lme2) {
-            return std::make_pair(lme1.first, lme1.second + lme2.second);
-          })
+              return std::make_pair(std::make_pair(cluster_nodes, cluster), cluster_weight);
+            })
+          .FlatMap(
+            [](const std::pair<std::pair<std::vector<NodeWithTargetDegreesType>, ClusterId>, Weight>& cluster_weight, auto emit) {
+              for (const NodeWithTargetDegreesType& node : cluster_weight.first.first) {
+                emit(std::make_pair(std::make_pair(node, cluster_weight.first.second), cluster_weight.second));
+              }
+            }), included))
         // Reduce to best cluster
         .ReduceToIndex(
           [](const std::pair<Node, IncidentClusterInfo>& lme) -> size_t { return lme.first.id; },
