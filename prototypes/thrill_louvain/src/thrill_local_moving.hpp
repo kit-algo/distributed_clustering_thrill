@@ -284,6 +284,9 @@ auto partitionedLocalMoving(const Graph& graph) {
           emit(pair);
         }
       })
+    .ReducePairToIndex(
+      [](const ClusterId cluster, const ClusterId) { assert(false); return cluster; },
+      graph.node_count)
     .Cache();
 }
 
