@@ -39,7 +39,8 @@ Id getUnusedId() {
   return id_counter++;
 }
 
-void log_comparison_results(Logging::Id base_clustering_id, const ClusterStore & base_clusters, Logging::Id compare_clustering_id, const ClusterStore & compare_clusters) {
+template<class IdType>
+void log_comparison_results(IdType base_clustering_id, const ClusterStore & base_clusters, IdType compare_clustering_id, const ClusterStore & compare_clusters) {
   Logging::Id comparison_id = Logging::getUnusedId();
   Logging::report("clustering_comparison", comparison_id, "base_clustering_id", base_clustering_id);
   Logging::report("clustering_comparison", comparison_id, "compare_clustering_id", compare_clustering_id);
@@ -50,4 +51,15 @@ void log_comparison_results(Logging::Id base_clustering_id, const ClusterStore &
   Logging::report("clustering_comparison", comparison_id, "Recall", precision_recall.second);
 }
 
+std::pair<std::string, std::string> parse_input_with_logging_id(const std::string& in) {
+  const size_t sep = in.find(',');
+  std::pair<std::string, std::string> pair;
+  if (sep == std::string::npos) {
+    throw "invalid pair";
+  } else {
+    pair.first  = in.substr(0, sep);
+    pair.second = in.substr(sep+1);
+  }
+  return pair;
+}
 }
