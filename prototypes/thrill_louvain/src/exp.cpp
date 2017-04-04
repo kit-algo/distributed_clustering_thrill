@@ -9,6 +9,7 @@
 #include <thrill/api/group_by_key.hpp>
 #include <thrill/api/fold_by_key.hpp>
 #include <thrill/api/zip.hpp>
+#include <thrill/api/print.hpp>
 
 #include <thrill/common/stats_timer.hpp>
 
@@ -43,11 +44,23 @@ struct Serialization<Archive, std::list<T>>{
 } // data
 } // thrill
 
+namespace std {
+std::ostream& operator << (std::ostream& os, const std::pair<size_t, size_t>& p) {
+  return os << p.first << ": " << p.second;
+}
+} // std
+
 int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
     auto graph = Input::readToNodeGraph(argv[1], context);
+
+    graph.nodes
+      .Keep()
+      .Map([rank = context.my_rank()](const NodeWithLinks& node) { return std::make_pair(rank, node.weightedDegree()); })
+      .ReducePair([](const size_t i, const size_t j) { return i + j; })
+      .Print("load");
 
     thrill::common::StatsTimerBase<true> timer(/* autostart */ false);
 

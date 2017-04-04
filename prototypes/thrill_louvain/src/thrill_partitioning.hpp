@@ -35,37 +35,47 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
   using Link = typename Node::LinkType;
   using NodeLabel = std::pair<Node, Label>;
 
-  auto node_labels = graph.nodes.Map([](const Node& node) { return node.id; }).Collapse();
-
-  for (uint32_t iteration = 0; iteration < max_num_iterations; iteration++) {
-    auto new_node_labels = node_labels
-      .Zip(graph.nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); })
-      .template GroupByKey<std::pair<std::vector<Node>, Label>>(
-        [](const NodeLabel& node_label) { return node_label.second; },
-        [](auto& iterator, const Label label) {
-          std::vector<Node> nodes;
-          while (iterator.HasNext()) {
-            nodes.push_back(iterator.Next().first);
-          }
-          return std::make_pair(nodes, label);
-        })
-      .template FlatMap<NodeIdLabel>(
-        [target_partition_element_size](const std::pair<std::vector<Node>, Label>& nodes_label, auto emit) {
-          for (const Node& node : nodes_label.first) {
-            for (const Link& neighbor : node.links) {
-              if (nodes_label.first.size() < target_partition_element_size) {
-                emit(NodeIdLabel { neighbor.target, nodes_label.second });
-              }
-            }
-            emit(NodeIdLabel { node.id, nodes_label.second });
-          }
-        })
+  auto prereduce = [](const auto& node_labels) {
+    return node_labels
       .Map([](const NodeIdLabel& label) { return std::make_tuple(label, 1u, 1u); })
       .ReduceByKey(
         [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return Util::combine_u32ints(std::get<0>(label_info).node, std::get<0>(label_info).label); },
         [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info2) {
           return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1) + std::get<1>(label_info2), 1u);
-        })
+        });
+  };
+
+  auto node_labels = graph.nodes.Map([](const Node& node) { return NodeLabel(node, node.id); }).Collapse();
+
+  for (uint32_t iteration = 0; iteration < max_num_iterations; iteration++) {
+    auto new_node_labels = (iteration < max_num_iterations / 3 ?
+      prereduce(node_labels
+        .template FlatMap<NodeIdLabel>(
+          [](const NodeLabel& node_label, auto emit) {
+            for (const Link& neighbor : node_label.first.links) {
+              emit(NodeIdLabel { neighbor.target, node_label.second });
+            }
+          })) :
+      prereduce(node_labels.template GroupByKey<std::pair<std::vector<Node>, Label>>(
+          [](const NodeLabel& node_label) { return node_label.second; },
+          [](auto& iterator, const Label label) {
+            std::vector<Node> nodes;
+            while (iterator.HasNext()) {
+              nodes.push_back(iterator.Next().first);
+            }
+            return std::make_pair(nodes, label);
+          })
+        .template FlatMap<NodeIdLabel>(
+          [target_partition_element_size](const std::pair<std::vector<Node>, Label>& nodes_label, auto emit) {
+            for (const Node& node : nodes_label.first) {
+              for (const Link& neighbor : node.links) {
+                if (nodes_label.first.size() < target_partition_element_size) {
+                  emit(NodeIdLabel { neighbor.target, nodes_label.second });
+                }
+              }
+              emit(NodeIdLabel { node.id, nodes_label.second });
+            }
+          })))
       .ReduceToIndex(
         [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) -> size_t { return std::get<0>(label_info).node; },
         [iteration](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info2) {
@@ -88,18 +98,19 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
 
     size_t num_changed = new_node_labels
       .Keep()
-      .Zip(node_labels, [](const Label& l1, const Label& l2) { return std::make_pair(l1, l2); })
+      .Zip(node_labels, [](const Label& l1, const NodeLabel& l2) { return std::make_pair(l1, l2.second); })
       .Filter([](const std::pair<Label, Label>& labels) { return labels.first != labels.second; })
       .Size();
 
-    node_labels = new_node_labels;
+    node_labels = new_node_labels
+      .Zip(graph.nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); });
 
     if (num_changed == 0) {
       break;
     }
   }
 
-  return node_labels.Zip(graph.nodes, [](const Label label, const Node& node) { return NodeIdLabel { node.id, label }; });
+  return node_labels.Map([](const NodeLabel& node_label) { return NodeIdLabel { node_label.first.id, node_label.second }; });
 }
 
 template<class Graph>
