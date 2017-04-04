@@ -33,7 +33,7 @@ int main(int argc, char const *argv[]) {
     auto cleanup_mapping = graph.edges
       .Keep()
       .Map([](const Edge& edge) { return edge.tail; })
-      .Uniq() // Remove Degree Zero Nodes and wholes in ID range
+      .Uniq() // Remove Degree Zero Nodes and holes in ID range
       .Sort([&hasher](const NodeId id1, const NodeId id2) { return hasher(id1) < hasher(id2); }) // Shuffle
       .ZipWithIndex([](const NodeId old_id, const NodeId index) { return std::make_pair(old_id, index); });
 
