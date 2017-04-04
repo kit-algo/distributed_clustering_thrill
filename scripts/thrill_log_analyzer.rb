@@ -3,7 +3,7 @@
 require 'set'
 
 def log(s)
-  puts "#{'#' * 10} ANALYZE #{'#' * 10} #{s}"
+  puts "#{'#' * 10} WARNING #{'#' * 10} #{s}"
 end
 
 NO_DISPOSE = ['Size', 'Sum', 'Gather', 'AllReduce']
