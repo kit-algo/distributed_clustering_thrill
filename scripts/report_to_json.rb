@@ -24,7 +24,9 @@ def typify value
 end
 
 ARGF.each_line do |line|
-  next if line.strip.empty?
+  line.strip!
+  next unless line.start_with? '#LOG# '
+  line = line[6..-1]
 
   key, value = line.split(':').map(&:strip)
   type, id, attribute = key.split('/')

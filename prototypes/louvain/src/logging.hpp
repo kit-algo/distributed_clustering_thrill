@@ -8,6 +8,8 @@
 #include "cluster_store.hpp"
 #include "similarity.hpp"
 
+#define LOGGING_PREFIX "#LOG# "
+
 namespace Logging {
 
 typedef uint64_t Id;
@@ -16,17 +18,17 @@ Id id_counter = 0;
 
 template<class IdType, class KeyType, class ValueType>
 void report(const std::string & type, const IdType id, const KeyType & key, const ValueType & value) {
-  std::cout << type << '/' << id << '/' << key << ": " << value << std::endl;
+  std::cout << LOGGING_PREFIX << type << '/' << id << '/' << key << ": " << value << std::endl;
 }
 
 template<class IdType, class KeyType>
 void report(const std::string & type, const IdType id, const KeyType & key, const bool & value) {
-  std::cout << type << '/' << id << '/' << key << ": " << (value ? "true" : "false") << std::endl;
+  std::cout << LOGGING_PREFIX << type << '/' << id << '/' << key << ": " << (value ? "true" : "false") << std::endl;
 }
 
 template<class IdType, class KeyType, class ValueType>
 void report(const std::string & type, const IdType id, const KeyType & key, const std::vector<ValueType> & values) {
-  std::cout << type << '/' << id << '/' << key << ": " << "[";
+  std::cout << LOGGING_PREFIX << type << '/' << id << '/' << key << ": " << "[";
   for (const ValueType& value : values) {
     std::cout << value << ", ";
   }
