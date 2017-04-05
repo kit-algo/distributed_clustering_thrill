@@ -1,4 +1,5 @@
 #include <thrill/api/dia.hpp>
+#include <thrill/api/rebalance.hpp>
 #include <thrill/api/read_binary.hpp>
 #include <thrill/api/write_binary.hpp>
 
@@ -29,8 +30,9 @@ int main(int argc, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
     auto graph = Input::readToEdgeGraph<false>(argv[1], context);
+    auto edges = graph.edges.Rebalance();
     thrill::common::hash<NodeId> hasher;
-    auto cleanup_mapping = graph.edges
+    auto cleanup_mapping = edges
       .Keep()
       .Map([](const Edge& edge) { return edge.tail; })
       .Uniq() // Remove Degree Zero Nodes and holes in ID range
@@ -50,7 +52,7 @@ int main(int argc, char const *argv[]) {
         .WriteBinary(ground_truth_output);
     }
 
-    auto edges = graph.edges
+    auto new_edges = edges
       .InnerJoin(
         cleanup_mapping,
         [](const Edge& edge) { return edge.tail; },
@@ -63,7 +65,7 @@ int main(int argc, char const *argv[]) {
         [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { edge.tail, mapping.second }; })
       .Filter([](const Edge& edge) { return edge.tail <= edge.head; });
 
-    edgesToNodes(edges, node_count)
+    edgesToNodes(new_edges, node_count)
       .Map(
         [](const NodeWithLinks& node) {
           std::vector<NodeId> neighbors(node.links.size());
