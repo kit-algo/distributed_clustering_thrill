@@ -79,6 +79,12 @@ struct Edge {
     return 1;
   }
 
+  void flip() {
+    NodeId tmp = tail;
+    tail = head;
+    head = tmp;
+  }
+
   static Edge fromLink(NodeId node, const EdgeTarget& link) {
     return Edge { node, link.target };
   }
@@ -98,6 +104,12 @@ struct WeightedEdge {
 
   Weight getWeight() const {
     return weight;
+  }
+
+  void flip() {
+    NodeId tmp = tail;
+    tail = head;
+    head = tmp;
   }
 
   static WeightedEdge fromLink(NodeId node, const WeightedEdgeTarget& link) {

@@ -47,25 +47,36 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph, cons
         for (const NodeType& node : cluster_nodes.second) {
           emit(NodeCluster(node.id, cluster_nodes.first));
         }
-      });
+      })
+    .ReduceToIndex(
+      [](const NodeCluster& node_cluster) -> size_t { return node_cluster.first; },
+      [](const NodeCluster& node_cluster, const NodeCluster&) { assert(false); return node_cluster; },
+      graph.node_count);
 
-  auto meta_graph_edges = clusters_with_nodes
+  auto half_meta_edges = clusters_with_nodes
     .Keep()
     // Build Meta Graph
     .template FlatMap<EdgeType>(
       [](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
         for (const NodeType& node : cluster_nodes.second) {
           for (const typename NodeType::LinkType& link : node.links) {
-            emit(EdgeType::fromLink(cluster_nodes.first, link));
+            EdgeType edge = EdgeType::fromLink(cluster_nodes.first, link);
+            edge.flip();
+            emit(edge);
           }
         }
+      });
+  auto meta_graph_edges = edgesToNodes(half_meta_edges, graph.node_count)
+    .Zip(thrill::NoRebalanceTag, mapping,
+      [](const NodeType& node, const NodeCluster& node_cluster) {
+        assert(node.id == node_cluster.first);
+        return std::make_pair(node_cluster.second, node);
       })
-    .InnerJoin(mapping,
-      [](const EdgeType& edge) { return edge.head; },
-      [](const NodeCluster& node_cluster) { return node_cluster.first; },
-      [](EdgeType edge, const NodeCluster& node_cluster) {
-          edge.head = node_cluster.second;
-          return edge;
+    .template FlatMap<EdgeType>(
+      [](const std::pair<ClusterId, NodeType>& cluster_node, auto emit) {
+        for (const typename NodeType::LinkType& link : cluster_node.second.links) {
+          emit(EdgeType::fromLink(cluster_node.first, link));
+        }
       })
     .Map([](const EdgeType& edge) { return WeightedEdge { edge.tail, edge.head, edge.getWeight() }; })
     .ReduceByKey(
