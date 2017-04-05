@@ -15,7 +15,7 @@ int main(int argc, char const *argv[]) {
     std::pair<std::string, std::string> algo_clustering_input = Logging::parse_input_with_logging_id(argv[2]);
     auto node_clusters = Input::readClustering(algo_clustering_input.first, context);
 
-    if (argc > 2) { graph.edges.Keep(); }
+    if (argc > 3) { graph.edges.Keep(); }
     double modularity = Modularity::modularity(graph, node_clusters.Keep());
     size_t cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
 
@@ -31,7 +31,7 @@ int main(int argc, char const *argv[]) {
         clusters.set(node_cluster.first, node_cluster.second);
       }
     }
-    if (argc > 2) {
+    if (argc > 3) {
       std::pair<std::string, std::string> ground_truth_input = Logging::parse_input_with_logging_id(argv[2]);
       auto ground_truth = Input::readClustering(argv[3], context);
 
