@@ -30,14 +30,15 @@ int main(int argc, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
     auto graph = Input::readToEdgeGraph<false>(argv[1], context);
+    size_t old_node_count = graph.node_count;
     auto edges = graph.edges.Rebalance();
     thrill::common::hash<NodeId> hasher;
     auto cleanup_mapping = edges
       .Keep()
-      .Map([](const Edge& edge) { return edge.tail; })
+      .Map([old_node_count](const Edge& edge) { assert(edge.tail < old_node_count && edge.head < old_node_count); return edge.tail; })
       .Uniq() // Remove Degree Zero Nodes and holes in ID range
-      .Sort([&hasher](const NodeId id1, const NodeId id2) { return hasher(id1) < hasher(id2); }) // Shuffle
-      .ZipWithIndex([](const NodeId old_id, const NodeId index) { return std::make_pair(old_id, index); });
+      .Sort([&hasher, old_node_count](const NodeId id1, const NodeId id2) { assert(id1 < old_node_count && id2 < old_node_count); return hasher(id1) < hasher(id2); }) // Shuffle
+      .ZipWithIndex([old_node_count](const NodeId old_id, const NodeId index) { assert(old_node_count); return std::make_pair(old_id, index); });
 
     NodeId node_count = cleanup_mapping.Keep().Size();
 
@@ -57,20 +58,23 @@ int main(int argc, char const *argv[]) {
         cleanup_mapping,
         [](const Edge& edge) { return edge.tail; },
         [](const std::pair<NodeId, NodeId>& mapping) { return mapping.first; },
-        [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { mapping.second, edge.head }; })
+        [old_node_count, node_count](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { assert(edge.tail < old_node_count && edge.head < old_node_count && mapping.second < node_count && edge.tail == mapping.first); return Edge { mapping.second, edge.head }; })
       .InnerJoin(
         cleanup_mapping,
         [](const Edge& edge) { return edge.head; },
         [](const std::pair<NodeId, NodeId>& mapping) { return mapping.first; },
-        [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { edge.tail, mapping.second }; })
-      .Filter([](const Edge& edge) { return edge.tail <= edge.head; });
+        [old_node_count, node_count](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { assert(edge.tail < node_count && edge.head < old_node_count && mapping.second < node_count && edge.head == mapping.first); return Edge { edge.tail, mapping.second }; })
+      .Filter([node_count](const Edge& edge) { assert(edge.tail < node_count && edge.head < node_count && edge.tail != edge.head); return edge.tail <= edge.head; });
 
     edgesToNodes(new_edges, node_count)
       .Map(
-        [](const NodeWithLinks& node) {
+        [node_count](const NodeWithLinks& node) {
           std::vector<NodeId> neighbors(node.links.size());
           std::transform(node.links.begin(), node.links.end(), neighbors.begin(), [](const EdgeTarget& target) { return target.target; });
           std::sort(neighbors.begin(), neighbors.end());
+          for (NodeId node : neighbors) {
+            assert(node < node_count);
+          }
           return neighbors;
         })
       .WriteBinary(output);
