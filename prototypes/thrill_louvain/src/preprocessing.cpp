@@ -72,8 +72,9 @@ int main(int argc, char const *argv[]) {
           std::vector<NodeId> neighbors(node.links.size());
           std::transform(node.links.begin(), node.links.end(), neighbors.begin(), [](const EdgeTarget& target) { return target.target; });
           std::sort(neighbors.begin(), neighbors.end());
-          for (NodeId node : neighbors) {
-            assert(node < node_count);
+          for (NodeId id : neighbors) {
+            assert(id < node_count);
+            assert(id > node.id);
           }
           return neighbors;
         })
