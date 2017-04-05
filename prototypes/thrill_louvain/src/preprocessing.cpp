@@ -1,7 +1,9 @@
 #include <thrill/api/dia.hpp>
+#include <thrill/api/fold_by_key.hpp>
 #include <thrill/api/rebalance.hpp>
 #include <thrill/api/read_binary.hpp>
 #include <thrill/api/write_binary.hpp>
+#include <thrill/api/zip.hpp>
 
 #include <vector>
 #include <algorithm>
@@ -30,17 +32,24 @@ int main(int argc, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
     auto graph = Input::readToEdgeGraph<false>(argv[1], context);
-    size_t old_node_count = graph.node_count;
-    auto edges = graph.edges.Rebalance();
+    // size_t old_node_count = graph.node_count;
     thrill::common::hash<NodeId> hasher;
-    auto cleanup_mapping = edges
-      .Keep()
-      .Map([old_node_count](const Edge& edge) { assert(edge.tail < old_node_count && edge.head < old_node_count); return edge.tail; })
-      .Uniq() // Remove Degree Zero Nodes and holes in ID range
-      .Sort([&hasher, old_node_count](const NodeId id1, const NodeId id2) { assert(id1 < old_node_count && id2 < old_node_count); return hasher(id1) < hasher(id2); }) // Shuffle
-      .ZipWithIndex([old_node_count](const NodeId old_id, const NodeId index) { assert(old_node_count); return std::make_pair(old_id, index); });
 
-    NodeId node_count = cleanup_mapping.Keep().Size();
+    auto nodes_with_new_ids = graph.edges
+      .Rebalance()
+      .template FoldByKey<std::vector<NodeId>>(thrill::NoDuplicateDetectionTag,
+        [](const Edge& edge) { return edge.tail; },
+        [](std::vector<NodeId>&& neighbors, const Edge& edge) {
+          neighbors.push_back(edge.head);
+          return std::move(neighbors);
+        })
+      .Sort([&hasher](const std::pair<NodeId, std::vector<NodeId>>& n1, const std::pair<NodeId, std::vector<NodeId>>& n2) { return hasher(n1.first) < hasher(n2.first); })
+      .ZipWithIndex([](const std::pair<NodeId, std::vector<NodeId>>& node, NodeId new_index) { return std::make_pair(new_index, node); });
+
+    auto cleanup_mapping = nodes_with_new_ids
+      .Map([](const std::pair<NodeId, std::pair<NodeId, std::vector<NodeId>>>& new_id_and_node) { return std::make_pair(new_id_and_node.second.first, new_id_and_node.first); });
+
+    // NodeId node_count = cleanup_mapping.Keep().Size();
 
     if (argc > 2) {
       Input::readClustering(argv[2], context)
@@ -53,31 +62,35 @@ int main(int argc, char const *argv[]) {
         .WriteBinary(ground_truth_output);
     }
 
-    auto new_edges = edges
-      .InnerJoin(
-        cleanup_mapping,
-        [](const Edge& edge) { return edge.tail; },
-        [](const std::pair<NodeId, NodeId>& mapping) { return mapping.first; },
-        [old_node_count, node_count](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { assert(edge.tail < old_node_count && edge.head < old_node_count && mapping.second < node_count && edge.tail == mapping.first); return Edge { mapping.second, edge.head }; })
-      .InnerJoin(
-        cleanup_mapping,
-        [](const Edge& edge) { return edge.head; },
-        [](const std::pair<NodeId, NodeId>& mapping) { return mapping.first; },
-        [old_node_count, node_count](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { assert(edge.tail < node_count && edge.head < old_node_count && mapping.second < node_count && edge.head == mapping.first); return Edge { edge.tail, mapping.second }; })
-      .Filter([node_count](const Edge& edge) { assert(edge.tail < node_count && edge.head < node_count && edge.tail != edge.head); return edge.tail <= edge.head; });
-
-    auto new_nodes = edgesToNodes(new_edges, node_count);
-    assert(new_nodes.Keep().Size() == node_count);
-    new_nodes
-      .Map(
-        [node_count](const NodeWithLinks& node) {
-          std::vector<NodeId> neighbors(node.links.size());
-          std::transform(node.links.begin(), node.links.end(), neighbors.begin(), [](const EdgeTarget& target) { return target.target; });
-          std::sort(neighbors.begin(), neighbors.end());
-          for (NodeId id : neighbors) {
-            assert(id < node_count);
-            assert(id > node.id);
+    nodes_with_new_ids
+      .template FlatMap<Edge>(
+        [](const std::pair<NodeId, std::pair<NodeId, std::vector<NodeId>>>& new_id_and_node, auto emit) {
+          for (NodeId neighbor : new_id_and_node.second.second) {
+            emit(Edge { neighbor, new_id_and_node.first });
           }
+        })
+      .template FoldByKey<std::vector<NodeId>>(thrill::NoDuplicateDetectionTag,
+        [](const Edge& edge) { return edge.tail; },
+        [](std::vector<NodeId>&& neighbors, const Edge& edge) {
+          neighbors.push_back(edge.head);
+          return std::move(neighbors);
+        })
+      .Sort([&hasher](const std::pair<NodeId, std::vector<NodeId>>& n1, const std::pair<NodeId, std::vector<NodeId>>& n2) { return hasher(n1.first) < hasher(n2.first); })
+      .Zip(cleanup_mapping,
+        [](const std::pair<NodeId, std::vector<NodeId>>& node, const std::pair<NodeId, NodeId>& id_mapping) {
+          assert(node.first == id_mapping.first);
+          return std::make_pair(id_mapping.second, node.second);
+        })
+      .Map(
+        [](const std::pair<NodeId, std::vector<NodeId>>& node) {
+          std::vector<NodeId> neighbors;
+          neighbors.reserve(node.second.size());
+          for (NodeId id : node.second) {
+            if (id > node.first) {
+              neighbors.push_back(id);
+            }
+          }
+          std::sort(neighbors.begin(), neighbors.end());
           return neighbors;
         })
       .WriteBinary(output);
