@@ -2,6 +2,7 @@
 
 #include <thrill/api/cache.hpp>
 #include <thrill/api/group_by_key.hpp>
+#include <thrill/api/fold_by_key.hpp>
 #include <thrill/api/group_to_index.hpp>
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/reduce_by_key.hpp>
@@ -151,24 +152,21 @@ auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t 
             }),
           included) :
         calculateIncoming(node_clusters
-          .template GroupByKey<std::pair<std::pair<std::vector<NodeWithTargetDegreesType>, ClusterId>, Weight>>(
+          .template FoldByKey<std::vector<NodeWithTargetDegreesType>>(thrill::NoDuplicateDetectionTag,
             [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
-            [](auto& iterator, const ClusterId cluster) {
-              std::vector<NodeWithTargetDegreesType> cluster_nodes;
-              Weight cluster_weight = 0;
-              while (iterator.HasNext()) {
-                const auto& node = iterator.Next().first.first;
-                cluster_weight += node.weightedDegree();
-                cluster_nodes.push_back(node);
-              }
-              return std::make_pair(std::make_pair(cluster_nodes, cluster), cluster_weight);
+            [](std::vector<NodeWithTargetDegreesType>&& acc, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
+              acc.push_back(node_cluster.first.first);
+              return std::move(acc);
             })
-          .FlatMap(
-            [](const std::pair<std::pair<std::vector<NodeWithTargetDegreesType>, ClusterId>, Weight>& cluster_weight, auto emit) {
-              for (const NodeWithTargetDegreesType& node : cluster_weight.first.first) {
-                emit(std::make_pair(std::make_pair(node, cluster_weight.first.second), cluster_weight.second));
-              }
-            }), included))
+          .template FlatMap<std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, Weight>>([](const std::pair<ClusterId, std::vector<NodeWithTargetDegreesType>>& cluster_nodes, auto emit) {
+            Weight total_weight = 0;
+            for (const NodeWithTargetDegreesType& node : cluster_nodes.second) {
+              total_weight += node.weightedDegree();
+            }
+            for (const NodeWithTargetDegreesType& node : cluster_nodes.second) {
+              emit(std::make_pair(std::make_pair(node, cluster_nodes.first), total_weight));
+            }
+          }), included))
         // Reduce to best cluster
         .ReduceToIndex(
           [](const std::pair<Node, IncidentClusterInfo>& lme) -> size_t { return lme.first.id; },
