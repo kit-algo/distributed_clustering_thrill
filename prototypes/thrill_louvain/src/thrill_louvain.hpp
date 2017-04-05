@@ -113,6 +113,9 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
     if (context.my_rank() == 0) {
       program_run_logging_id = Logging::getUnusedId();
       Logging::report("program_run", program_run_logging_id, "binary", argv[0]);
+      Logging::report("program_run", program_run_logging_id, "hosts", context.num_hosts());
+      Logging::report("program_run", program_run_logging_id, "total_workers", context.num_workers());
+      Logging::report("program_run", program_run_logging_id, "workers_per_host", context.workers_per_host());
       Logging::report("program_run", program_run_logging_id, "graph", argv[1]);
       Logging::report("program_run", program_run_logging_id, "node_count", graph.node_count);
       Logging::report("program_run", program_run_logging_id, "edge_count", graph.total_weight);
