@@ -99,7 +99,7 @@ public:
   void forEachPartition(std::vector<uint32_t>& node_partition_elements, F f) {
     assert(node_partition_elements.size() == graph->getNodeCount());
     for (const auto& partitions_string : partitions_strings) {
-      PartitionInput partition_input = parse_partition_input(partitions_string);
+      PartitionInput partition_input = Logging::parse_input_with_logging_id(partitions_string);
       IO::read_partition(partition_input.first, node_partition_elements);
       f(node_partition_elements, partition_input.second);
     }
@@ -129,17 +129,4 @@ private:
       id_mapping[old_id] = new_id++;
     }
   }
-
-  PartitionInput parse_partition_input(const std::string& in) {
-    const size_t sep = in.find(',');
-    PartitionInput pair;
-    if (sep == std::string::npos) {
-      throw "invalid pair";
-    } else {
-      pair.first  = in.substr(0, sep);
-      pair.second = in.substr(sep+1);
-    }
-    return pair;
-  }
-
 };
