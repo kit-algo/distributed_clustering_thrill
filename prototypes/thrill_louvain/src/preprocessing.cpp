@@ -66,7 +66,9 @@ int main(int argc, char const *argv[]) {
         [old_node_count, node_count](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { assert(edge.tail < node_count && edge.head < old_node_count && mapping.second < node_count && edge.head == mapping.first); return Edge { edge.tail, mapping.second }; })
       .Filter([node_count](const Edge& edge) { assert(edge.tail < node_count && edge.head < node_count && edge.tail != edge.head); return edge.tail <= edge.head; });
 
-    edgesToNodes(new_edges, node_count)
+    auto new_nodes = edgesToNodes(new_edges, node_count);
+    assert(new_nodes.Keep().Size() == node_count);
+    new_nodes
       .Map(
         [node_count](const NodeWithLinks& node) {
           std::vector<NodeId> neighbors(node.links.size());
