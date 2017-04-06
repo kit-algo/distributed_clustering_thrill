@@ -35,6 +35,12 @@ int main(int argc, char const *argv[]) {
     // size_t old_node_count = graph.node_count;
     thrill::common::hash<NodeId> hasher;
 
+    auto comparator = [&hasher](const std::pair<NodeId, std::vector<NodeId>>& n1, const std::pair<NodeId, std::vector<NodeId>>& n2) {
+      size_t h1 = hasher(n1.first);
+      size_t h2 = hasher(n2.first);
+      return h1 < h2 || (h1 == h2 && n1.first < n2.first);
+    };
+
     auto nodes_with_new_ids = graph.edges
       .Rebalance()
       .template FoldByKey<std::vector<NodeId>>(thrill::NoDuplicateDetectionTag,
@@ -43,7 +49,7 @@ int main(int argc, char const *argv[]) {
           neighbors.push_back(edge.head);
           return std::move(neighbors);
         })
-      .Sort([&hasher](const std::pair<NodeId, std::vector<NodeId>>& n1, const std::pair<NodeId, std::vector<NodeId>>& n2) { return hasher(n1.first) < hasher(n2.first); })
+      .Sort(comparator)
       .ZipWithIndex([](const std::pair<NodeId, std::vector<NodeId>>& node, NodeId new_index) { return std::make_pair(new_index, node); });
 
     auto cleanup_mapping = nodes_with_new_ids
@@ -75,7 +81,7 @@ int main(int argc, char const *argv[]) {
           neighbors.push_back(edge.head);
           return std::move(neighbors);
         })
-      .Sort([&hasher](const std::pair<NodeId, std::vector<NodeId>>& n1, const std::pair<NodeId, std::vector<NodeId>>& n2) { return hasher(n1.first) < hasher(n2.first); })
+      .Sort(comparator)
       .Zip(cleanup_mapping,
         [](const std::pair<NodeId, std::vector<NodeId>>& node, const std::pair<NodeId, NodeId>& id_mapping) {
           assert(node.first == id_mapping.first);
