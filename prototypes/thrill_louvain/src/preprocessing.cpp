@@ -16,7 +16,7 @@ int main(int argc, char const *argv[]) {
   if (glob_index != std::string::npos) {
     graph_file.erase(graph_file.begin() + glob_index);
   }
-  std::string output = graph_file.replace(graph_file.begin() + graph_file.rfind('.'), graph_file.end(), "-preprocessed-@#.bin");
+  std::string output = graph_file.replace(graph_file.begin() + graph_file.rfind('.'), graph_file.end(), "-preprocessed-@@@@-#####.bin");
 
   std::string ground_truth_file = "";
   std::string ground_truth_output = "";
@@ -26,7 +26,7 @@ int main(int argc, char const *argv[]) {
     if (glob_index != std::string::npos) {
       ground_truth_file.erase(ground_truth_file.begin() + glob_index);
     }
-    ground_truth_output = ground_truth_file.replace(ground_truth_file.begin() + ground_truth_file.rfind('.'), ground_truth_file.end(), "-preprocessed-@#.bin");
+    ground_truth_output = ground_truth_file.replace(ground_truth_file.begin() + ground_truth_file.rfind('.'), ground_truth_file.end(), "-preprocessed-@@@@-#####.bin");
   }
 
   return thrill::Run([&](thrill::Context& context) {
