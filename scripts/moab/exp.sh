@@ -13,7 +13,7 @@ module load ${MPI_MODULE}
 
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} MPI-tasks and ${THRILL_WORKERS_PER_HOST} threads"
 
-executable="$HOME/code/prototypes/thrill_louvain/build/exp"
+executable="$HOME/code/prototypes/thrill_louvain/release/exp"
 startexe="mpirun -n ${MOAB_NODECOUNT} ${MPIRUN_OPTIONS} ${executable}"
 echo $startexe "$GRAPH"
 exec $startexe "$GRAPH"

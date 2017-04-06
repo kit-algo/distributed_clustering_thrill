@@ -8,12 +8,11 @@
 #MSUB -v THRILL_WORKERS_PER_HOST=5
 #MSUB -v MPIRUN_OPTIONS="--bind-to core --map-by socket:PE=5 -report-bindings"
 
-export THRILL_LOG="log-${MOAB_JOBID}"
 module load ${MPI_MODULE}
 
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} MPI-tasks and ${THRILL_WORKERS_PER_HOST} threads"
 
-executable="$HOME/code/prototypes/thrill_louvain/build/preprocess"
+executable="$HOME/code/prototypes/thrill_louvain/release/preprocess"
 startexe="mpirun -n ${MOAB_NODECOUNT} ${MPIRUN_OPTIONS} ${executable}"
 echo $startexe "$GRAPH" "$GROUNDTRUTH"
 exec $startexe "$GRAPH" "$GROUNDTRUTH"
