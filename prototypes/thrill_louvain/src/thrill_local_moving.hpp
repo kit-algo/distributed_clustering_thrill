@@ -12,6 +12,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <sparsepp/spp.h>
 
 #include "util.hpp"
 #include "thrill_graph.hpp"
@@ -33,6 +34,12 @@ using ClusterWeight = std::pair<ClusterId, Weight>;
 struct Node {
   NodeId id;
   Weight degree;
+};
+
+struct NodeClusterLink {
+  Weight node_degree = 0;
+  Weight inbetween_weight = 0;
+  Weight total_weight = 0;
 };
 
 struct IncidentClusterInfo {
@@ -62,6 +69,179 @@ int128_t deltaModularity(const Node& node, const IncidentClusterInfo& neighbored
 bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t rate) {
   uint32_t hash = Util::combined_hash(node, iteration);
   return hash % 1000 < rate;
+}
+
+template<class NodeType, class EdgeType>
+auto localPrereduceDistributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterations) {
+  using NodeWithTargetDegreesType = typename std::conditional<std::is_same<NodeType, NodeWithLinks>::value, NodeWithLinksAndTargetDegree, NodeWithWeightedLinksAndTargetDegree>::type;
+
+  auto reduceToBestCluster = [&graph](const auto& incoming) {
+    return incoming
+      // Reduce to best cluster
+      .ReduceToIndex(
+        [](const std::pair<Node, IncidentClusterInfo>& lme) -> size_t { return lme.first.id; },
+        [total_weight = graph.total_weight](const std::pair<Node, IncidentClusterInfo>& lme1, const std::pair<Node, IncidentClusterInfo>& lme2) {
+          // TODO Tie breaking
+          if (deltaModularity(lme2.first, lme2.second, total_weight) > deltaModularity(lme1.first, lme1.second, total_weight)) {
+            return lme2;
+          } else {
+            return lme1;
+          }
+        },
+        graph.node_count);
+  };
+
+  auto nodes = graph.nodes
+    .template FlatMap<std::pair<NodeId, std::pair<typename NodeType::LinkType, Weight>>>(
+      [](const NodeType& node, auto emit) {
+        for (typename NodeType::LinkType link : node.links) {
+          NodeId old_target = link.target;
+          link.target = node.id;
+          emit(std::make_pair(old_target, std::make_pair(link, node.weightedDegree())));
+        }
+      })
+    .template GroupToIndex<NodeWithTargetDegreesType>(
+      [](const std::pair<NodeId, std::pair<typename NodeType::LinkType, Weight>>& edge_with_target_degree) { return edge_with_target_degree.first; },
+      [](auto& iterator, const NodeId node_id) {
+        NodeWithTargetDegreesType node { node_id, {} };
+        while (iterator.HasNext()) {
+          const std::pair<NodeId, std::pair<typename NodeType::LinkType, Weight>>& edge_with_target_degree = iterator.Next();
+          node.push_back(NodeWithTargetDegreesType::LinkType::fromLink(edge_with_target_degree.second.first, edge_with_target_degree.second.second));
+        }
+        return node;
+      },
+      graph.node_count);
+
+  auto node_clusters = nodes
+    .Map([](const NodeWithTargetDegreesType& node) { return std::make_pair(std::make_pair(node, node.id), false); })
+    .Cache();
+
+  size_t cluster_count = graph.node_count;
+  uint32_t rate = 200;
+  uint32_t rate_sum = 0;
+
+  for (uint32_t iteration = 0; iteration < num_iterations; iteration++) {
+    auto included = [iteration, rate](const NodeId id) { return nodeIncluded(id, iteration, rate); };
+
+    size_t considered_nodes = node_clusters
+      .Keep()
+      .Filter(
+        [&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
+          return included(node_cluster.first.first.id);
+        })
+      .Size();
+
+    if (considered_nodes > 0) {
+      node_clusters = (iteration == 0 ?
+        reduceToBestCluster(node_clusters
+          .template FlatMap<std::pair<Node, IncidentClusterInfo>>(
+            [&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster_moved, auto emit) {
+              const auto& node_cluster = node_cluster_moved.first;
+
+              if (included(node_cluster.first.id)) {
+                emit(std::make_pair(
+                  Node { node_cluster.first.id, node_cluster.first.weightedDegree() },
+                  IncidentClusterInfo {
+                    node_cluster.second,
+                    0,
+                    node_cluster.first.weightedDegree()
+                  }
+                ));
+              }
+
+              for (const typename NodeWithTargetDegreesType::LinkType& link : node_cluster.first.links) {
+                if (included(link.target)) {
+                 emit(std::make_pair(
+                   Node { link.target, link.target_degree },
+                   IncidentClusterInfo {
+                     node_cluster.second,
+                     link.getWeight(),
+                     node_cluster.first.weightedDegree()
+                   }
+                 ));
+                }
+              }
+            })) :
+        reduceToBestCluster(node_clusters
+          .template FoldByKey<std::vector<NodeWithTargetDegreesType>>(thrill::NoDuplicateDetectionTag,
+            [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
+            [](std::vector<NodeWithTargetDegreesType>&& acc, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
+              acc.push_back(node_cluster.first.first);
+              return std::move(acc);
+            })
+          .template FlatMap<std::pair<Node, IncidentClusterInfo>>(
+            [&included](const std::pair<ClusterId, std::vector<NodeWithTargetDegreesType>>& cluster_nodes, auto emit) {
+              spp::sparse_hash_map<NodeId, NodeClusterLink> outgoing;
+              Weight total_weight = 0;
+              for (const NodeWithTargetDegreesType& node : cluster_nodes.second) {
+                total_weight += node.weightedDegree();
+              }
+              for (const NodeWithTargetDegreesType& node : cluster_nodes.second) {
+                for (const typename NodeWithTargetDegreesType::LinkType& link : node.links) {
+                  if (node.id != link.target && included(link.target)) {
+                    auto it = outgoing.find(link.target);
+                    if (it != outgoing.end()) {
+                      it->second.inbetween_weight += link.getWeight();
+                    } else {
+                      outgoing[link.target] = NodeClusterLink {
+                        link.target_degree,
+                        link.getWeight(),
+                        total_weight
+                      };
+                    }
+                  }
+                }
+                if (included(node.id)) {
+                  NodeClusterLink& cluster_link = outgoing[node.id];
+                  cluster_link.node_degree = node.weightedDegree();
+                  cluster_link.total_weight = total_weight - node.weightedDegree();
+                }
+              }
+
+              for (const auto& node_incoming : outgoing) {
+                emit(std::make_pair(
+                  Node { node_incoming.first, node_incoming.second.node_degree },
+                  IncidentClusterInfo {
+                    cluster_nodes.first,
+                    node_incoming.second.inbetween_weight,
+                    node_incoming.second.total_weight
+                  }
+                ));
+              }
+            }))
+          )
+        .Zip(thrill::NoRebalanceTag, node_clusters,
+          [&included](const std::pair<Node, IncidentClusterInfo>& lme, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& old_node_cluster) {
+            if (included(old_node_cluster.first.first.id)) {
+              assert(lme.first.id == old_node_cluster.first.first.id);
+              return std::make_pair(std::make_pair(old_node_cluster.first.first, lme.second.cluster), lme.second.cluster != old_node_cluster.first.second);
+            } else {
+              return std::make_pair(old_node_cluster.first, false);
+            }
+          })
+        .Cache();
+
+      rate_sum += rate;
+      rate = std::max(1000 - (node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size() * 1000 / considered_nodes), 200ul);
+
+      if (rate_sum >= 1000) {
+        size_t round_cluster_count = node_clusters.Keep().Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; }).Uniq().Size();
+        assert(graph.node_count == node_clusters.Size());
+
+        if (cluster_count - round_cluster_count <= graph.node_count / 100) {
+          break;
+        }
+
+        cluster_count = round_cluster_count;
+        rate_sum -= 1000;
+      }
+    } else {
+      rate += 200;
+      if (rate > 1000) { rate = 1000; }
+    }
+  }
+
+  return node_clusters.Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return NodeCluster(node_cluster.first.first.id, node_cluster.first.second); });
 }
 
 template<class NodeType, class EdgeType>
