@@ -16,5 +16,5 @@ echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} 
 result_id=$(ruby -e "require 'securerandom'; puts SecureRandom.uuid")
 executable="$HOME/code/prototypes/thrill_louvain/release/node_based_local_moving"
 startexe="mpirun -n ${MOAB_NODECOUNT} ${MPIRUN_OPTIONS} ${executable}"
-echo $startexe "$GRAPH" "$CLUSTERING-$MOAB_JOBID.bin,$result_id"
-exec $startexe "$GRAPH" "$CLUSTERING-$MOAB_JOBID.bin,$result_id"
+echo $startexe "$GRAPH" "$CLUSTERING-$MOAB_JOBID-@@@@-#####.bin,$result_id"
+exec $startexe "$GRAPH" "$CLUSTERING-$MOAB_JOBID-@@@@-#####.bin,$result_id"
