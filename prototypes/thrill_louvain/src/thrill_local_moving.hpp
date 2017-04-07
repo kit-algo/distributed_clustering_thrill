@@ -71,8 +71,8 @@ bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t ra
   return hash % 1000 < rate;
 }
 
-template<class NodeType, class EdgeType>
-auto localPrereduceDistributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterations) {
+template<class NodeType>
+auto localPrereduceDistributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations) {
   using NodeWithTargetDegreesType = typename std::conditional<std::is_same<NodeType, NodeWithLinks>::value, NodeWithLinksAndTargetDegree, NodeWithWeightedLinksAndTargetDegree>::type;
 
   auto reduceToBestCluster = [&graph](const auto& incoming) {
@@ -244,8 +244,8 @@ auto localPrereduceDistributedLocalMoving(const DiaGraph<NodeType, EdgeType>& gr
   return node_clusters.Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return NodeCluster(node_cluster.first.first.id, node_cluster.first.second); });
 }
 
-template<class NodeType, class EdgeType>
-auto distributedLocalMoving(const DiaGraph<NodeType, EdgeType>& graph, uint32_t num_iterations) {
+template<class NodeType>
+auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations) {
   using NodeWithTargetDegreesType = typename std::conditional<std::is_same<NodeType, NodeWithLinks>::value, NodeWithLinksAndTargetDegree, NodeWithWeightedLinksAndTargetDegree>::type;
 
   auto calculateIncoming = [](const auto& node_cluster_weights, const auto& included) {

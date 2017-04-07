@@ -17,8 +17,10 @@
 
 namespace Louvain {
 
-template<class NodeType, class EdgeType, class F>
-thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph, const F& local_moving) {
+template<class NodeType, class F>
+thrill::DIA<NodeCluster> louvain(const DiaNodeGraph<NodeType>& graph, const F& local_moving) {
+  using EdgeType = typename NodeType::LinkType::EdgeType;
+
   graph.nodes.Keep();
   auto node_clusters = local_moving(graph);
 
@@ -98,7 +100,7 @@ thrill::DIA<NodeCluster> louvain(const DiaGraph<NodeType, EdgeType>& graph, cons
   auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
   assert(meta_graph_edges.Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
-  return louvain(DiaGraph<NodeWithWeightedLinks, WeightedEdge> { nodes, meta_graph_edges, cluster_count, graph.total_weight }, local_moving)
+  return louvain(DiaNodeGraph<NodeWithWeightedLinks> { nodes, cluster_count, graph.total_weight }, local_moving)
     .Zip(clusters_with_nodes,
       [](const NodeCluster& meta_cluster, const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) {
         assert(meta_cluster.first == cluster_nodes.first);
@@ -118,7 +120,7 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
 
-    auto graph = Input::readGraph(argv[1], context);
+    auto graph = Input::readToNodeGraph(argv[1], context);
 
     Logging::Id program_run_logging_id;
     if (context.my_rank() == 0) {
