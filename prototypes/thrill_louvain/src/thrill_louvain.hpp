@@ -145,6 +145,7 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
 
       if (argc > 2) {
         auto clustering_input = Logging::parse_input_with_logging_id(argv[2]);
+        Logging::report("clustering", clustering_input.second, "path", clustering_input.first);
         Logging::report("clustering", clustering_input.second, "source", "computation");
         Logging::report("clustering", clustering_input.second, "algorithm_run_id", algorithm_run_id);
         Logging::report("clustering", clustering_input.second, "modularity", modularity);
