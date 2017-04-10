@@ -90,8 +90,7 @@ thrill::DIA<NodeCluster> louvain(const DiaNodeGraph<NodeType>& graph, const F& l
         } else {
           emit(edge);
         }
-      })
-    .Cache();
+      });
 
   auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
   assert(meta_graph_edges.Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);

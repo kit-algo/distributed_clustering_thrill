@@ -60,8 +60,7 @@ DiaEdgeGraph<Edge> readEdgeListToEdgeGraph(const std::string& file, thrill::Cont
         cleanup_mapping,
         [](const Edge& edge) { return edge.head; },
         [](const std::pair<NodeId, NodeId>& mapping) { return mapping.first; },
-        [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { edge.tail, mapping.second }; })
-      .Cache();
+        [](const Edge& edge, const std::pair<NodeId, NodeId>& mapping) { return Edge { edge.tail, mapping.second }; });
 
     return DiaEdgeGraph<Edge> { edges, node_count, total_weight };
   } else {
@@ -72,12 +71,12 @@ DiaEdgeGraph<Edge> readEdgeListToEdgeGraph(const std::string& file, thrill::Cont
 
 DiaGraph<NodeWithLinks, Edge> readEdgeListGraph(const std::string& file, thrill::Context& context) {
   auto graph = readEdgeListToEdgeGraph(file, context);
-  return DiaGraph<NodeWithLinks, Edge> { edgesToNodes(graph.edges.Keep(), graph.node_count).Cache(), graph.edges, graph.node_count, graph.total_weight };
+  return DiaGraph<NodeWithLinks, Edge> { edgesToNodes(graph.edges.Keep(), graph.node_count), graph.edges, graph.node_count, graph.total_weight };
 }
 
 DiaNodeGraph<NodeWithLinks> readEdgeListToNodeGraph(const std::string& file, thrill::Context& context) {
   auto graph = readEdgeListToEdgeGraph(file, context);
-  return DiaNodeGraph<NodeWithLinks> { edgesToNodes(graph.edges, graph.node_count).Cache(), graph.node_count, graph.total_weight };
+  return DiaNodeGraph<NodeWithLinks> { edgesToNodes(graph.edges, graph.node_count), graph.node_count, graph.total_weight };
 }
 
 
@@ -121,12 +120,12 @@ DiaNodeGraph<NodeWithLinks> readDimacsToNodeGraph(const std::string& file, thril
 // TODO remove caches?
 DiaGraph<NodeWithLinks, Edge> readDimacsGraph(const std::string& file, thrill::Context& context) {
   auto graph = readDimacsToNodeGraph(file, context);
-  return DiaGraph<NodeWithLinks, Edge> { graph.nodes, nodesToEdges(graph.nodes).Cache(), graph.node_count, graph.total_weight };
+  return DiaGraph<NodeWithLinks, Edge> { graph.nodes, nodesToEdges(graph.nodes), graph.node_count, graph.total_weight };
 }
 
 DiaEdgeGraph<Edge> readDimacsToEdgeGraph(const std::string& file, thrill::Context& context) {
   auto graph = readDimacsToNodeGraph(file, context);
-  return DiaEdgeGraph<Edge> { nodesToEdges(graph.nodes).Cache(), graph.node_count, graph.total_weight };
+  return DiaEdgeGraph<Edge> { nodesToEdges(graph.nodes), graph.node_count, graph.total_weight };
 }
 
 
@@ -147,22 +146,21 @@ DiaEdgeGraph<Edge> readBinaryToEdgeGraph(const std::string& file, thrill::Contex
           emit(Edge { node.first, neighbor });
           emit(Edge { neighbor, node.first });
         }
-      })
-    .Cache();
+      });
 
-  Weight total_weight = edges.Size() / 2;
+  Weight total_weight = edges.Keep().Size() / 2;
 
   return DiaEdgeGraph<Edge> { edges, node_count, total_weight };
 }
 
 DiaGraph<NodeWithLinks, Edge> readBinaryGraph(const std::string& file, thrill::Context& context) {
   auto graph = readBinaryToEdgeGraph(file, context);
-  return DiaGraph<NodeWithLinks, Edge> { edgesToNodes(graph.edges.Keep(), graph.node_count).Cache(), graph.edges, graph.node_count, graph.total_weight };
+  return DiaGraph<NodeWithLinks, Edge> { edgesToNodes(graph.edges.Keep(), graph.node_count), graph.edges, graph.node_count, graph.total_weight };
 }
 
 DiaNodeGraph<NodeWithLinks> readBinaryToNodeGraph(const std::string& file, thrill::Context& context) {
   auto graph = readBinaryToEdgeGraph(file, context);
-  return DiaNodeGraph<NodeWithLinks> { edgesToNodes(graph.edges, graph.node_count).Cache(), graph.node_count, graph.total_weight };
+  return DiaNodeGraph<NodeWithLinks> { edgesToNodes(graph.edges, graph.node_count), graph.node_count, graph.total_weight };
 }
 
 
