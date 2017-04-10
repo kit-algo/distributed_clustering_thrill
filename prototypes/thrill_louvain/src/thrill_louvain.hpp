@@ -21,11 +21,7 @@ template<class NodeType, class F>
 thrill::DIA<NodeCluster> louvain(const DiaNodeGraph<NodeType>& graph, const F& local_moving) {
   using EdgeType = typename NodeType::LinkType::EdgeType;
 
-  graph.nodes.Keep();
-  auto node_clusters = local_moving(graph);
-
-  auto clusters_with_nodes = graph.nodes
-    .Zip(thrill::NoRebalanceTag, node_clusters, [](const NodeType& node, const NodeCluster& node_cluster) { assert(node.id == node_cluster.first); return std::make_pair(node, node_cluster.second); })
+  auto clusters_with_nodes = local_moving(graph)
     .template GroupByKey<std::pair<ClusterId, std::vector<NodeType>>>(
       [](const std::pair<NodeType, ClusterId>& node_cluster) { return node_cluster.second; },
       [](auto& iterator, const ClusterId cluster) {

@@ -27,10 +27,6 @@ namespace LocalMoving {
 
 using int128_t = __int128_t;
 
-using NodeCluster = std::pair<NodeId, ClusterId>;
-using ClusterWeight = std::pair<ClusterId, Weight>;
-
-
 struct Node {
   NodeId id;
   Weight degree;
@@ -234,7 +230,11 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
     }
   }
 
-  return node_clusters.Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return NodeCluster(node_cluster.first.first.id, node_cluster.first.second); });
+  return node_clusters
+    .Map(
+      [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
+        return std::make_pair(node_cluster.first.first.toNodeWithoutTargetDegrees(), node_cluster.first.second);
+      });
 }
 
 template<class Graph>
@@ -278,38 +278,39 @@ auto partitionedLocalMoving(const Graph& graph) {
         return std::make_pair(node, node_partition.partition);
       })
     // Local Moving
-    .template GroupToIndex<std::vector<NodeCluster>>(
+    .template GroupToIndex<std::vector<std::pair<typename Graph::Node, ClusterId>>>(
       [](const std::pair<Node, uint32_t>& node_partition) -> size_t { return node_partition.second; },
       [total_weight = graph.total_weight, partition_element_size](auto& iterator, const uint32_t) {
         // TODO deterministic random
         GhostGraph<weighted> graph(partition_element_size, total_weight);
-        const std::vector<NodeId> reverse_mapping = graph.initialize([&iterator](const auto& emit) {
-          while (iterator.HasNext()) {
-            emit(iterator.Next().first);
-          }
-        });
+        const std::vector<typename Graph::Node> reverse_mapping = graph.template initialize<typename Graph::Node>(
+          [&iterator](const auto& emit) {
+            while (iterator.HasNext()) {
+              emit(iterator.Next().first);
+            }
+          });
 
         GhostClusterStore clusters(graph.getNodeCount());
         Modularity::localMoving(graph, clusters);
         clusters.rewriteClusterIds(reverse_mapping);
 
-        std::vector<std::pair<uint32_t, uint32_t>> mapping;
+        std::vector<std::pair<typename Graph::Node, ClusterId>> mapping;
         mapping.reserve(graph.getNodeCount());
         for (NodeId node = 0; node < graph.getNodeCount(); node++) {
-          mapping.push_back(NodeCluster(reverse_mapping[node], clusters[node]));
+          mapping.emplace_back(reverse_mapping[node], clusters[node]);
         }
         return mapping;
       }, partition_size)
-    .template FlatMap<NodeCluster>(
-      [](std::vector<NodeCluster> mapping, auto emit) {
-        for (const NodeCluster& pair : mapping) {
+    .template FlatMap<std::pair<typename Graph::Node, ClusterId>>(
+      [](const std::vector<std::pair<typename Graph::Node, ClusterId>>& mapping, auto emit) {
+        for (const auto& pair : mapping) {
           emit(pair);
         }
       })
-    .ReducePairToIndex(
-      [](const ClusterId cluster, const ClusterId) { assert(false); return cluster; },
-      graph.node_count)
-    .Cache();
+    .ReduceToIndex(
+      [](const std::pair<typename Graph::Node, ClusterId>& node_cluster) -> size_t { return node_cluster.first.id; },
+      [](const std::pair<typename Graph::Node, ClusterId>& node_cluster, const std::pair<typename Graph::Node, ClusterId>&) { assert(false); return node_cluster; },
+      graph.node_count);
 }
 
 } // LocalMoving

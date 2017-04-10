@@ -17,6 +17,8 @@ struct Edge;
 struct WeightedEdge;
 struct NodeWithLinks;
 struct NodeWithWeightedLinks;
+struct EdgeTargetWithDegree;
+struct WeightedEdgeTargetWithDegree;
 
 struct EdgeTarget {
   using EdgeType = Edge;
@@ -27,6 +29,7 @@ struct EdgeTarget {
   inline Weight getWeight() const { return 1; }
 
   static EdgeTarget fromEdge(const Edge& edge);
+  static EdgeTarget fromLinkWithTargetDegree(const EdgeTargetWithDegree& link);
 };
 
 struct WeightedEdgeTarget {
@@ -39,6 +42,7 @@ struct WeightedEdgeTarget {
   inline Weight getWeight() const { return weight; }
 
   static WeightedEdgeTarget fromEdge(const WeightedEdge& edge);
+  static WeightedEdgeTarget fromLinkWithTargetDegree(const WeightedEdgeTargetWithDegree& link);
 };
 
 struct EdgeTargetWithDegree {
@@ -54,6 +58,9 @@ struct EdgeTargetWithDegree {
     return EdgeTargetWithDegree { link.target, target_degree };
   }
 };
+EdgeTarget EdgeTarget::fromLinkWithTargetDegree(const EdgeTargetWithDegree& link) {
+  return EdgeTarget { link.target };
+}
 
 struct WeightedEdgeTargetWithDegree {
   using EdgeType = WeightedEdge;
@@ -69,6 +76,9 @@ struct WeightedEdgeTargetWithDegree {
     return WeightedEdgeTargetWithDegree { link.target, link.weight, target_degree };
   }
 };
+WeightedEdgeTarget WeightedEdgeTarget::fromLinkWithTargetDegree(const WeightedEdgeTargetWithDegree& link) {
+  return WeightedEdgeTarget { link.target, link.weight };
+}
 
 struct Edge {
   using NodeType = NodeWithLinks;
@@ -196,6 +206,15 @@ struct NodeWithLinksAndTargetDegree {
   void push_back(const EdgeTargetWithDegree& link) {
     links.push_back(link);
   }
+
+  NodeWithLinks toNodeWithoutTargetDegrees() const {
+    NodeWithLinks node { id, {} };
+    node.links.reserve(links.size());
+    for (const auto& link : links) {
+      node.push_back(EdgeTarget::fromLinkWithTargetDegree(link));
+    }
+    return node;
+  }
 };
 
 
@@ -211,6 +230,15 @@ struct NodeWithWeightedLinksAndTargetDegree {
   void push_back(const WeightedEdgeTargetWithDegree& link) {
     weighted_degree_cache += link.weight;
     links.push_back(link);
+  }
+
+  NodeWithWeightedLinks toNodeWithoutTargetDegrees() const {
+    NodeWithWeightedLinks node { id, {} };
+    node.links.reserve(links.size());
+    for (const auto& link : links) {
+      node.push_back(WeightedEdgeTarget::fromLinkWithTargetDegree(link));
+    }
+    return node;
   }
 };
 

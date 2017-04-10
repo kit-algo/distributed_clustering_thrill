@@ -35,18 +35,18 @@ public:
     }
   }
 
-  template<class F>
-  std::vector<NodeId> initialize(const F& f) {
+  template<class Node, class F>
+  std::vector<Node> initialize(const F& f) {
     std::unordered_map<NodeId, NodeId> id_mapping;
     std::map<NodeId, Weight> ghost_node_degrees;
     NodeId id_counter = 0;
     size_t edge_counter = 0;
 
-    std::vector<NodeId> reverse_mapping;
+    std::vector<Node> reverse_mapping;
     reverse_mapping.reserve(first_out.capacity());
 
     f([this, &id_mapping, &id_counter, &ghost_node_degrees, &reverse_mapping, &edge_counter](const auto& node) {
-      reverse_mapping.push_back(node.id);
+      reverse_mapping.push_back(node.toNodeWithoutTargetDegrees());
       id_mapping[node.id] = id_counter++;
 
       first_out.push_back(first_out.back() + node.links.size());

@@ -31,13 +31,14 @@ public:
     std::iota(clusters.begin(), clusters.end(), 0);
   }
 
-  void rewriteClusterIds(const std::vector<ClusterId>& id_space) {
+  template<class Node>
+  void rewriteClusterIds(const std::vector<Node>& id_space) {
     size_t id_counter = 0;
     std::unordered_map<NodeId, ClusterId> old_to_new;
 
     for (ClusterId& cluster_id : clusters) {
       if (old_to_new.find(cluster_id) == old_to_new.end()) {
-        old_to_new[cluster_id] = id_space[id_counter++];
+        old_to_new[cluster_id] = id_space[id_counter++].id;
       }
       ClusterId new_id = old_to_new[cluster_id];
       cluster_id = new_id;
