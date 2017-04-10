@@ -24,7 +24,7 @@ ARGF.each_line do |line|
     when 'PushData'
       log("repushed #{operation}.#{stage_index}") if stage_index < current_stage_index && operation != 'Cache'
     when 'Dispose'
-      log("Possibly unnecessary #{operation}.#{stage_index}") if operation == 'Cache' && !undisposed.include?("#{operation}.#{stage_index}")
+      log("Possibly unnecessary #{operation}.#{stage_index}") if operation == 'Cache' && stage_index == current_stage_index
       undisposed.delete("#{operation}.#{stage_index}")
       log("late dispose of #{operation}.#{stage_index}") if stage_index < current_stage_index
     end
