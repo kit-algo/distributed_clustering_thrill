@@ -45,4 +45,11 @@ double modularity(const Graph& graph, const thrill::DIA<NodeCluster>& clusters) 
   return (cluster_degrees_and_inside_weights.second / (2.* graph.total_weight)) - (cluster_degrees_and_inside_weights.first / (4.*graph.total_weight*graph.total_weight));
 }
 
+double modularity(const DiaNodeGraph<NodeWithWeightedLinks>& graph) {
+  auto node_clusters = graph.nodes
+    .Map([](const NodeWithWeightedLinks& node) { return NodeCluster(node.id, node.id); });
+
+  return modularity(DiaEdgeGraph<WeightedEdge> { nodesToEdges(graph.nodes), graph.node_count, graph.total_weight }, node_clusters);
+}
+
 } // Modularity

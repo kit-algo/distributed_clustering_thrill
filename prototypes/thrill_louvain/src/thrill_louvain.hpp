@@ -14,11 +14,12 @@
 #include "input.hpp"
 #include "util.hpp"
 #include "logging.hpp"
+#include "thrill_modularity.hpp"
 
 namespace Louvain {
 
 template<class NodeType, class F>
-thrill::DIA<NodeCluster> louvain(const DiaNodeGraph<NodeType>& graph, const F& local_moving) {
+auto louvain(const DiaNodeGraph<NodeType>& graph, const F& local_moving) {
   using EdgeType = typename NodeType::LinkType::EdgeType;
 
   auto clusters_with_nodes = local_moving(graph)
@@ -36,7 +37,9 @@ thrill::DIA<NodeCluster> louvain(const DiaNodeGraph<NodeType>& graph, const F& l
   size_t cluster_count = clusters_with_nodes.Keep().Size();
 
   if (graph.node_count == cluster_count) {
-    return clusters_with_nodes.Map([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) { return NodeCluster(cluster_nodes.first, cluster_nodes.first); }).Collapse();
+    auto node_clusters = clusters_with_nodes.Keep().Map([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) { return NodeCluster(cluster_nodes.first, cluster_nodes.first); }).Collapse();
+    auto final_nodes = clusters_with_nodes.template FlatMap<NodeWithWeightedLinks>([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) { emit(cluster_nodes.second[0].asNodeWithWeights()); });
+    return std::make_pair(node_clusters, DiaNodeGraph<NodeWithWeightedLinks> { final_nodes, cluster_count, graph.total_weight });
   }
 
   auto mapping = clusters_with_nodes
@@ -95,7 +98,8 @@ thrill::DIA<NodeCluster> louvain(const DiaNodeGraph<NodeType>& graph, const F& l
   auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
   assert(meta_graph_edges.Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
-  return louvain(DiaNodeGraph<NodeWithWeightedLinks> { nodes, cluster_count, graph.total_weight }, local_moving)
+  auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { nodes, cluster_count, graph.total_weight }, local_moving);
+  return std::make_pair(meta_result.first
     .Zip(clusters_with_nodes,
       [](const NodeCluster& meta_cluster, const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) {
         assert(meta_cluster.first == cluster_nodes.first);
@@ -107,7 +111,7 @@ thrill::DIA<NodeCluster> louvain(const DiaNodeGraph<NodeType>& graph, const F& l
           emit(NodeCluster(node.id, cluster_nodes.first));
         }
       })
-    .ReducePairToIndex([](const ClusterId id, const ClusterId) { assert(false); return id; }, graph.node_count);
+    .ReducePairToIndex([](const ClusterId id, const ClusterId) { assert(false); return id; }, graph.node_count), meta_result.second);
 }
 
 template<class F>
@@ -129,8 +133,10 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
       Logging::report("program_run", program_run_logging_id, "edge_count", graph.total_weight);
     }
 
-    auto node_clusters = run(graph);
+    auto result = run(graph);
+    auto node_clusters = result.first;
     node_clusters.Execute();
+    double modularity = Modularity::modularity(result.second);
 
     if (context.my_rank() == 0) {
       Logging::Id algorithm_run_id = Logging::getUnusedId();
@@ -141,10 +147,14 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
         auto clustering_input = Logging::parse_input_with_logging_id(argv[2]);
         Logging::report("clustering", clustering_input.second, "source", "computation");
         Logging::report("clustering", clustering_input.second, "algorithm_run_id", algorithm_run_id);
+        Logging::report("clustering", clustering_input.second, "modularity", modularity);
+        Logging::report("clustering", clustering_input.second, "cluster_count", result.second.node_count);
       } else {
         Logging::Id clusters_logging_id = Logging::getUnusedId();
         Logging::report("clustering", clusters_logging_id, "source", "computation");
         Logging::report("clustering", clusters_logging_id, "algorithm_run_id", algorithm_run_id);
+        Logging::report("clustering", clusters_logging_id, "modularity", modularity);
+        Logging::report("clustering", clusters_logging_id, "cluster_count", result.second.node_count);
       }
     }
 

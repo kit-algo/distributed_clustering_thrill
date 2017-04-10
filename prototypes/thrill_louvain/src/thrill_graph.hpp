@@ -133,21 +133,6 @@ WeightedEdgeTarget WeightedEdgeTarget::fromEdge(const WeightedEdge& edge) {
   return WeightedEdgeTarget { edge.head, edge.weight };
 }
 
-
-struct NodeWithLinks {
-  using LinkType = EdgeTarget;
-
-  NodeId id;
-  std::vector<EdgeTarget> links;
-
-  Weight weightedDegree() const { return links.size(); }
-
-  void push_back(const EdgeTarget& link) {
-    links.push_back(link);
-  }
-};
-
-
 struct NodeWithWeightedLinks {
   using LinkType = WeightedEdgeTarget;
 
@@ -160,6 +145,32 @@ struct NodeWithWeightedLinks {
   void push_back(const WeightedEdgeTarget& link) {
     weighted_degree_cache += link.weight;
     links.push_back(link);
+  }
+
+  NodeWithWeightedLinks asNodeWithWeights() const {
+    return *this;
+  }
+};
+
+struct NodeWithLinks {
+  using LinkType = EdgeTarget;
+
+  NodeId id;
+  std::vector<EdgeTarget> links;
+
+  Weight weightedDegree() const { return links.size(); }
+
+  void push_back(const EdgeTarget& link) {
+    links.push_back(link);
+  }
+
+  NodeWithWeightedLinks asNodeWithWeights() const {
+    NodeWithWeightedLinks node { id, {} };
+    node.links.reserve(links.size());
+    for (const EdgeTarget& link : links) {
+      node.push_back(WeightedEdgeTarget { link.target, 1 });
+    }
+    return node;
   }
 };
 
