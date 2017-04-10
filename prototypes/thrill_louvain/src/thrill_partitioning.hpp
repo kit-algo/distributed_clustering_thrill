@@ -45,7 +45,7 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
         });
   };
 
-  auto node_labels = graph.nodes.Map([](const Node& node) { return NodeLabel(node, node.id); }).Collapse();
+  auto node_labels = graph.nodes.Keep().Map([](const Node& node) { return NodeLabel(node, node.id); }).Collapse();
 
   for (uint32_t iteration = 0; iteration < max_num_iterations; iteration++) {
     auto new_node_labels = (iteration < max_num_iterations / 3 ?
