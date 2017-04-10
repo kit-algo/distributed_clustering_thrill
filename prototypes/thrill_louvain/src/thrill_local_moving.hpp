@@ -103,7 +103,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
 
   auto node_clusters = nodes
     .Map([](const NodeWithTargetDegreesType& node) { return std::make_pair(std::make_pair(node, node.id), false); })
-    .Cache();
+    .Collapse();
 
   size_t cluster_count = graph.node_count;
   uint32_t rate = 200;
@@ -112,15 +112,9 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
   for (uint32_t iteration = 0; iteration < num_iterations; iteration++) {
     auto included = [iteration, rate](const NodeId id) { return nodeIncluded(id, iteration, rate); };
 
-    size_t considered_nodes = node_clusters
-      .Keep()
-      .Filter(
-        [&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
-          return included(node_cluster.first.first.id);
-        })
-      .Size();
+    size_t considered_nodes_estimate = graph.node_count * rate / 1000;
 
-    if (considered_nodes > 0) {
+    if (considered_nodes_estimate > 0) {
       node_clusters = (iteration == 0 ?
         reduceToBestCluster(node_clusters
           .template FlatMap<std::pair<Node, IncidentClusterInfo>>(
@@ -211,7 +205,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
         .Cache();
 
       rate_sum += rate;
-      rate = std::max(1000 - (node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size() * 1000 / considered_nodes), 200ul);
+      rate = std::max(1000 - (node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size() * 1000 / considered_nodes_estimate), 200ul);
 
       if (rate_sum >= 1000) {
         size_t round_cluster_count = node_clusters.Keep().Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; }).Uniq().Size();
