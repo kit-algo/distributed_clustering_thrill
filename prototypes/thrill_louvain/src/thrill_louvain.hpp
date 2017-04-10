@@ -54,8 +54,19 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, const F& local_moving) {
       [](const NodeCluster& node_cluster, const NodeCluster&) { assert(false); return node_cluster; },
       graph.node_count);
 
+  auto clusters_with_node_ids = clusters_with_nodes
+    .Map(
+      [](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) {
+        std::vector<NodeId> ids;
+        ids.reserve(cluster_nodes.second.size());
+        for (const auto& node : cluster_nodes.second) {
+          ids.push_back(node.id);
+        }
+        return std::make_pair(cluster_nodes.first, ids);
+      })
+    .Cache();
+
   auto half_meta_edges = clusters_with_nodes
-    .Keep()
     // Build Meta Graph
     .template FlatMap<EdgeType>(
       [](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
@@ -100,15 +111,15 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, const F& local_moving) {
 
   auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { nodes, cluster_count, graph.total_weight }, local_moving);
   return std::make_pair(meta_result.first
-    .Zip(clusters_with_nodes,
-      [](const NodeCluster& meta_cluster, const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) {
-        assert(meta_cluster.first == cluster_nodes.first);
-        return std::make_pair(meta_cluster.second, cluster_nodes.second);
+    .Zip(clusters_with_node_ids,
+      [](const NodeCluster& meta_cluster, const std::pair<ClusterId, std::vector<NodeId>>& cluster_node_ids) {
+        assert(meta_cluster.first == cluster_node_ids.first);
+        return std::make_pair(meta_cluster.second, cluster_node_ids.second);
       })
     .template FlatMap<NodeCluster>(
-      [](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
-        for (const NodeType& node : cluster_nodes.second) {
-          emit(NodeCluster(node.id, cluster_nodes.first));
+      [](const std::pair<ClusterId, std::vector<NodeId>>& cluster_node_ids, auto emit) {
+        for (const NodeId& id : cluster_node_ids.second) {
+          emit(NodeCluster(id, cluster_node_ids.first));
         }
       })
     .ReducePairToIndex([](const ClusterId id, const ClusterId) { assert(false); return id; }, graph.node_count), meta_result.second);
