@@ -22,11 +22,13 @@ int main(int argc, char const *argv[]) {
   std::string ground_truth_output = "";
   if (argc > 2) {
     ground_truth_file = std::string(argv[2]);
-    glob_index = ground_truth_file.find('*');
-    if (glob_index != std::string::npos) {
-      ground_truth_file.erase(ground_truth_file.begin() + glob_index);
+    if (!ground_truth_file.empty()) {
+      glob_index = ground_truth_file.find('*');
+      if (glob_index != std::string::npos) {
+        ground_truth_file.erase(ground_truth_file.begin() + glob_index);
+      }
+      ground_truth_output = ground_truth_file.replace(ground_truth_file.begin() + ground_truth_file.rfind('.'), ground_truth_file.end(), "-preprocessed-@@@@-#####.bin");
     }
-    ground_truth_output = ground_truth_file.replace(ground_truth_file.begin() + ground_truth_file.rfind('.'), ground_truth_file.end(), "-preprocessed-@@@@-#####.bin");
   }
 
   return thrill::Run([&](thrill::Context& context) {
