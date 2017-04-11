@@ -26,10 +26,10 @@ graphs = [
 ]
 
 small_graphs = [
-  ['graphs/graph_50_10000_mu_0.5_100000.bin', 'graphs/part_50_10000_mu_0.5_100000.bin'],
-  ['graphs/graph_50_10000_mu_0.5_1000000.bin', 'graphs/part_50_10000_mu_0.5_1000000.bin'],
+  # ['graphs/graph_50_10000_mu_0.5_100000.bin', 'graphs/part_50_10000_mu_0.5_100000.bin'],
+  # ['graphs/graph_50_10000_mu_0.5_1000000.bin', 'graphs/part_50_10000_mu_0.5_1000000.bin'],
   ['graphs/in-2004.metis.graph'],
-  ['graphs/com-youtube.ungraph.txt'],
+  # ['graphs/com-youtube.ungraph.txt'],
   ['graphs/com-amazon.ungraph.txt']
 ]
 
