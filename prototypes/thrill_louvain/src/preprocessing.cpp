@@ -59,7 +59,7 @@ int main(int argc, char const *argv[]) {
 
     // NodeId node_count = cleanup_mapping.Keep().Size();
 
-    if (argc > 2) {
+    if (argc > 2 && !ground_truth_file.empty()) {
       Input::readClustering(argv[2], context)
         .InnerJoin(cleanup_mapping.Keep(),
           [](const NodeCluster& node_cluster) { return node_cluster.first; },
