@@ -12,11 +12,14 @@ ARGV.each do |job_output_file|
 
   Dir.glob(File.join(File.dirname(job_output_file), "*-log-#{job_id}-*.json")).each do |json_log|
     File.open(json_log).each do |line|
-      event = JSON.parse(line)
-      start = event['ts'] if event['id'] == 9 && event['event'] == 'execute-start' && event['ts'] < start
-      if event['id'] && event['id'] >= final_stage && event['label'] == 'ZipWithIndex' && event['event'] == 'pushdata-done'
-        final_stage = event['id']
-        ending = event['ts'] if event['ts'] > ending
+      begin
+        event = JSON.parse(line)
+        start = event['ts'] if event['id'] == 9 && event['event'] == 'execute-start' && event['ts'] < start
+        if event['id'] && event['id'] >= final_stage && event['label'] == 'ZipWithIndex' && event['event'] == 'pushdata-done'
+          final_stage = event['id']
+          ending = event['ts'] if event['ts'] > ending
+        end
+      rescue JSON::ParserError
       end
     end
   end
