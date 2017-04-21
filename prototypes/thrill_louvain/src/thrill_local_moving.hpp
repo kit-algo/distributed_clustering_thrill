@@ -64,7 +64,7 @@ static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
 
 template<class NodeType>
 auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations) {
-  constexpr bool weighted = !std::is_same<NodeType, NodeWithLinks>::value;
+  constexpr bool weighted = std::is_same<NodeType, NodeWithWeightedLinks>::value;
   using NodeWithTargetDegreesType = typename std::conditional<weighted, NodeWithWeightedLinksAndTargetDegree, NodeWithLinksAndTargetDegree>::type;
 
   auto reduceToBestCluster = [&graph](const auto& incoming) {
