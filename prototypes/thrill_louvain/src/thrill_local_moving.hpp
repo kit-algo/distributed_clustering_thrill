@@ -60,9 +60,12 @@ bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t ra
   return hash % 1000 < rate;
 }
 
+static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
+
 template<class NodeType>
 auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations) {
-  using NodeWithTargetDegreesType = typename std::conditional<std::is_same<NodeType, NodeWithLinks>::value, NodeWithLinksAndTargetDegree, NodeWithWeightedLinksAndTargetDegree>::type;
+  constexpr bool weighted = !std::is_same<NodeType, NodeWithLinks>::value;
+  using NodeWithTargetDegreesType = typename std::conditional<weighted, NodeWithWeightedLinksAndTargetDegree, NodeWithLinksAndTargetDegree>::type;
 
   auto reduceToBestCluster = [&graph](const auto& incoming) {
     return incoming
@@ -80,22 +83,23 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
         graph.node_count);
   };
 
+  using EdgeWithTargetDegreeType = typename std::conditional<weighted, std::tuple<NodeId, typename NodeType::LinkType, Weight>, std::tuple<NodeId, typename NodeType::LinkType, uint32_t>>::type;
   auto nodes = graph.nodes
-    .template FlatMap<std::pair<NodeId, std::pair<typename NodeType::LinkType, Weight>>>(
+    .template FlatMap<EdgeWithTargetDegreeType>(
       [](const NodeType& node, auto emit) {
         for (typename NodeType::LinkType link : node.links) {
           NodeId old_target = link.target;
           link.target = node.id;
-          emit(std::make_pair(old_target, std::make_pair(link, node.weightedDegree())));
+          emit(EdgeWithTargetDegreeType(old_target, link, node.weightedDegree()));
         }
       })
     .template GroupToIndex<NodeWithTargetDegreesType>(
-      [](const std::pair<NodeId, std::pair<typename NodeType::LinkType, Weight>>& edge_with_target_degree) { return edge_with_target_degree.first; },
+      [](const EdgeWithTargetDegreeType& edge_with_target_degree) { return std::get<0>(edge_with_target_degree); },
       [](auto& iterator, const NodeId node_id) {
         NodeWithTargetDegreesType node { node_id, {} };
         while (iterator.HasNext()) {
-          const std::pair<NodeId, std::pair<typename NodeType::LinkType, Weight>>& edge_with_target_degree = iterator.Next();
-          node.push_back(NodeWithTargetDegreesType::LinkType::fromLink(edge_with_target_degree.second.first, edge_with_target_degree.second.second));
+          const EdgeWithTargetDegreeType& edge_with_target_degree = iterator.Next();
+          node.push_back(NodeWithTargetDegreesType::LinkType::fromLink(std::get<1>(edge_with_target_degree), std::get<2>(edge_with_target_degree)));
         }
         return node;
       },
@@ -244,22 +248,23 @@ auto partitionedLocalMoving(const Graph& graph) {
   }
   auto node_partitions = partition(graph, partition_size);
 
+  using EdgeWithTargetDegreeType = typename std::conditional<weighted, std::tuple<NodeId, typename Graph::Node::LinkType, Weight>, std::tuple<NodeId, typename Graph::Node::LinkType, uint32_t>>::type;
   auto nodes = graph.nodes
-    .template FlatMap<std::pair<NodeId, std::pair<typename Graph::Node::LinkType, Weight>>>(
+    .template FlatMap<EdgeWithTargetDegreeType>(
       [](const typename Graph::Node& node, auto emit) {
         for (typename Graph::Node::LinkType link : node.links) {
           NodeId old_target = link.target;
           link.target = node.id;
-          emit(std::make_pair(old_target, std::make_pair(link, node.weightedDegree())));
+          emit(EdgeWithTargetDegreeType(old_target, link, node.weightedDegree()));
         }
       })
     .template GroupToIndex<Node>(
-      [](const std::pair<NodeId, std::pair<typename Graph::Node::LinkType, Weight>>& edge_with_target_degree) { return edge_with_target_degree.first; },
+      [](const EdgeWithTargetDegreeType& edge_with_target_degree) { return std::get<0>(edge_with_target_degree); },
       [](auto& iterator, const NodeId node_id) {
         Node node { node_id, {} };
         while (iterator.HasNext()) {
-          const std::pair<NodeId, std::pair<typename Graph::Node::LinkType, Weight>>& edge_with_target_degree = iterator.Next();
-          node.push_back(Node::LinkType::fromLink(edge_with_target_degree.second.first, edge_with_target_degree.second.second));
+          const EdgeWithTargetDegreeType& edge_with_target_degree = iterator.Next();
+          node.push_back(Node::LinkType::fromLink(std::get<1>(edge_with_target_degree), std::get<2>(edge_with_target_degree)));
         }
         return node;
       },

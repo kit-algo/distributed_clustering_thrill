@@ -49,13 +49,13 @@ struct EdgeTargetWithDegree {
   using EdgeType = Edge;
 
   NodeId target;
-  Weight target_degree;
+  uint32_t target_degree; // this assuemes that degrees in first level will fit into 32bit integer
 
   inline NodeId getTarget() const { return target; }
   inline Weight getWeight() const { return 1; }
 
   static EdgeTargetWithDegree fromLink(const EdgeTarget& link, Weight target_degree) {
-    return EdgeTargetWithDegree { link.target, target_degree };
+    return EdgeTargetWithDegree { link.target, uint32_t(target_degree) };
   }
 };
 EdgeTarget EdgeTarget::fromLinkWithTargetDegree(const EdgeTargetWithDegree& link) {
