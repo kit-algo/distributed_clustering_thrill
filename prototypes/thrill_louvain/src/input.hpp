@@ -6,6 +6,7 @@
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/read_binary.hpp>
 #include <thrill/api/read_lines.hpp>
+#include <thrill/api/rebalance.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/reduce_to_index.hpp>
 #include <thrill/api/size.hpp>
@@ -82,7 +83,7 @@ DiaNodeGraph<NodeWithLinks> readEdgeListToNodeGraph(const std::string& file, thr
 
 
 DiaNodeGraph<NodeWithLinks> readDimacsToNodeGraph(const std::string& file, thrill::Context& context) {
-  auto lines = thrill::ReadLines(context, file);
+  auto lines = thrill::ReadLines(context, file).Rebalance();
 
   NodeId node_count = lines.Keep().Size() - 1;
 
