@@ -64,8 +64,7 @@ static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
 
 template<class NodeType>
 auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations) {
-  constexpr bool weighted = std::is_same<NodeType, NodeWithWeightedLinks>::value;
-  using NodeWithTargetDegreesType = typename std::conditional<weighted, NodeWithWeightedLinksAndTargetDegree, NodeWithLinksAndTargetDegree>::type;
+  using NodeWithTargetDegreesType = typename std::conditional<std::is_same<NodeType, NodeWithWeightedLinks>::value, NodeWithWeightedLinksAndTargetDegree, NodeWithLinksAndTargetDegree>::type;
 
   auto reduceToBestCluster = [&graph](const auto& incoming) {
     return incoming
@@ -83,7 +82,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
         graph.node_count);
   };
 
-  using EdgeWithTargetDegreeType = typename std::conditional<weighted, std::tuple<NodeId, typename NodeType::LinkType, Weight>, std::tuple<NodeId, typename NodeType::LinkType, uint32_t>>::type;
+  using EdgeWithTargetDegreeType = typename std::conditional<std::is_same<NodeType, NodeWithWeightedLinks>::value, std::tuple<NodeId, typename NodeType::LinkType, Weight>, std::tuple<NodeId, typename NodeType::LinkType, uint32_t>>::type;
   auto nodes = graph.nodes
     .template FlatMap<EdgeWithTargetDegreeType>(
       [](const NodeType& node, auto emit) {
