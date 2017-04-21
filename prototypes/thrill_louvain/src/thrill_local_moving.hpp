@@ -50,8 +50,8 @@ struct IncidentClusterInfo {
 };
 
 int128_t deltaModularity(const Node& node, const IncidentClusterInfo& neighbored_cluster, Weight total_weight) {
-  int128_t e = neighbored_cluster.inbetween_weight * total_weight * 2;
-  int128_t a = neighbored_cluster.total_weight * node.degree;
+  int128_t e = int128_t(neighbored_cluster.inbetween_weight) * total_weight * 2;
+  int128_t a = int128_t(neighbored_cluster.total_weight) * node.degree;
   return e - a;
 }
 
