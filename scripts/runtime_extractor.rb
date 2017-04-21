@@ -10,7 +10,7 @@ ARGV.each do |job_output_file|
   final_stage = 0
   ending = 0
 
-  Dir.glob("*-log-#{job_id}-*.json").each do |json_log|
+  Dir.glob(File.join(File.dirname(job_output_file), "*-log-#{job_id}-*.json")).each do |json_log|
     File.open(json_log).each do |line|
       event = JSON.parse(line)
       start = event['ts'] if event['id'] == 9 && event['event'] == 'execute-start' && event['ts'] < start
