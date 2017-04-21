@@ -22,6 +22,6 @@ node_configs = [
 graphs.each do |graph|
   node_configs.each do |config|
     command_result = `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/dlm -l walltime=01:00:00 #{config} ~/code/scripts/moab/no_default_dlm.sh`
-    puts "#{graph} #{node_config} #{command_result.strip}"
+    puts "#{graph} #{config} #{command_result.strip}"
   end
 end
