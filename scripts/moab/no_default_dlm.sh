@@ -4,7 +4,7 @@
 
 export THRILL_LOG="dlm-log-${MOAB_JOBID}"
 module load ${MPI_MODULE}
-MPIRUN_OPTIONS="--bind-to core --map-by socket:PE=${MOAB_PROCCOUNT / MOAB_NODECOUNT} -report-bindings"
+MPIRUN_OPTIONS="--bind-to core --map-by socket:PE=$((MOAB_PROCCOUNT / MOAB_NODECOUNT)) -report-bindings"
 
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} MPI-tasks and ${THRILL_WORKERS_PER_HOST} threads"
 
