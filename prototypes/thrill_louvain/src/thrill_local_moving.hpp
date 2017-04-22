@@ -1,12 +1,14 @@
 #pragma once
 
 #include <thrill/api/cache.hpp>
-#include <thrill/api/group_by_key.hpp>
+#include <thrill/api/collect_local.hpp>
 #include <thrill/api/fold_by_key.hpp>
+#include <thrill/api/group_by_key.hpp>
 #include <thrill/api/group_to_index.hpp>
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/reduce_to_index.hpp>
+#include <thrill/api/reduce_to_index_without_precombine.hpp>
 #include <thrill/api/size.hpp>
 #include <thrill/api/zip.hpp>
 
@@ -33,7 +35,6 @@ struct Node {
 };
 
 struct NodeClusterLink {
-  Weight node_degree = 0;
   Weight inbetween_weight = 0;
   Weight total_weight = 0;
 };
@@ -49,9 +50,9 @@ struct IncidentClusterInfo {
   }
 };
 
-int128_t deltaModularity(const Node& node, const IncidentClusterInfo& neighbored_cluster, Weight total_weight) {
+int128_t deltaModularity(const Weight node_degree, const IncidentClusterInfo& neighbored_cluster, Weight total_weight) {
   int128_t e = int128_t(neighbored_cluster.inbetween_weight) * total_weight * 2;
-  int128_t a = int128_t(neighbored_cluster.total_weight) * node.degree;
+  int128_t a = int128_t(neighbored_cluster.total_weight) * node_degree;
   return e - a;
 }
 
@@ -64,16 +65,23 @@ static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
 
 template<class NodeType>
 auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations) {
-  using NodeWithTargetDegreesType = typename std::conditional<std::is_same<NodeType, NodeWithWeightedLinks>::value, NodeWithWeightedLinksAndTargetDegree, NodeWithLinksAndTargetDegree>::type;
+  thrill::common::Range id_range = thrill::common::CalculateLocalRange(graph.node_count, graph.nodes.context().num_workers(), graph.nodes.context().my_rank());
+  std::vector<Weight> node_degrees;
+  node_degrees.reserve(id_range.size());
+  graph.nodes.Keep().Map([](const NodeType& node) { return node.weightedDegree(); }).CollectLocal(&node_degrees);
+  assert(node_degrees.size() == id_range.size());
 
-  auto reduceToBestCluster = [&graph](const auto& incoming) {
+  auto reduceToBestCluster = [&graph, &id_range, &node_degrees](const auto& incoming) {
     return incoming
       // Reduce to best cluster
-      .ReduceToIndex(
-        [](const std::pair<Node, IncidentClusterInfo>& lme) -> size_t { return lme.first.id; },
-        [total_weight = graph.total_weight](const std::pair<Node, IncidentClusterInfo>& lme1, const std::pair<Node, IncidentClusterInfo>& lme2) {
+      .ReduceToIndexWithoutPrecombine(
+        [](const std::pair<NodeId, IncidentClusterInfo>& lme) -> size_t { return lme.first; },
+        [total_weight = graph.total_weight, &id_range, &node_degrees](const std::pair<NodeId, IncidentClusterInfo>& lme1, const std::pair<NodeId, IncidentClusterInfo>& lme2) {
+          assert(lme1.first >= id_range.begin && lme1.first < id_range.end);
+          assert(lme2.first >= id_range.begin && lme2.first < id_range.end);
+
           // TODO Tie breaking
-          if (deltaModularity(lme2.first, lme2.second, total_weight) > deltaModularity(lme1.first, lme1.second, total_weight)) {
+          if (deltaModularity(node_degrees[lme2.first - id_range.begin], lme2.second, total_weight) > deltaModularity(node_degrees[lme2.first - id_range.begin], lme1.second, total_weight)) {
             return lme2;
           } else {
             return lme1;
@@ -82,30 +90,9 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
         graph.node_count);
   };
 
-  using EdgeWithTargetDegreeType = typename std::conditional<std::is_same<NodeType, NodeWithWeightedLinks>::value, std::tuple<NodeId, typename NodeType::LinkType, Weight>, std::tuple<NodeId, typename NodeType::LinkType, uint32_t>>::type;
-  auto nodes = graph.nodes
-    .template FlatMap<EdgeWithTargetDegreeType>(
-      [](const NodeType& node, auto emit) {
-        for (typename NodeType::LinkType link : node.links) {
-          NodeId old_target = link.target;
-          link.target = node.id;
-          emit(EdgeWithTargetDegreeType(old_target, link, node.weightedDegree()));
-        }
-      })
-    .template GroupToIndex<NodeWithTargetDegreesType>(
-      [](const EdgeWithTargetDegreeType& edge_with_target_degree) { return std::get<0>(edge_with_target_degree); },
-      [](auto& iterator, const NodeId node_id) {
-        NodeWithTargetDegreesType node { node_id, {} };
-        while (iterator.HasNext()) {
-          const EdgeWithTargetDegreeType& edge_with_target_degree = iterator.Next();
-          node.push_back(NodeWithTargetDegreesType::LinkType::fromLink(std::get<1>(edge_with_target_degree), std::get<2>(edge_with_target_degree)));
-        }
-        return node;
-      },
-      graph.node_count);
 
-  auto node_clusters = nodes
-    .Map([](const NodeWithTargetDegreesType& node) { return std::make_pair(std::make_pair(node, node.id), false); })
+  auto node_clusters = graph.nodes
+    .Map([](const NodeType& node) { return std::make_pair(std::make_pair(node, node.id), false); })
     .Collapse();
 
   size_t cluster_count = graph.node_count;
@@ -120,13 +107,13 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
     if (considered_nodes_estimate > 0) {
       node_clusters = (iteration == 0 ?
         reduceToBestCluster(node_clusters
-          .template FlatMap<std::pair<Node, IncidentClusterInfo>>(
-            [&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster_moved, auto emit) {
+          .template FlatMap<std::pair<NodeId, IncidentClusterInfo>>(
+            [&included](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster_moved, auto emit) {
               const auto& node_cluster = node_cluster_moved.first;
 
               if (included(node_cluster.first.id)) {
                 emit(std::make_pair(
-                  Node { node_cluster.first.id, node_cluster.first.weightedDegree() },
+                  node_cluster.first.id,
                   IncidentClusterInfo {
                     node_cluster.second,
                     0,
@@ -135,10 +122,10 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
                 ));
               }
 
-              for (const typename NodeWithTargetDegreesType::LinkType& link : node_cluster.first.links) {
+              for (const typename NodeType::LinkType& link : node_cluster.first.links) {
                 if (included(link.target)) {
                  emit(std::make_pair(
-                   Node { link.target, link.target_degree },
+                   link.target,
                    IncidentClusterInfo {
                      node_cluster.second,
                      link.getWeight(),
@@ -149,28 +136,27 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
               }
             })) :
         reduceToBestCluster(node_clusters
-          .template FoldByKey<std::vector<NodeWithTargetDegreesType>>(thrill::NoDuplicateDetectionTag,
-            [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
-            [](std::vector<NodeWithTargetDegreesType>&& acc, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
+          .template FoldByKey<std::vector<NodeType>>(thrill::NoDuplicateDetectionTag,
+            [](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
+            [](std::vector<NodeType>&& acc, const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) {
               acc.push_back(node_cluster.first.first);
               return std::move(acc);
             })
-          .template FlatMap<std::pair<Node, IncidentClusterInfo>>(
-            [&included](const std::pair<ClusterId, std::vector<NodeWithTargetDegreesType>>& cluster_nodes, auto emit) {
+          .template FlatMap<std::pair<NodeId, IncidentClusterInfo>>(
+            [&included](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
               spp::sparse_hash_map<NodeId, NodeClusterLink> node_cluster_links;
               Weight total_weight = 0;
-              for (const NodeWithTargetDegreesType& node : cluster_nodes.second) {
+              for (const NodeType& node : cluster_nodes.second) {
                 total_weight += node.weightedDegree();
               }
-              for (const NodeWithTargetDegreesType& node : cluster_nodes.second) {
-                for (const typename NodeWithTargetDegreesType::LinkType& link : node.links) {
+              for (const NodeType& node : cluster_nodes.second) {
+                for (const typename NodeType::LinkType& link : node.links) {
                   if (node.id != link.target && included(link.target)) {
                     auto it = node_cluster_links.find(link.target);
                     if (it != node_cluster_links.end()) {
                       it->second.inbetween_weight += link.getWeight();
                     } else {
                       node_cluster_links[link.target] = NodeClusterLink {
-                        link.target_degree,
                         link.getWeight(),
                         total_weight
                       };
@@ -179,14 +165,13 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
                 }
                 if (included(node.id)) {
                   NodeClusterLink& cluster_link = node_cluster_links[node.id];
-                  cluster_link.node_degree = node.weightedDegree();
                   cluster_link.total_weight = total_weight - node.weightedDegree();
                 }
               }
 
               for (const auto& node_cluster_link : node_cluster_links) {
                 emit(std::make_pair(
-                  Node { node_cluster_link.first, node_cluster_link.second.node_degree },
+                  node_cluster_link.first,
                   IncidentClusterInfo {
                     cluster_nodes.first,
                     node_cluster_link.second.inbetween_weight,
@@ -197,9 +182,9 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
             }))
           )
         .Zip(thrill::NoRebalanceTag, node_clusters,
-          [&included](const std::pair<Node, IncidentClusterInfo>& lme, const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& old_node_cluster) {
+          [&included](const std::pair<NodeId, IncidentClusterInfo>& lme, const std::pair<std::pair<NodeType, ClusterId>, bool>& old_node_cluster) {
             if (included(old_node_cluster.first.first.id)) {
-              assert(lme.first.id == old_node_cluster.first.first.id);
+              assert(lme.first == old_node_cluster.first.first.id);
               return std::make_pair(std::make_pair(old_node_cluster.first.first, lme.second.cluster), lme.second.cluster != old_node_cluster.first.second);
             } else {
               return std::make_pair(old_node_cluster.first, false);
@@ -208,10 +193,10 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
         .Cache();
 
       rate_sum += rate;
-      rate = std::max(1000 - (node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size() * 1000 / considered_nodes_estimate), 200ul);
+      rate = std::max(1000 - (node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size() * 1000 / considered_nodes_estimate), 200ul);
 
       if (rate_sum >= 1000) {
-        size_t round_cluster_count = node_clusters.Keep().Map([](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; }).Uniq().Size();
+        size_t round_cluster_count = node_clusters.Keep().Map([](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; }).Uniq().Size();
         assert(graph.node_count == node_clusters.Size());
 
         if (cluster_count - round_cluster_count <= graph.node_count / 100) {
@@ -229,8 +214,8 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
 
   return node_clusters
     .Map(
-      [](const std::pair<std::pair<NodeWithTargetDegreesType, ClusterId>, bool>& node_cluster) {
-        return std::make_pair(node_cluster.first.first.toNodeWithoutTargetDegrees(), node_cluster.first.second);
+      [](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) {
+        return node_cluster.first;
       });
 }
 
