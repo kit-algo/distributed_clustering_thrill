@@ -1,10 +1,10 @@
 #!/bin/bash
 #MSUB -N distributed_local_moving
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
-#MSUB -v MPIRUN_OPTIONS="--bind-to core --map-by socket:PE=8 -report-bindings"
 
 export THRILL_LOG="dlm-log-${MOAB_JOBID}"
 module load ${MPI_MODULE}
+MPIRUN_OPTIONS="--bind-to core --map-by socket:PE=${MOAB_PROCCOUNT / MOAB_NODECOUNT} -report-bindings"
 
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} MPI-tasks and ${THRILL_WORKERS_PER_HOST} threads"
 
