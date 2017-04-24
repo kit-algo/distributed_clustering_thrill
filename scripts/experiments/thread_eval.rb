@@ -8,18 +8,18 @@ graphs = {
 
 node_configs = {
   s: [
-    '-l nodes=1:ppn=2 -v THRILL_WORKERS_PER_HOST=2 -l pmem=4000mb -q singlenode',
-    '-l nodes=1:ppn=3 -v THRILL_WORKERS_PER_HOST=3 -l pmem=4000mb -q singlenode',
-    '-l nodes=1:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l pmem=4000mb -q singlenode',
-    '-l nodes=1:ppn=9 -v THRILL_WORKERS_PER_HOST=9 -l pmem=4000mb -q singlenode',
-    '-l nodes=1:ppn=16 -v THRILL_WORKERS_PER_HOST=16 -l pmem=4000mb -q singlenode',
+    '-l nodes=1:ppn=2 -v THRILL_WORKERS_PER_HOST=2 -l mem=64gb -q singlenode',
+    '-l nodes=1:ppn=3 -v THRILL_WORKERS_PER_HOST=3 -l mem=64gb -q singlenode',
+    '-l nodes=1:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l mem=64gb -q singlenode',
+    '-l nodes=1:ppn=9 -v THRILL_WORKERS_PER_HOST=9 -l mem=64gb -q singlenode',
+    '-l nodes=1:ppn=16 -v THRILL_WORKERS_PER_HOST=16 -l mem=64gb -q singlenode',
   ],
   m: [
-    '-l nodes=4:ppn=2 -v THRILL_WORKERS_PER_HOST=2 -l pmem=4000mb -q multinode',
-    '-l nodes=4:ppn=3 -v THRILL_WORKERS_PER_HOST=3 -l pmem=4000mb -q multinode',
-    '-l nodes=4:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l pmem=4000mb -q multinode',
-    '-l nodes=4:ppn=9 -v THRILL_WORKERS_PER_HOST=9 -l pmem=4000mb -q multinode',
-    '-l nodes=4:ppn=16 -v THRILL_WORKERS_PER_HOST=16 -l pmem=4000mb -q multinode',
+    '-l nodes=4:ppn=2 -v THRILL_WORKERS_PER_HOST=2 -l mem=256gb -q multinode',
+    '-l nodes=4:ppn=3 -v THRILL_WORKERS_PER_HOST=3 -l mem=256gb -q multinode',
+    '-l nodes=4:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l mem=256gb -q multinode',
+    '-l nodes=4:ppn=9 -v THRILL_WORKERS_PER_HOST=9 -l mem=256gb -q multinode',
+    '-l nodes=4:ppn=16 -v THRILL_WORKERS_PER_HOST=16 -l mem=256gb -q multinode',
   ]
 }
 

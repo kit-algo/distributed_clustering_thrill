@@ -1,12 +1,12 @@
 #!/bin/bash
 #MSUB -N preprocess
-#MSUB -l nodes=4:ppn=5
-#MSUB -l walltime=01:00:00
-#MSUB -l pmem=12000mb
+#MSUB -l nodes=4:ppn=16
+#MSUB -l walltime=12:00:00
+#MSUB -l mem=256gb
 #MSUB -q multinode
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
-#MSUB -v THRILL_WORKERS_PER_HOST=5
-#MSUB -v MPIRUN_OPTIONS="--bind-to core --map-by socket:PE=5 -report-bindings"
+#MSUB -v THRILL_WORKERS_PER_HOST=16
+#MSUB -v MPIRUN_OPTIONS="--bind-to core --map-by node:PE=16 -report-bindings"
 
 module load ${MPI_MODULE}
 

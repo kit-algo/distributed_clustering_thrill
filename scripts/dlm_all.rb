@@ -23,12 +23,12 @@ time_configs = {
 }
 
 node_configs = {
-  xs: '-l nodes=1:ppn=2 -v THRILL_WORKERS_PER_HOST=2 -l pmem=64000mb -q singlenode',
-  s: '-l nodes=1:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l pmem=12000mb -q singlenode',
-  ms: '-l nodes=2:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l pmem=12000mb -q multinode',
-  m: '-l nodes=4:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l pmem=12000mb -q multinode',
-  l: '-l nodes=8:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l pmem=12000mb -q multinode',
-  xl: '-l nodes=16:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l pmem=12000mb -q multinode',
+  xs: '-l nodes=1:ppn=2 -v THRILL_WORKERS_PER_HOST=2 -l mem=64gb -q singlenode',
+  s: '-l nodes=1:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l mem=64gb -q singlenode',
+  ms: '-l nodes=2:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l mem=128gb -q multinode',
+  m: '-l nodes=4:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l mem=256gb -q multinode',
+  l: '-l nodes=8:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l mem=512gb -q multinode',
+  xl: '-l nodes=16:ppn=5 -v THRILL_WORKERS_PER_HOST=5 -l mem=1024gb -q multinode',
 }
 
 
