@@ -2,7 +2,7 @@
 
 graphs = {
   'graphs/graph_50_10000_mu_0.5_1000000-preprocessed-*.bin' => [:s, :m],
-  'graphs/graph_50_10000_mu_0.5_10000000-preprocessed-*.bin' => [:m]
+  'graphs/graph_50_10000_mu_0.5_10000000-preprocessed-*.bin' => [:s, :m]
 }
 
 
