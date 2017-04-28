@@ -40,14 +40,15 @@ struct NodeClusterLink {
 };
 
 struct IncidentClusterInfo {
+  NodeId node_id;
   ClusterId cluster;
   Weight inbetween_weight;
   Weight total_weight;
 
-  IncidentClusterInfo operator+(const IncidentClusterInfo& other) const {
-    assert(cluster == other.cluster);
-    return IncidentClusterInfo { cluster, inbetween_weight + other.inbetween_weight, std::min(total_weight, other.total_weight) };
-  }
+  // IncidentClusterInfo operator+(const IncidentClusterInfo& other) const {
+  //   assert(cluster == other.cluster);
+  //   return IncidentClusterInfo { cluster, inbetween_weight + other.inbetween_weight, std::min(total_weight, other.total_weight) };
+  // }
 };
 
 int128_t deltaModularity(const Weight node_degree, const IncidentClusterInfo& neighbored_cluster, Weight total_weight) {
@@ -75,13 +76,13 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
     return incoming
       // Reduce to best cluster
       .ReduceToIndexWithoutPrecombine(
-        [](const std::pair<NodeId, IncidentClusterInfo>& lme) -> size_t { return lme.first; },
-        [total_weight = graph.total_weight, &id_range, &node_degrees](const std::pair<NodeId, IncidentClusterInfo>& lme1, const std::pair<NodeId, IncidentClusterInfo>& lme2) {
-          assert(lme1.first >= id_range.begin && lme1.first < id_range.end);
-          assert(lme2.first >= id_range.begin && lme2.first < id_range.end);
+        [](const IncidentClusterInfo& lme) -> size_t { return lme.node_id; },
+        [total_weight = graph.total_weight, &id_range, &node_degrees](const IncidentClusterInfo& lme1, const IncidentClusterInfo& lme2) {
+          assert(lme1.node_id >= id_range.begin && lme1.node_id < id_range.end);
+          assert(lme2.node_id >= id_range.begin && lme2.node_id < id_range.end);
 
           // TODO Tie breaking
-          if (deltaModularity(node_degrees[lme2.first - id_range.begin], lme2.second, total_weight) > deltaModularity(node_degrees[lme2.first - id_range.begin], lme1.second, total_weight)) {
+          if (deltaModularity(node_degrees[lme2.node_id - id_range.begin], lme2, total_weight) > deltaModularity(node_degrees[lme2.node_id - id_range.begin], lme1, total_weight)) {
             return lme2;
           } else {
             return lme1;
@@ -107,31 +108,27 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
     if (considered_nodes_estimate > 0) {
       node_clusters = (iteration == 0 ?
         reduceToBestCluster(node_clusters
-          .template FlatMap<std::pair<NodeId, IncidentClusterInfo>>(
+          .template FlatMap<IncidentClusterInfo>(
             [&included](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster_moved, auto emit) {
               const auto& node_cluster = node_cluster_moved.first;
 
               if (included(node_cluster.first.id)) {
-                emit(std::make_pair(
+                emit(IncidentClusterInfo {
                   node_cluster.first.id,
-                  IncidentClusterInfo {
-                    node_cluster.second,
-                    0,
-                    node_cluster.first.weightedDegree()
-                  }
-                ));
+                  node_cluster.second,
+                  0,
+                  node_cluster.first.weightedDegree()
+                });
               }
 
               for (const typename NodeType::LinkType& link : node_cluster.first.links) {
                 if (included(link.target)) {
-                 emit(std::make_pair(
+                 emit(IncidentClusterInfo {
                    link.target,
-                   IncidentClusterInfo {
-                     node_cluster.second,
-                     link.getWeight(),
-                     node_cluster.first.weightedDegree()
-                   }
-                 ));
+                   node_cluster.second,
+                   link.getWeight(),
+                   node_cluster.first.weightedDegree()
+                 });
                 }
               }
             })) :
@@ -142,7 +139,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
               acc.push_back(node_cluster.first.first);
               return std::move(acc);
             })
-          .template FlatMap<std::pair<NodeId, IncidentClusterInfo>>(
+          .template FlatMap<IncidentClusterInfo>(
             [&included](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
               spp::sparse_hash_map<NodeId, NodeClusterLink> node_cluster_links;
               Weight total_weight = 0;
@@ -170,22 +167,20 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
               }
 
               for (const auto& node_cluster_link : node_cluster_links) {
-                emit(std::make_pair(
+                emit(IncidentClusterInfo {
                   node_cluster_link.first,
-                  IncidentClusterInfo {
-                    cluster_nodes.first,
-                    node_cluster_link.second.inbetween_weight,
-                    node_cluster_link.second.total_weight
-                  }
-                ));
+                  cluster_nodes.first,
+                  node_cluster_link.second.inbetween_weight,
+                  node_cluster_link.second.total_weight
+                });
               }
             }))
           )
         .Zip(thrill::NoRebalanceTag, node_clusters,
-          [&included](const std::pair<NodeId, IncidentClusterInfo>& lme, const std::pair<std::pair<NodeType, ClusterId>, bool>& old_node_cluster) {
+          [&included](const IncidentClusterInfo& lme, const std::pair<std::pair<NodeType, ClusterId>, bool>& old_node_cluster) {
             if (included(old_node_cluster.first.first.id)) {
-              assert(lme.first == old_node_cluster.first.first.id);
-              return std::make_pair(std::make_pair(old_node_cluster.first.first, lme.second.cluster), lme.second.cluster != old_node_cluster.first.second);
+              assert(lme.node_id == old_node_cluster.first.first.id);
+              return std::make_pair(std::make_pair(old_node_cluster.first.first, lme.cluster), lme.cluster != old_node_cluster.first.second);
             } else {
               return std::make_pair(old_node_cluster.first, false);
             }
