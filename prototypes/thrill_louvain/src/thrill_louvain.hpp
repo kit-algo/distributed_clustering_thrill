@@ -10,6 +10,7 @@
 #include <thrill/api/zip_with_index.hpp>
 
 #include <vector>
+#include <cstdlib>
 
 #include "input.hpp"
 #include "util.hpp"
@@ -19,7 +20,7 @@
 namespace Louvain {
 
 template<class NodeType, class F>
-auto louvain(const DiaNodeGraph<NodeType>& graph, const F& local_moving) {
+auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, const F& local_moving, uint32_t level = 0) {
   using EdgeType = typename NodeType::LinkType::EdgeType;
 
   auto clusters_with_nodes = local_moving(graph)
@@ -35,6 +36,14 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, const F& local_moving) {
     .ZipWithIndex([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, ClusterId new_id) { return std::make_pair(new_id, cluster_nodes.second); });
 
   size_t cluster_count = clusters_with_nodes.Keep().Size();
+
+  if (clusters_with_nodes.context().my_rank() == 0) {
+    Logging::Id level_logging_id = Logging::getUnusedId();
+    Logging::report("algorithm_level", level_logging_id, "algorithm_run_id", algorithm_run_id);
+    Logging::report("algorithm_level", level_logging_id, "node_count", graph.node_count);
+    Logging::report("algorithm_level", level_logging_id, "cluster_count", cluster_count);
+    Logging::report("algorithm_level", level_logging_id, "level", level);
+  }
 
   if (graph.node_count == cluster_count) {
     auto node_clusters = clusters_with_nodes.Keep().Map([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) { return NodeCluster(cluster_nodes.first, cluster_nodes.first); }).Collapse();
@@ -109,7 +118,7 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, const F& local_moving) {
   auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
   assert(meta_graph_edges.Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
-  auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { nodes, cluster_count, graph.total_weight }, local_moving);
+  auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { nodes, cluster_count, graph.total_weight }, algorithm_run_id, local_moving, level + 1);
   return std::make_pair(meta_result.first
     .Zip(clusters_with_node_ids,
       [](const NodeCluster& meta_cluster, const std::pair<ClusterId, std::vector<NodeId>>& cluster_node_ids) {
@@ -142,15 +151,21 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
       Logging::report("program_run", program_run_logging_id, "graph", argv[1]);
       Logging::report("program_run", program_run_logging_id, "node_count", graph.node_count);
       Logging::report("program_run", program_run_logging_id, "edge_count", graph.total_weight);
+      if (getenv("MOAB_JOBID")) {
+        Logging::report("program_run", program_run_logging_id, "job_id", getenv("MOAB_JOBID"));
+      }
     }
 
-    auto result = run(graph);
+    Logging::Id algorithm_run_id = 0;
+    if (context.my_rank() == 0) {
+      algorithm_run_id = Logging::getUnusedId();
+    }
+    auto result = run(graph, algorithm_run_id);
     auto node_clusters = result.first;
     node_clusters.Execute();
     double modularity = Modularity::modularity(result.second);
 
     if (context.my_rank() == 0) {
-      Logging::Id algorithm_run_id = Logging::getUnusedId();
       Logging::report("algorithm_run", algorithm_run_id, "program_run_id", program_run_logging_id);
       Logging::report("algorithm_run", algorithm_run_id, "algorithm", algo);
 
