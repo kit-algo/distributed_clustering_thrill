@@ -38,7 +38,7 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, const F& local_moving) {
 
   if (graph.node_count == cluster_count) {
     auto node_clusters = clusters_with_nodes.Keep().Map([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) { return NodeCluster(cluster_nodes.first, cluster_nodes.first); }).Collapse();
-    auto final_nodes = clusters_with_nodes.template FlatMap<NodeWithWeightedLinks>([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) { emit(cluster_nodes.second[0].asNodeWithWeights()); });
+    auto final_nodes = clusters_with_nodes.template FlatMap<NodeWithWeightedLinks>([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) { emit(cluster_nodes.second[0].asNodeWithWeights()); }).Collapse();
     return std::make_pair(node_clusters, DiaNodeGraph<NodeWithWeightedLinks> { final_nodes, cluster_count, graph.total_weight });
   }
 

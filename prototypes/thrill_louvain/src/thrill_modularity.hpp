@@ -3,6 +3,7 @@
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/all_reduce.hpp>
+#include <thrill/api/collapse.hpp>
 
 #include <cstdint>
 
@@ -49,7 +50,7 @@ double modularity(const DiaNodeGraph<NodeWithWeightedLinks>& graph) {
   auto node_clusters = graph.nodes
     .Map([](const NodeWithWeightedLinks& node) { return NodeCluster(node.id, node.id); });
 
-  return modularity(DiaEdgeGraph<WeightedEdge> { nodesToEdges(graph.nodes), graph.node_count, graph.total_weight }, node_clusters);
+  return modularity(DiaEdgeGraph<WeightedEdge> { nodesToEdges(graph.nodes).Collapse(), graph.node_count, graph.total_weight }, node_clusters.Collapse());
 }
 
 } // Modularity
