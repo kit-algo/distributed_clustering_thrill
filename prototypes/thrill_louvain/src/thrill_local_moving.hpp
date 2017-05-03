@@ -44,11 +44,6 @@ struct IncidentClusterInfo {
   ClusterId cluster;
   Weight inbetween_weight;
   Weight total_weight;
-
-  // IncidentClusterInfo operator+(const IncidentClusterInfo& other) const {
-  //   assert(cluster == other.cluster);
-  //   return IncidentClusterInfo { cluster, inbetween_weight + other.inbetween_weight, std::min(total_weight, other.total_weight) };
-  // }
 };
 
 int128_t deltaModularity(const Weight node_degree, const IncidentClusterInfo& neighbored_cluster, Weight total_weight) {
@@ -58,8 +53,13 @@ int128_t deltaModularity(const Weight node_degree, const IncidentClusterInfo& ne
 }
 
 bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t rate) {
-  uint32_t hash = Util::combined_hash(node, iteration);
-  return hash % 1000 < rate;
+  #if defined(FIXED_RATIO)
+    uint32_t hash = Util::combined_hash(node, iteration / FIXED_RATIO);
+    return hash % FIXED_RATIO == iteration % FIXED_RATIO;
+  #else
+    uint32_t hash = Util::combined_hash(node, iteration);
+    return hash % 1000 < rate;
+  #endif
 }
 
 static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
@@ -81,11 +81,14 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
           assert(lme1.node_id >= id_range.begin && lme1.node_id < id_range.end);
           assert(lme2.node_id >= id_range.begin && lme2.node_id < id_range.end);
 
+          int128_t d1 = deltaModularity(node_degrees[lme2.node_id - id_range.begin], lme1, total_weight);
+          int128_t d2 = deltaModularity(node_degrees[lme2.node_id - id_range.begin], lme2, total_weight);
+
           // TODO Tie breaking
-          if (deltaModularity(node_degrees[lme2.node_id - id_range.begin], lme2, total_weight) > deltaModularity(node_degrees[lme2.node_id - id_range.begin], lme1, total_weight)) {
-            return lme2;
-          } else {
+          if (d1 > d2) {
             return lme1;
+          } else {
+            return lme2;
           }
         },
         graph.node_count);
@@ -96,8 +99,15 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
     .Map([](const NodeType& node) { return std::make_pair(std::make_pair(node, node.id), false); })
     .Collapse();
 
-  size_t cluster_count = graph.node_count;
-  uint32_t rate = 200;
+  #if !defined(STOP_MOVECOUNT)
+    size_t cluster_count = graph.node_count;
+  #endif
+
+  #if defined(FIXED_RATIO)
+    uint32_t rate = 1000 / FIXED_RATIO;
+  #else
+    uint32_t rate = 200;
+  #endif
   uint32_t rate_sum = 0;
 
   uint32_t iteration;
@@ -189,22 +199,35 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
         .Cache();
 
       rate_sum += rate;
-      rate = std::max(1000 - (node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size() * 1000 / considered_nodes_estimate), 200ul);
+      #if !defined(FIXED_RATIO) || defined(STOP_MOVECOUNT)
+      size_t moved = node_clusters.Keep().Filter([&included](const std::pair<std::pair<NodeType, ClusterId>, bool>& pair) { return pair.second && included(pair.first.first.id); }).Size();
+      #endif
+      #if !defined(FIXED_RATIO)
+        rate = std::max(1000 - (moved * 1000 / considered_nodes_estimate), 200ul);
+      #endif
 
       if (rate_sum >= 1000) {
-        size_t round_cluster_count = node_clusters.Keep().Map([](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; }).Uniq().Size();
-        assert(graph.node_count == node_clusters.Size());
+        #if defined(STOP_MOVECOUNT)
+          if (moved <= graph.node_count / 50) {
+            break;
+          }
+        #else
+          size_t round_cluster_count = node_clusters.Keep().Map([](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; }).Uniq().Size();
+          assert(graph.node_count == node_clusters.Size());
 
-        if (cluster_count - round_cluster_count <= graph.node_count / 100) {
-          break;
-        }
+          if (cluster_count - round_cluster_count <= graph.node_count / 100) {
+            break;
+          }
 
-        cluster_count = round_cluster_count;
+          cluster_count = round_cluster_count;
+        #endif
         rate_sum -= 1000;
       }
     } else {
-      rate += 200;
-      if (rate > 1000) { rate = 1000; }
+      #if !defined(FIXED_RATIO)
+        rate += 200;
+        if (rate > 1000) { rate = 1000; }
+      #endif
     }
   }
   if (node_clusters.context().my_rank() == 0) {

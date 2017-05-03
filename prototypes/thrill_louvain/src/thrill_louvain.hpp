@@ -158,6 +158,20 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
       if (getenv("MOAB_JOBID")) {
         Logging::report("program_run", program_run_logging_id, "job_id", getenv("MOAB_JOBID"));
       }
+
+      #if defined(FIXED_RATIO)
+        Logging::report("program_run", program_run_logging_id, "local_moving_node_ratio", FIXED_RATIO);
+      #else
+        Logging::report("program_run", program_run_logging_id, "local_moving_node_ratio", "dynamic");
+      #endif
+      #if defined(STOP_MOVECOUNT)
+        Logging::report("program_run", program_run_logging_id, "local_moving_stopping_criterion", "moved_count");
+      #else
+        Logging::report("program_run", program_run_logging_id, "local_moving_stopping_criterion", "cluster_count");
+      #endif
+      #if defined(MAX_ITERATIONS)
+        Logging::report("program_run", program_run_logging_id, "max_iterations", MAX_ITERATIONS);
+      #endif
     }
 
     Logging::Id algorithm_run_id = 0;
