@@ -1,8 +1,8 @@
 #!/bin/bash
 #MSUB -N preprocess
-#MSUB -l nodes=16:ppn=16
-#MSUB -l walltime=5:00:00
-#MSUB -l mem=1024000mb
+#MSUB -l nodes=32:ppn=16
+#MSUB -l walltime=10:00:00
+#MSUB -l mem=2048000mb
 #MSUB -q multinode
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
 #MSUB -v THRILL_WORKERS_PER_HOST=16
