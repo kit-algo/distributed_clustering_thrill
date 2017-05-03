@@ -2,8 +2,10 @@
 
 #include <thrill/api/collapse.hpp>
 #include <thrill/api/distribute.hpp>
+#include <thrill/api/fold_by_key.hpp>
 #include <thrill/api/gather.hpp>
 #include <thrill/api/group_by_key.hpp>
+#include <thrill/api/group_to_index.hpp>
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/reduce_to_index.hpp>
@@ -12,6 +14,7 @@
 #include <thrill/api/zip_with_index.hpp>
 
 #include <vector>
+#include <sparsepp/spp.h>
 
 #include "util.hpp"
 
@@ -35,66 +38,68 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
   using Link = typename Node::LinkType;
   using NodeLabel = std::pair<Node, Label>;
 
-  auto prereduce = [](const auto& node_labels) {
+  auto select_most_frequent_label = [node_count = graph.node_count](const auto& node_labels, uint32_t iteration) {
     return node_labels
-      .Map([](const NodeIdLabel& label) { return std::make_tuple(label, 1u, 1u); })
-      .ReduceByKey(
-        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return Util::combine_u32ints(std::get<0>(label_info).node, std::get<0>(label_info).label); },
-        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info2) {
-          return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1) + std::get<1>(label_info2), 1u);
-        });
+      .template GroupToIndex<Label>(
+        [](const NodeIdLabel& label) { return label.node; },
+        [iteration](auto& iterator, const NodeId) {
+          spp::sparse_hash_map<Label, uint32_t> label_counts;
+          while (iterator.HasNext()) {
+            label_counts[iterator.Next().label]++;
+          }
+
+          uint32_t win_counter = 1;
+          uint32_t highest_occurence = 0;
+          Label best_label = 0;
+          for (const auto& pair : label_counts) {
+            if (pair.second > highest_occurence) {
+              highest_occurence = pair.second;
+              win_counter = 1;
+              best_label = pair.first;
+            } else if (pair.second == highest_occurence) {
+              if (Util::combined_hash(best_label, pair.first, iteration) % (win_counter + 1) == 0) {
+                best_label = pair.first;
+              }
+
+              win_counter++;
+            }
+          }
+
+          return best_label;
+        },
+        node_count);
   };
 
   auto node_labels = graph.nodes.Keep().Map([](const Node& node) { return NodeLabel(node, node.id); }).Collapse();
 
   for (uint32_t iteration = 0; iteration < max_num_iterations; iteration++) {
     auto new_node_labels = (iteration < max_num_iterations / 3 ?
-      prereduce(node_labels
+      select_most_frequent_label(node_labels
         .template FlatMap<NodeIdLabel>(
           [](const NodeLabel& node_label, auto emit) {
             for (const Link& neighbor : node_label.first.links) {
               emit(NodeIdLabel { neighbor.target, node_label.second });
             }
-          })) :
-      prereduce(node_labels.template GroupByKey<std::pair<std::vector<Node>, Label>>(
-          [](const NodeLabel& node_label) { return node_label.second; },
-          [](auto& iterator, const Label label) {
-            std::vector<Node> nodes;
-            while (iterator.HasNext()) {
-              nodes.push_back(iterator.Next().first);
-            }
-            return std::make_pair(nodes, label);
-          })
+            emit(NodeIdLabel { node_label.first.id, node_label.second });
+          }), iteration) :
+      select_most_frequent_label(node_labels
+        .template FoldByKey<std::vector<Node>>(thrill::NoDuplicateDetectionTag,
+            [](const NodeLabel& node_label) { return node_label.second; },
+            [](std::vector<Node>&& acc, const NodeLabel& node_label) {
+              acc.push_back(node_label.first);
+              return std::move(acc);
+            })
         .template FlatMap<NodeIdLabel>(
-          [target_partition_element_size](const std::pair<std::vector<Node>, Label>& nodes_label, auto emit) {
-            for (const Node& node : nodes_label.first) {
+          [target_partition_element_size](const std::pair<Label, std::vector<Node>>& label_nodes, auto emit) {
+            for (const Node& node : label_nodes.second) {
               for (const Link& neighbor : node.links) {
-                if (nodes_label.first.size() < target_partition_element_size) {
-                  emit(NodeIdLabel { neighbor.target, nodes_label.second });
+                if (label_nodes.second.size() < target_partition_element_size) {
+                  emit(NodeIdLabel { neighbor.target, label_nodes.first });
                 }
               }
-              emit(NodeIdLabel { node.id, nodes_label.second });
+              emit(NodeIdLabel { node.id, label_nodes.first });
             }
-          })))
-      .ReduceToIndex(
-        [](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) -> size_t { return std::get<0>(label_info).node; },
-        [iteration](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info1, const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info2) {
-          if (std::get<1>(label_info1) > std::get<1>(label_info2)) { // different label - one has more occurences
-            return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), 1u);
-          } else if (std::get<1>(label_info1) < std::get<1>(label_info2)) {
-            return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), 1u);
-          } else { // different labels, some occurence count, choose random
-            uint32_t random_challenge_counter_sum = std::get<2>(label_info1) + std::get<2>(label_info2);
-            if (Util::combined_hash(std::get<0>(label_info1).label, std::get<0>(label_info2).label, iteration) % random_challenge_counter_sum < std::get<2>(label_info1)) {
-              return std::make_tuple(std::get<0>(label_info1), std::get<1>(label_info1), random_challenge_counter_sum);
-            } else {
-              return std::make_tuple(std::get<0>(label_info2), std::get<1>(label_info2), random_challenge_counter_sum);
-            }
-          }
-        },
-        graph.node_count)
-      .Map([](const std::tuple<NodeIdLabel, uint32_t, uint32_t>& label_info) { return std::get<0>(label_info).label; })
-      .Collapse();
+          }), iteration));
 
     size_t num_changed = new_node_labels
       .Keep()
@@ -105,7 +110,7 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
     node_labels = new_node_labels
       .Zip(graph.nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); });
 
-    if (num_changed == 0) {
+    if (num_changed == graph.node_count / 100) {
       break;
     }
   }
