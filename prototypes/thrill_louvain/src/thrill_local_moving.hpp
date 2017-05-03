@@ -65,7 +65,7 @@ bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t ra
 static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
 
 template<class NodeType>
-auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations) {
+auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations, Logging::Id level_logging_id) {
   thrill::common::Range id_range = thrill::common::CalculateLocalRange(graph.node_count, graph.nodes.context().num_workers(), graph.nodes.context().my_rank());
   std::vector<Weight> node_degrees;
   node_degrees.reserve(id_range.size());
@@ -100,7 +100,8 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
   uint32_t rate = 200;
   uint32_t rate_sum = 0;
 
-  for (uint32_t iteration = 0; iteration < num_iterations; iteration++) {
+  uint32_t iteration;
+  for (iteration = 0; iteration < num_iterations; iteration++) {
     auto included = [iteration, rate](const NodeId id) { return nodeIncluded(id, iteration, rate); };
 
     size_t considered_nodes_estimate = graph.node_count * rate / 1000;
@@ -205,6 +206,9 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
       rate += 200;
       if (rate > 1000) { rate = 1000; }
     }
+  }
+  if (node_clusters.context().my_rank() == 0) {
+    Logging::report("algorithm_level", level_logging_id, "iterations", iteration);
   }
 
   return node_clusters

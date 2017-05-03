@@ -23,7 +23,12 @@ template<class NodeType, class F>
 auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, const F& local_moving, uint32_t level = 0) {
   using EdgeType = typename NodeType::LinkType::EdgeType;
 
-  auto clusters_with_nodes = local_moving(graph)
+  Logging::Id level_logging_id = 0;
+  if (graph.nodes.context().my_rank() == 0) {
+    level_logging_id = Logging::getUnusedId();
+  }
+
+  auto clusters_with_nodes = local_moving(graph, level_logging_id)
     .template GroupByKey<std::pair<ClusterId, std::vector<NodeType>>>(
       [](const std::pair<NodeType, ClusterId>& node_cluster) { return node_cluster.second; },
       [](auto& iterator, const ClusterId cluster) {
@@ -38,7 +43,6 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
   size_t cluster_count = clusters_with_nodes.Keep().Size();
 
   if (clusters_with_nodes.context().my_rank() == 0) {
-    Logging::Id level_logging_id = Logging::getUnusedId();
     Logging::report("algorithm_level", level_logging_id, "algorithm_run_id", algorithm_run_id);
     Logging::report("algorithm_level", level_logging_id, "node_count", graph.node_count);
     Logging::report("algorithm_level", level_logging_id, "cluster_count", cluster_count);

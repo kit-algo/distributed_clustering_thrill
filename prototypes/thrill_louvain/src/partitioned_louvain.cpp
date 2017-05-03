@@ -6,7 +6,7 @@ int main(int argc, char const *argv[]) {
   Modularity::rng = std::default_random_engine(seed);
 
   return Louvain::performAndEvaluate(argc, argv, "thrill partitioned louvain", [](const auto& graph, Logging::Id logging_id) {
-    return Louvain::louvain(graph, logging_id, [](const auto& graph) {
+    return Louvain::louvain(graph, logging_id, [](const auto& graph, Logging::Id) {
       return LocalMoving::partitionedLocalMoving(graph);
     });
   });
