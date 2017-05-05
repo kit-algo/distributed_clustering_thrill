@@ -112,7 +112,7 @@ void distributeClusters(const NodeId node_count, const std::vector<uint32_t>& cl
     sorted_cluster_sizes[i] = std::make_pair(i, cluster_sizes[i]);
   }
   std::sort(sorted_cluster_sizes.begin(), sorted_cluster_sizes.end(), [](const std::pair<ClusterId, uint32_t>& a, const std::pair<ClusterId, uint32_t>& b) {
-    return a.second < b.second;
+    return a.second > b.second;
   });
 
   NodeId partition_target_size = partitionElementTargetSize(node_count, partition_size);
