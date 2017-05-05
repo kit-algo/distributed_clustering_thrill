@@ -2,6 +2,8 @@
 #MSUB -N distributed_local_moving
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
 
+cat /proc/cpuinfo
+
 export THRILL_LOG="dlm-log-${MOAB_JOBID}"
 module load ${MPI_MODULE}
 MPIRUN_OPTIONS="--bind-to core --map-by node:PE=$((MOAB_PROCCOUNT / MOAB_NODECOUNT)) -report-bindings"

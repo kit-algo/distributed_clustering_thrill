@@ -8,6 +8,8 @@
 #MSUB -v THRILL_WORKERS_PER_HOST=16
 #MSUB -v MPIRUN_OPTIONS="--bind-to core --map-by node:PE=16 -report-bindings"
 
+cat /proc/cpuinfo
+
 module load ${MPI_MODULE}
 
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} MPI-tasks and ${THRILL_WORKERS_PER_HOST} threads"
