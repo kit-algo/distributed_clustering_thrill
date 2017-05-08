@@ -39,6 +39,7 @@ small_graphs = [
 large_graphs = [
   # ['graphs/mu-04/graph_50_10000_mu_0.4_100000000.bin', 'graphs/mu-04/part_50_10000_mu_0.4_100000000.bin'],
   # ['graphs/mu-04/graph_50_10000_mu_0.4_200000000-sorted.bin', 'graphs/mu-04/part_50_10000_mu_0.4_200000000-sorted.bin'],
+  # ['graphs/graph_50_10000_mu_0.4_1000000000-sorted*.bin', 'graphs/part_50_10000_mu_0.4_1000000000-sorted.bin'],
 ]
 
 graphs.each do |graph|
@@ -52,6 +53,6 @@ small_graphs.each do |graph|
 end
 
 large_graphs.each do |graph|
-  groundtruth_option = graph.size == 2 ? "-v GROUNDTRUTH=#{ENV['HOME']}/#{graph[1]}" : ''
-  puts graph[0], `msub -v GRAPH=#{ENV['HOME']}/#{graph[0]} #{groundtruth_option} ~/code/scripts/moab/preprocess_l.sh`
+  groundtruth_option = graph.size == 2 ? "-v GROUNDTRUTH=#{ENV['WORK']}/#{graph[1]}" : ''
+  puts graph[0], `msub -v GRAPH=#{ENV['WORK']}/#{graph[0]} #{groundtruth_option} ~/code/scripts/moab/preprocess_l.sh`
 end

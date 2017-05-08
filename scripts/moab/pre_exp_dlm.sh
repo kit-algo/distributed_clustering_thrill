@@ -9,7 +9,7 @@
 
 cat /proc/cpuinfo
 
-export THRILL_LOG="dlm-log-${MOAB_JOBID}"
+export THRILL_LOG="$HOME/results/pre_dlm/dlm-log-${MOAB_JOBID}"
 module load ${MPI_MODULE}
 MPIRUN_OPTIONS="--bind-to core --map-by node:PE=$((MOAB_PROCCOUNT / MOAB_NODECOUNT)) -report-bindings"
 
