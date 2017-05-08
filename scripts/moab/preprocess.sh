@@ -1,12 +1,12 @@
 #!/bin/bash
 #MSUB -N preprocess
-#MSUB -l nodes=4:ppn=16
+#MSUB -l nodes=4:ppn=17
 #MSUB -l walltime=3:00:00
-#MSUB -l mem=256000mb
+#MSUB -l mem=512000mb
 #MSUB -q multinode
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
-#MSUB -v THRILL_WORKERS_PER_HOST=16
-#MSUB -v MPIRUN_OPTIONS="--bind-to core --map-by node:PE=16 -report-bindings"
+#MSUB -v THRILL_WORKERS_PER_HOST=17
+#MSUB -v MPIRUN_OPTIONS="--bind-to core --map-by node:PE=17 -report-bindings"
 
 cat /proc/cpuinfo
 
