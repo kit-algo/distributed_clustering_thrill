@@ -11,29 +11,31 @@
 #include "input.hpp"
 
 int main(int argc, char const *argv[]) {
-  std::string graph_file(argv[1]);
-  size_t glob_index = graph_file.find('*');
+  const std::string graph_file(argv[1]);
+  std::string output = graph_file;
+  size_t glob_index = output.find('*');
   if (glob_index != std::string::npos) {
-    graph_file.erase(graph_file.begin() + glob_index);
+    output.erase(output.begin() + glob_index);
   }
-  std::string output = graph_file.replace(graph_file.begin() + graph_file.rfind('.'), graph_file.end(), "-preprocessed-@@@@-#####.bin");
+  output = output.replace(output.begin() + output.rfind('.'), output.end(), "-preprocessed-@@@@-#####.bin");
 
   std::string ground_truth_file = "";
   std::string ground_truth_output = "";
   if (argc > 2) {
     ground_truth_file = std::string(argv[2]);
-    if (!ground_truth_file.empty()) {
-      glob_index = ground_truth_file.find('*');
+    ground_truth_output = ground_truth_file;
+    if (!ground_truth_output.empty()) {
+      glob_index = ground_truth_output.find('*');
       if (glob_index != std::string::npos) {
-        ground_truth_file.erase(ground_truth_file.begin() + glob_index);
+        ground_truth_output.erase(ground_truth_output.begin() + glob_index);
       }
-      ground_truth_output = ground_truth_file.replace(ground_truth_file.begin() + ground_truth_file.rfind('.'), ground_truth_file.end(), "-preprocessed-@@@@-#####.bin");
+      ground_truth_output = ground_truth_output.replace(ground_truth_output.begin() + ground_truth_output.rfind('.'), ground_truth_output.end(), "-preprocessed-@@@@-#####.bin");
     }
   }
 
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
-    auto graph = Input::readToEdgeGraph<false>(argv[1], context);
+    auto graph = Input::readToEdgeGraph<false>(graph_file, context);
     // size_t old_node_count = graph.node_count;
     thrill::common::hash<NodeId> hasher;
 
@@ -60,7 +62,7 @@ int main(int argc, char const *argv[]) {
     // NodeId node_count = cleanup_mapping.Keep().Size();
 
     if (argc > 2 && !ground_truth_file.empty()) {
-      Input::readClustering(argv[2], context)
+      Input::readClustering(ground_truth_file, context)
         .InnerJoin(cleanup_mapping.Keep(),
           [](const NodeCluster& node_cluster) { return node_cluster.first; },
           [](const std::pair<NodeId, NodeId>& id_mapping) { return id_mapping.first; },
