@@ -10,7 +10,7 @@ Dir.chdir(ARGV.first) do
   `#{scripts_dir}/runtime_extractor.rb #{Dir.glob("job_*.out").join(' ')}`
   puts 'generate reports'
   Dir.glob("job_*.out").each do |job_file|
-    `MA_RESULT_OUTPUT_DIR=#{Dir.join(ARGV.first, 'reports')} #{scripts_dir}/report_to_json.rb #{job_file}`
+    `MA_RESULT_OUTPUT_DIR=#{File.join(ARGV.first, 'reports')} #{scripts_dir}/report_to_json.rb #{job_file}`
   end
   puts 'generate zip'
   `zip reports.zip reports/*`
