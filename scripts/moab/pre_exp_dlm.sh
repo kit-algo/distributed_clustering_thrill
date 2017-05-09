@@ -1,10 +1,11 @@
 #!/bin/bash
 #MSUB -N distributed_local_moving
 #MSUB -l walltime=01:00:00
-#MSUB -l nodes=4:ppn=17
-#MSUB -l mem=512000mb
+#MSUB -l nodes=4:ppn=28
+#MSUB -l pmem=4500mb
 #MSUB -q multinode
 #MSUB -v THRILL_WORKERS_PER_HOST=17
+#MSUB -v THRILL_RAM=120GiB
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
 
 cat /proc/cpuinfo > cpu-$MOAB_JOBID
