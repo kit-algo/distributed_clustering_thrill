@@ -41,7 +41,10 @@ ARGF.each_line do |line|
 end
 
 timestamp = Time.now
-commit = `git rev-parse HEAD`.strip
+commit = ''
+Dir.chdir(File.expand_path(File.dirname(__FILE__))) do
+  commit = `git rev-parse HEAD`.strip
+end
 
 data['program_run'].each do |_id, run|
   run['timestamp'] = timestamp
