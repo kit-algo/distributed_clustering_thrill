@@ -8,7 +8,7 @@
 #MSUB -v THRILL_WORKERS_PER_HOST=17
 #MSUB -v MPIRUN_OPTIONS="--bind-to core --map-by node:PE=17 -report-bindings"
 
-cat /proc/cpuinfo
+cat /proc/cpuinfo > cpu-$MOAB_JOBID
 
 export THRILL_LOG="dlm-log-${MOAB_JOBID}"
 module load ${MPI_MODULE}

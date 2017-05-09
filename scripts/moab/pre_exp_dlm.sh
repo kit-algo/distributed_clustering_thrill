@@ -7,7 +7,7 @@
 #MSUB -v THRILL_WORKERS_PER_HOST=17
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
 
-cat /proc/cpuinfo
+cat /proc/cpuinfo > cpu-$MOAB_JOBID
 
 export THRILL_LOG="$HOME/results/pre_dlm/dlm-log-${MOAB_JOBID}"
 module load ${MPI_MODULE}

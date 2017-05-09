@@ -2,7 +2,7 @@
 #MSUB -N distributed_local_moving
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
 
-cat /proc/cpuinfo
+cat /proc/cpuinfo > cpu-$MOAB_JOBID
 
 export THRILL_LOG="dlm-log-${MOAB_JOBID}"
 module load ${MPI_MODULE}

@@ -1,14 +1,14 @@
 #!/bin/bash
 #MSUB -N preprocess
 #MSUB -l nodes=1:ppn=16
-#MSUB -l walltime=01:00:00
+#MSUB -l walltime=00:30:00
 #MSUB -l mem=64000b
-#MSUB -q singlenode
+#MSUB -q develop
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
 #MSUB -v THRILL_WORKERS_PER_HOST=16
 #MSUB -v MPIRUN_OPTIONS="--bind-to core --map-by node:PE=16 -report-bindings"
 
-cat /proc/cpuinfo
+cat /proc/cpuinfo > cpu-$MOAB_JOBID
 
 module load ${MPI_MODULE}
 
