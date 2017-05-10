@@ -27,6 +27,6 @@ ARGV.each do |job_output_file|
   end
 
   open(job_output_file, 'a') do |f|
-    f.puts "#LOG# algorithm_run/1/runtime: #{(ending - start) / 1000}"
+    f.puts "#LOG# algorithm_run/1/runtime: #{(ending - start) / 1000000.0}"
   end
 end
