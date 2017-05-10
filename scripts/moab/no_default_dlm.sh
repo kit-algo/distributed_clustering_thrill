@@ -1,5 +1,6 @@
 #!/bin/bash
 #MSUB -N distributed_local_moving
+#MSUB -v THRILL_RAM=120GiB
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
 
 cat /proc/cpuinfo > cpu-$MOAB_JOBID
