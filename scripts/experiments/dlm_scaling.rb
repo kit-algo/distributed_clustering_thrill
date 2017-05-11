@@ -8,11 +8,11 @@ graphs = {
 
 
 node_configs = {
-  xs: [
-    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
-    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
-    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
+  xs: [ # actually one node
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
   ],
   s: [
     '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
