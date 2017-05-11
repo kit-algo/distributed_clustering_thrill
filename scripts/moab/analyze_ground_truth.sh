@@ -14,6 +14,7 @@ MPIRUN_OPTIONS="--bind-to core --map-by node:PE=$((MOAB_PROCCOUNT / MOAB_NODECOU
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} MPI-tasks and ${THRILL_WORKERS_PER_HOST} threads"
 
 clustering_id=$(ruby -e "require 'securerandom'; puts SecureRandom.uuid")
-startexe="mpirun -n ${MOAB_NODECOUNT} ${MPIRUN_OPTIONS} ${EXECUTABLE}"
+executable="$HOME/code/prototypes/thrill_louvain/release/distributed_clustering_analyser"
+startexe="mpirun -n ${MOAB_NODECOUNT} ${MPIRUN_OPTIONS} ${executable}"
 echo $startexe "$GRAPH" "$GROUNDTRUTH,$clustering_id"
 exec $startexe "$GRAPH" "$GROUNDTRUTH,$clustering_id"
