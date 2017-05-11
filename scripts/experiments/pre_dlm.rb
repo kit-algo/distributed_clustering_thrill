@@ -14,7 +14,7 @@ bins = [
 ]
 
 graphs = [
-  # '/home/kit/iti/kp0036/graphs/mu-04/graph_50_10000_mu_0.4_10000000-preprocessed-*.bin',
+  '/home/kit/iti/kp0036/graphs/mu-04/graph_50_10000_mu_0.4_10000000-preprocessed-*.bin',
   '/home/kit/iti/kp0036/graphs/com-friendster-preprocessed-*.bin',
   '/home/kit/iti/kp0036/graphs/uk-2002.metis-preprocessed-*.bin'
 ]
