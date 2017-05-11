@@ -9,34 +9,34 @@ graphs = {
 
 node_configs = {
   xs: [
-    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=2  -l pmem=4500mb -q multinode',
-    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=5  -l pmem=4500mb -q multinode',
-    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=17 -l pmem=4500mb -q multinode',
-    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=28 -l pmem=4500mb -q multinode',
+    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
+    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
+    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+    '-l nodes=1:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
   ],
   s: [
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=2  -l pmem=4500mb -q multinode',
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=5  -l pmem=4500mb -q multinode',
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=17 -l pmem=4500mb -q multinode',
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=28 -l pmem=4500mb -q multinode',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
   ],
   m: [
-    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=2  -l pmem=4500mb -q multinode',
-    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=5  -l pmem=4500mb -q multinode',
-    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=17 -l pmem=4500mb -q multinode',
-    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=28 -l pmem=4500mb -q multinode',
+    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
+    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
+    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
   ],
   l: [
-    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=2  -l pmem=4500mb -q multinode',
-    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=5  -l pmem=4500mb -q multinode',
-    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=17 -l pmem=4500mb -q multinode',
-    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=28 -l pmem=4500mb -q multinode',
+    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
+    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
+    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
   ],
   xl: [
-    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=2  -l pmem=4500mb -q multinode',
-    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=5  -l pmem=4500mb -q multinode',
-    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=17 -l pmem=4500mb -q multinode',
-    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=28 -l pmem=4500mb -q multinode',
+    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
+    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
+    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
   ],
 }
 
@@ -44,7 +44,8 @@ node_configs = {
 graphs.each do |graph, graph_configs|
   graph_configs.each do |size|
     node_configs[size].each do |config|
-      command_result = `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/dlm -l walltime=01:00:00 #{config} #{ENV['HOME']}/code/scripts/moab/no_default_dlm.sh`
+      moab = (size == :xs ? 'fake_single_dlm.sh' : 'no_default_dlm.sh')
+      command_result = `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/dlm -l walltime=01:00:00 #{config} #{ENV['HOME']}/code/scripts/moab/#{moab}`
       puts "#{graph} #{config} #{command_result.strip}"
     end
   end

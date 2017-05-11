@@ -9,5 +9,5 @@ graphs = [
 ]
 
 graphs.each do |graph, ground_truth|
-  puts graph[0], `msub -v GRAPH=#{ENV['HOME']}/#{graph} -v GROUNDTRUTH=#{ENV['HOME']}/#{ground_truth} #{ENV['HOME']}/code/scripts/moab/analyze_ground_truth.sh`
+  puts graph, `msub -v GRAPH=#{ENV['HOME']}/#{graph} -v GROUNDTRUTH=#{ENV['HOME']}/#{ground_truth} #{ENV['HOME']}/code/scripts/moab/analyze_ground_truth.sh`
 end
