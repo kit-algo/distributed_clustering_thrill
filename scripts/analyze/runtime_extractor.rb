@@ -3,7 +3,8 @@
 require 'json'
 
 
-ARGV.each do |job_output_file|
+ARGV.each_with_index do |job_output_file, i|
+  puts "#{i}/#{ARGV.size}"
   next unless `tail -n1 #{job_output_file}`.start_with?('malloc_tracker ### exiting')
 
   job_id = job_output_file.match(/job_uc1_(\d+)\.out/)[1]
