@@ -89,22 +89,22 @@ int main(int argc, char const *argv[]) {
     }
   };
 
-  for (uint32_t i : { 4, 32, 128, 1024 }) {
+  for (uint32_t i : { 4, 16, 64, 256, 1024 }) {
     run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
       return Partitioning::chunk(graph, i, partitions);
     });
     run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
       return Partitioning::deterministicGreedyWithLinearPenalty(graph, i, partitions);
     });
-    run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
-      return Partitioning::deterministicGreedyWithLinearPenalty(graph, i, partitions, true);
-    });
-    run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
-      return Partitioning::clusteringBased(graph, i, partitions, input.isGroundProofAvailable() ? input.getGroundProof() : base_clusters); // TODO log cluster id?
-    });
-    run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
-      return Partitioning::random(graph, i, partitions);
-    });
+    // run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
+    //   return Partitioning::deterministicGreedyWithLinearPenalty(graph, i, partitions, true);
+    // });
+    // run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
+    //   return Partitioning::clusteringBased(graph, i, partitions, input.isGroundProofAvailable() ? input.getGroundProof() : base_clusters); // TODO log cluster id?
+    // });
+    // run_and_log_partitioned_louvain([&](std::vector<uint32_t>& partitions) {
+    //   return Partitioning::random(graph, i, partitions);
+    // });
   }
 
   input.forEachPartition(partitions, [&](const std::vector<uint32_t>&, const std::string& logging_id) {

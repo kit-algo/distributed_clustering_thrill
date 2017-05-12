@@ -222,7 +222,7 @@ std::vector<Logging::Id> analyse(const Graph& graph, const std::vector<uint32_t>
     Logging::report("partition_element", element_logging_id, "partition_id", partition_logging_id);
     Logging::report("partition_element", element_logging_id, "node_count", node_counts[partition_element]);
     Logging::report("partition_element", element_logging_id, "ghost_count", ghost_vertex_counts[partition_element]);
-    Logging::report("partition_element", element_logging_id, "connected_components", connect_component_sizes[partition_element]);
+    // Logging::report("partition_element", element_logging_id, "connected_components", connect_component_sizes[partition_element]);
   }
 
   return partition_element_logging_ids;
