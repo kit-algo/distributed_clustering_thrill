@@ -42,7 +42,7 @@ end
 
 timestamp = Time.now
 commit = ''
-Dir.chdir(File.expand_path(File.dirname(__FILE__))) do
+Dir.chdir(Pathname.new(__FILE__).realpath.dirname)) do
   commit = `git rev-parse HEAD`.strip
 end
 
