@@ -2,6 +2,7 @@
 
 require 'securerandom'
 require 'json'
+require 'pathname'
 
 data = {}
 local_id_to_uuid = Hash.new do |hash, key|
