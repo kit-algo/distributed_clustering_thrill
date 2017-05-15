@@ -17,15 +17,12 @@ using Weight = typename Graph::Weight;
 
 template<class F>
 void open_file(const std::string& filename, F callback, std::ios_base::openmode mode = std::ios::in) {
-    // std::cout << "Opening file " << filename << "\n";
-    std::ifstream f(filename, mode);
-    if(!f.is_open()) {
-        throw std::runtime_error("Could not open file " + filename);
-    }
+  std::ifstream f(filename, mode);
+  if(!f.is_open()) {
+      throw std::runtime_error("Could not open file " + filename);
+  }
 
-    callback(f);
-
-    // std::cout << "done reading " << filename << "\n";
+  callback(f);
 }
 
 Graph::EdgeId read_graph(const std::string& filename, std::vector<std::vector<Graph::NodeId>> &neighbors) {
@@ -84,6 +81,17 @@ void read_clustering(const std::string& filename, ClusterStore& clusters) {
       }
     }
   });
+}
+
+void write_clustering(const std::string& filename, ClusterStore& clusters) {
+  std::ofstream f(filename, std::ios::out);
+  if(!f.is_open()) {
+      throw std::runtime_error("Could not open file " + filename);
+  }
+
+  for (NodeId node = 0; node < clusters.size(); node++) {
+    f << clusters[node] << std::endl;
+  }
 }
 
 void read_snap_clustering(const std::string& filename, ClusterStore &clusters, std::unordered_map<Graph::NodeId, Graph::NodeId>& id_mapping) {

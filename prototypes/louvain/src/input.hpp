@@ -27,6 +27,7 @@ private:
 
   std::string graph_file = "";
   std::string ground_proof_file = "";
+  std::string output_file = "";
   std::vector<std::string> partitions_strings;
   std::vector<PartitionInput> partitions;
   bool snap_format = false;
@@ -40,6 +41,7 @@ public:
     thrill::common::CmdlineParser cp;
 
     cp.AddString('g', "ground-proof", "file", ground_proof_file, "A ground proof clustering to compare to");
+    cp.AddString('o', "output", "file", output_file, "The file to write the clustering to");
     cp.AddUInt('s', "seed", "unsigned int", seed, "Fix random seed");
     cp.AddFlag('f', "snap-format", "bool", snap_format, "Graph is in SNAP Edge List Format rather than DIMACS graph");
     cp.AddParamString("graph", graph_file, "The graph to perform clustering on, in metis format");
@@ -94,6 +96,8 @@ public:
   const Graph& getGraph() { return *graph; }
   bool isGroundProofAvailable() { if (ground_proof) { return true; } else { return false; } }
   const ClusterStore& getGroundProof() { return *ground_proof; }
+  bool shouldWriteOutput() { return !output_file.empty(); }
+  const std::string& outputFile() { return output_file; }
 
   template<class F>
   void forEachPartition(std::vector<uint32_t>& node_partition_elements, F f) {

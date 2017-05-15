@@ -14,3 +14,4 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG") # disable ass
 
 # Executables
 add_executable(louvain src/main.cpp ../../lib/thrill/thrill/common/string.cpp ../../lib/thrill/thrill/common/cmdline_parser.cpp)
+add_executable(seq_louvain src/seq_louvain.cpp ../../lib/thrill/thrill/common/string.cpp ../../lib/thrill/thrill/common/cmdline_parser.cpp)
