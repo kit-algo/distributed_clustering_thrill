@@ -254,6 +254,7 @@ void contractAndReapply(const Graph& graph, ClusterStore &clusters, uint64_t alg
   });
   Graph meta_graph(cluster_count, edge_count, true);
   meta_graph.setEdgesByAdjacencyMatrix(cluster_connection_weights);
+  cluster_connection_weights.clear();
 
   assert(graph.getTotalWeight() == meta_graph.getTotalWeight());
   ClusterStore meta_singleton(cluster_count);
