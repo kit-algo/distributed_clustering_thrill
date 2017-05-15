@@ -8,6 +8,7 @@
 
 #include "input.hpp"
 #include "thrill_partitioning.hpp"
+#include "logging.hpp"
 
 int main(int argc, char const *argv[]) {
   std::string graph_file = "";
@@ -26,6 +27,20 @@ int main(int argc, char const *argv[]) {
     context.enable_consume();
 
     auto graph = Input::readToNodeGraph(graph_file, context);
+
+    if (context.my_rank() == 0) {
+      Logging::Id program_run_logging_id = Logging::getUnusedId();
+      Logging::report("program_run", program_run_logging_id, "binary", argv[0]);
+      Logging::report("program_run", program_run_logging_id, "hosts", context.num_hosts());
+      Logging::report("program_run", program_run_logging_id, "total_workers", context.num_workers());
+      Logging::report("program_run", program_run_logging_id, "workers_per_host", context.workers_per_host());
+      Logging::report("program_run", program_run_logging_id, "graph", argv[1]);
+      Logging::report("program_run", program_run_logging_id, "node_count", graph.node_count);
+      Logging::report("program_run", program_run_logging_id, "edge_count", graph.total_weight);
+      if (getenv("MOAB_JOBID")) {
+        Logging::report("program_run", program_run_logging_id, "job_id", getenv("MOAB_JOBID"));
+      }
+    }
 
     partition(graph, partition_size)
       .Execute();
