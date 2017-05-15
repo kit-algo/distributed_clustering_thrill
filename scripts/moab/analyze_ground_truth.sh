@@ -1,6 +1,6 @@
 #!/bin/bash
 #MSUB -N analyze_ground_truth
-#MSUB -l walltime=01:00:00
+#MSUB -l walltime=03:00:00
 #MSUB -l nodes=16:ppn=28
 #MSUB -l pmem=4500mb
 #MSUB -q multinode
