@@ -23,7 +23,7 @@ node_configs = [
 graphs.each do |graph, graph_configs|
   graph_configs.each do |size|
     node_configs[size].each do |config|
-      command_result = `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/plm -l walltime=01:00:00 #{config} #{ENV['HOME']}/code/scripts/moab/no_default_plm.sh`
+      command_result = `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/plm -l walltime=03:00:00 #{config} #{ENV['HOME']}/code/scripts/moab/no_default_plm.sh`
       puts "#{graph} #{config} #{command_result.strip}"
     end
   end
