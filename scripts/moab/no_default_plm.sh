@@ -1,17 +1,15 @@
 #!/bin/bash
 #MSUB -N partitioned_louvain
-#MSUB -l nodes=4:ppn=17
-#MSUB -l walltime=01:00:00
-#MSUB -l mem=512000mb
 #MSUB -q multinode
+#MSUB -l pmem=4500mb
+#MSUB -v THRILL_RAM=120GiB
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
-#MSUB -v THRILL_WORKERS_PER_HOST=17
-#MSUB -v MPIRUN_OPTIONS="--bind-to core --map-by node:PE=17 -report-bindings"
 
 cat /proc/cpuinfo > cpu-$MOAB_JOBID
 
-export THRILL_LOG="plv-log-${MOAB_JOBID}"
+export THRILL_LOG="plm-log-${MOAB_JOBID}"
 module load ${MPI_MODULE}
+MPIRUN_OPTIONS="--bind-to core --map-by node:PE=$((MOAB_PROCCOUNT / MOAB_NODECOUNT)) -report-bindings"
 
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} MPI-tasks and ${THRILL_WORKERS_PER_HOST} threads"
 
