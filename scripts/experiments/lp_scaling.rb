@@ -9,34 +9,34 @@ graphs = {
 
 node_configs = {
   xs: [ # actually one node
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=2  -l walltime=01:00:00',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=5  -l walltime=01:00:00',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=17 -l walltime=01:00:00',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=28 -l walltime=01:00:00',
   ],
   s: [
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=2  -l walltime=01:00:00',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=5  -l walltime=01:00:00',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=17 -l walltime=01:00:00',
+    '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=28 -l walltime=01:00:00',
   ],
   m: [
-    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
-    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
-    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
+    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=2  -l walltime=01:00:00',
+    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=5  -l walltime=01:00:00',
+    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=17 -l walltime=01:00:00',
+    '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=28 -l walltime=01:00:00',
   ],
   l: [
-    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
-    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
-    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
+    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=2  -l walltime=03:00:00',
+    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=5  -l walltime=03:00:00',
+    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=17 -l walltime=03:00:00',
+    '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=28 -l walltime=03:00:00',
   ],
   xl: [
-    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
-    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
-    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=28',
+    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=2  -l walltime=02:00:00',
+    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=5  -l walltime=02:00:00',
+    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=17 -l walltime=02:00:00',
+    '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=28 -l walltime=02:00:00',
   ],
 }
 
@@ -45,7 +45,7 @@ graphs.each do |graph, graph_configs|
   graph_configs.each do |size|
     node_configs[size].each do |config|
       moab = (size == :xs ? 'fake_single_lp.sh' : 'no_default_lp.sh')
-      command_result = `msub -v GRAPH=#{graph} -l walltime=01:00:00 #{config} #{ENV['HOME']}/code/scripts/moab/#{moab}`
+      command_result = `msub -v GRAPH=#{graph} #{config} #{ENV['HOME']}/code/scripts/moab/#{moab}`
       puts "#{graph} #{config} #{command_result.strip}"
     end
   end
