@@ -31,6 +31,7 @@ private:
   std::vector<std::string> partitions_strings;
   std::vector<PartitionInput> partitions;
   bool snap_format = false;
+  bool binary_format = false;
   unsigned seed;
 
 public:
@@ -44,6 +45,7 @@ public:
     cp.AddString('o', "output", "file", output_file, "The file to write the clustering to");
     cp.AddUInt('s', "seed", "unsigned int", seed, "Fix random seed");
     cp.AddFlag('f', "snap-format", "bool", snap_format, "Graph is in SNAP Edge List Format rather than DIMACS graph");
+    cp.AddFlag('b', "binary-format", "bool", binary_format, "Graph is in Thrill binary format rather than DIMACS graph");
     cp.AddParamString("graph", graph_file, "The graph to perform clustering on, in metis format");
     cp.AddOptParamStringlist("partitions", partitions_strings, "Partition with reporting UUID (comma seperated)");
 
@@ -65,6 +67,8 @@ public:
       establishIdMapping(graph_file);
       neighbors.resize(id_mapping.size());
       edge_count = IO::read_graph_txt(graph_file, neighbors, id_mapping);
+    } else if (binary_format) {
+      edge_count = IO::read_graph_bin(graph_file, neighbors);
     } else {
       edge_count = IO::read_graph(graph_file, neighbors);
     }

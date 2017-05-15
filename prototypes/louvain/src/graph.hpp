@@ -116,6 +116,7 @@ public:
         current_edge_index++;
       }
     }
+    assert(current_edge_index == 2 * edge_count);
 
     initializeAccumulatedWeights();
   }

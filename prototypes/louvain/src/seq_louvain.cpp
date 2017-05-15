@@ -34,7 +34,7 @@ int main(int argc, char const *argv[]) {
 
   thrill::common::StatsTimerBase<true> timer(/* autostart */ true);
   Modularity::louvain(graph, clusters, algo_run_logging_id);
-  Logging::report("algorithm_run", algo_run_logging_id, "runtime", timer.Seconds());
+  Logging::report("algorithm_run", algo_run_logging_id, "runtime", timer.Microseconds() / 1000000.0);
 
   Logging::Id cluster_logging_id = Modularity::log_clustering(graph, clusters);
   Logging::report("clustering", cluster_logging_id, "source", "computation");
