@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 graphs = {
-  "#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_100000-preprocessed-*.bin" => :fast,
+  "#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_100000-sorted-preprocessed-*.bin" => :fast,
   "#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_1000000-preprocessed-*.bin" => :standard,
   "#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_10000000-preprocessed-*.bin" => :slow,
   "#{ENV['HOME']}/graphs/hypercubegraph23-preprocessed-*.bin" => :slow,
