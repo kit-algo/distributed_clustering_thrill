@@ -22,9 +22,7 @@ time_configs = {
 }
 
 
-graphs.each do |graph, configs|
-  configs[1].each do |node_config|
-    command_result = `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/dlm #{time_configs[configs[0]]} #{node_configs[node_config]} ~/code/scripts/moab/no_default_dlm.sh`
-    puts "#{graph} #{configs[0]} #{node_config} #{command_result.strip}"
-  end
+graphs.each do |graph, config|
+  command_result = `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/seq #{time_configs[config]} #{ENV['HOME']}/code/scripts/moab/seq_louvain.sh`
+  puts "#{graph} #{time_configs[config]} #{command_result.strip}"
 end
