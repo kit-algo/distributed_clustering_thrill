@@ -4,6 +4,7 @@
 #MSUB -l pmem=4500mb
 #MSUB -q multinode
 
+module load mpi/openmpi/2.0-gnu-5.2
 cat /proc/cpuinfo > cpu-$MOAB_JOBID
 
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores"
