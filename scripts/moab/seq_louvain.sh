@@ -10,5 +10,5 @@ cat /proc/cpuinfo > cpu-$MOAB_JOBID
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores"
 
 executable="$HOME/code/prototypes/louvain/release/seq_louvain"
-echo $executable "-b $GRAPH" "$CLUSTERING-$MOAB_JOBID.part"
-exec $executable "-b $GRAPH" "$CLUSTERING-$MOAB_JOBID.part"
+echo $executable "-b" "$GRAPH" "$CLUSTERING-$MOAB_JOBID.part"
+exec $executable "-b" "$GRAPH" "$CLUSTERING-$MOAB_JOBID.part"
