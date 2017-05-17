@@ -20,6 +20,8 @@
 
 #include "partitioning.hpp"
 
+#define FIXED_RATIO 4
+
 using Label = NodeId;
 
 struct NodeIdLabel {
@@ -31,6 +33,11 @@ struct NodePartition {
   NodeId node_id;
   uint32_t partition;
 };
+
+bool nodeIncluded(const NodeId node, const uint32_t iteration) {
+  uint32_t hash = Util::combined_hash(node, iteration / FIXED_RATIO);
+  return hash % FIXED_RATIO == iteration % FIXED_RATIO;
+}
 
 template<class Graph>
 auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t target_partition_element_size) {
@@ -73,12 +80,16 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
   auto node_labels = graph.nodes.Keep().Map([](const Node& node) { return NodeLabel(node, node.id); }).Collapse();
 
   for (uint32_t iteration = 0; iteration < max_num_iterations; iteration++) {
+    auto included = [iteration](const NodeId id) { return nodeIncluded(id, iteration); };
+
     auto new_node_labels = (iteration < max_num_iterations / 3 ?
       select_most_frequent_label(node_labels
         .template FlatMap<NodeIdLabel>(
-          [](const NodeLabel& node_label, auto emit) {
+          [&included](const NodeLabel& node_label, auto emit) {
             for (const Link& neighbor : node_label.first.links) {
-              emit(NodeIdLabel { neighbor.target, node_label.second });
+              if (included(neighbor.target)) {
+                emit(NodeIdLabel { neighbor.target, node_label.second });
+              }
             }
             emit(NodeIdLabel { node_label.first.id, node_label.second });
           }), iteration) :
@@ -90,11 +101,13 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
               return std::move(acc);
             })
         .template FlatMap<NodeIdLabel>(
-          [target_partition_element_size](const std::pair<Label, std::vector<Node>>& label_nodes, auto emit) {
+          [target_partition_element_size, &included](const std::pair<Label, std::vector<Node>>& label_nodes, auto emit) {
             for (const Node& node : label_nodes.second) {
               for (const Link& neighbor : node.links) {
                 if (label_nodes.second.size() < target_partition_element_size) {
-                  emit(NodeIdLabel { neighbor.target, label_nodes.first });
+                  if (included(neighbor.target)) {
+                    emit(NodeIdLabel { neighbor.target, label_nodes.first });
+                  }
                 }
               }
               emit(NodeIdLabel { node.id, label_nodes.first });
@@ -110,7 +123,7 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
     node_labels = new_node_labels
       .Zip(graph.nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); });
 
-    if (num_changed == graph.node_count / 100) {
+    if (num_changed <= graph.node_count / (100 * FIXED_RATIO)) {
       break;
     }
   }
@@ -127,7 +140,7 @@ auto partition(const Graph& graph, const uint32_t partition_size) {
   auto& context = graph.nodes.context();
   NodeId partition_element_target_size = Partitioning::partitionElementTargetSize(graph.node_count, partition_size);
 
-  auto labels_with_nodes = label_propagation(graph, 16, partition_element_target_size)
+  auto labels_with_nodes = label_propagation(graph, 64, partition_element_target_size)
     .template GroupByKey<std::pair<Label, std::vector<NodeId>>>(
       [](const NodeIdLabel& node_label) { return node_label.label; },
       [](auto& iterator, const Label label) {
