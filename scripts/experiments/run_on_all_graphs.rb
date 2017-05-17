@@ -2,7 +2,7 @@
 
 require 'json'
 
-system "./generate_external_partitions.rb #{ARGV[1..-1].join(' ')} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[0]} ./report_to_json.rb"
+system "./generate_external_partitions.rb #{ARGV[1..-1].map { |graph| "'#{graph}'" }.join(' ')} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[0]} ./report_to_json.rb"
 
 json_files = Dir.glob(File.join(ARGV[0], '*.json'))
 data = {}
