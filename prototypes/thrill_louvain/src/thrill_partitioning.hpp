@@ -20,7 +20,7 @@
 
 #include "partitioning.hpp"
 
-#define FIXED_RATIO 4
+#define LP_FIXED_RATIO 4
 
 using Label = NodeId;
 
@@ -35,8 +35,8 @@ struct NodePartition {
 };
 
 bool nodeIncluded(const NodeId node, const uint32_t iteration) {
-  uint32_t hash = Util::combined_hash(node, iteration / FIXED_RATIO);
-  return hash % FIXED_RATIO == iteration % FIXED_RATIO;
+  uint32_t hash = Util::combined_hash(node, iteration / LP_FIXED_RATIO);
+  return hash % LP_FIXED_RATIO == iteration % LP_FIXED_RATIO;
 }
 
 template<class Graph>
@@ -123,7 +123,7 @@ auto label_propagation(Graph& graph, uint32_t max_num_iterations, uint32_t targe
     node_labels = new_node_labels
       .Zip(graph.nodes.Keep(), [](const Label label, const Node& node) { return NodeLabel(node, label); });
 
-    if (num_changed <= graph.node_count / (100 * FIXED_RATIO)) {
+    if (num_changed <= graph.node_count / (100 * LP_FIXED_RATIO)) {
       break;
     }
   }
