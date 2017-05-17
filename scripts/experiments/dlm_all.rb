@@ -37,7 +37,7 @@ graphs.each do |graph, configs|
   ARGV.each do |prio|
     node_config = configs[1][-prio.to_i]
     if node_config
-      moab = (size == :xs ? 'fake_single_dlm.sh' : 'no_default_dlm.sh')
+      moab = (node_config == :xs ? 'fake_single_dlm.sh' : 'no_default_dlm.sh')
       command_result = `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/dlm #{time_configs[configs[0]]} #{node_configs[node_config]} ~/code/scripts/moab/#{moab}`
       puts "#{graph} #{configs[0]} #{node_config} #{command_result.strip}"
     end
