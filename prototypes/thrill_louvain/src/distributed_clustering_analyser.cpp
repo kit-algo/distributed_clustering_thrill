@@ -1,59 +1,68 @@
 #include <thrill/api/gather.hpp>
+#include <thrill/api/zip.hpp>
 
 #include "thrill_modularity.hpp"
+#include "thrill_louvain.hpp"
 #include "input.hpp"
 
 #include "seq_louvain/cluster_store.hpp"
 #include "logging.hpp"
 
-int main(int argc, char const *argv[]) {
+int main(int, char const *argv[]) {
   return thrill::Run([&](thrill::Context& context) {
     context.enable_consume();
-
-    auto graph = Input::readToEdgeGraph(argv[1], context);
 
     std::pair<std::string, std::string> algo_clustering_input = Logging::parse_input_with_logging_id(argv[2]);
     auto node_clusters = Input::readClustering(algo_clustering_input.first, context);
 
-    if (argc > 3) { graph.edges.Keep(); }
-    double modularity = Modularity::modularity(graph, node_clusters.Keep());
-    size_t cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
+    auto graph = Input::readToNodeGraph(argv[1], context);
 
-    // auto local_node_clusters = node_clusters.Gather();
+    Logging::Id program_run_logging_id;
+    if (context.my_rank() == 0) {
+      program_run_logging_id = Logging::getUnusedId();
+      Logging::report("program_run", program_run_logging_id, "binary", argv[0]);
+      Logging::report("program_run", program_run_logging_id, "hosts", context.num_hosts());
+      Logging::report("program_run", program_run_logging_id, "total_workers", context.num_workers());
+      Logging::report("program_run", program_run_logging_id, "workers_per_host", context.workers_per_host());
+      Logging::report("program_run", program_run_logging_id, "graph", argv[1]);
+      Logging::report("program_run", program_run_logging_id, "node_count", graph.node_count);
+      Logging::report("program_run", program_run_logging_id, "edge_count", graph.total_weight);
+      if (getenv("MOAB_JOBID")) {
+        Logging::report("program_run", program_run_logging_id, "job_id", getenv("MOAB_JOBID"));
+      }
+    }
 
-    // ClusterStore clusters(context.my_rank() == 0 ? graph.node_count : 0);
+    Logging::Id algorithm_run_id = 0;
+    if (context.my_rank() == 0) {
+      algorithm_run_id = Logging::getUnusedId();
+    }
+    auto result = Louvain::louvain(graph, algorithm_run_id, [node_count = graph.node_count, &node_clusters](const auto& inner_graph, Logging::Id) {
+      using NodeType = typename decltype(inner_graph.nodes)::ValueType;
+
+      if (std::is_same<NodeType, NodeWithLinks>::value) {
+        return node_clusters
+          .Sort([](const NodeCluster& nc1, const NodeCluster& nc2) { return nc1.first < nc2.first; })
+          .Zip(inner_graph.nodes,
+            [](const NodeCluster& node_cluster, const NodeType& node) {
+              assert(node.id == node_cluster.first);
+              return std::make_pair(node, node_cluster.second);
+            });
+      } else {
+        return inner_graph.nodes
+          .Map([](const NodeType& node) { return std::make_pair(node, node.id); })
+          .Collapse();
+      }
+    });
+
+    size_t cluster_count = result.second.node_count;
+    double modularity = Modularity::modularity(result.second);
+
     if (context.my_rank() == 0) {
       Logging::report("clustering", algo_clustering_input.second, "path", algo_clustering_input.first);
       Logging::report("clustering", algo_clustering_input.second, "source", "ground_truth");
       Logging::report("clustering", algo_clustering_input.second, "modularity", modularity);
       Logging::report("clustering", algo_clustering_input.second, "cluster_count", cluster_count);
-
-      // for (const auto& node_cluster : local_node_clusters) {
-      //   clusters.set(node_cluster.first, node_cluster.second);
-      // }
     }
-    // if (argc > 3) {
-    //   std::pair<std::string, std::string> ground_truth_input = Logging::parse_input_with_logging_id(argv[2]);
-    //   auto ground_truth = Input::readClustering(argv[3], context);
-
-    //   modularity = Modularity::modularity(graph, ground_truth.Keep());
-    //   cluster_count = ground_truth.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
-
-    //   auto local_ground_truth = ground_truth.Gather();
-
-    //   if (context.my_rank() == 0) {
-    //     ClusterStore ground_truth_clusters(graph.node_count);
-    //     for (const auto& node_cluster : local_ground_truth) {
-    //       ground_truth_clusters.set(node_cluster.first, node_cluster.second);
-    //     }
-
-    //     Logging::report("clustering", ground_truth_input.second, "path", ground_truth_input.first);
-    //     Logging::report("clustering", ground_truth_input.second, "source", "ground_truth");
-    //     Logging::report("clustering", ground_truth_input.second, "modularity", modularity);
-    //     Logging::report("clustering", ground_truth_input.second, "cluster_count", cluster_count);
-    //     Logging::log_comparison_results(ground_truth_input.second, ground_truth_clusters, algo_clustering_input.second, clusters);
-    //   }
-    // }
   });
 }
 
