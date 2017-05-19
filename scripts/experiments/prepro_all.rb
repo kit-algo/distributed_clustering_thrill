@@ -32,14 +32,14 @@ small_graphs = [
   # ['graphs/in-2004.metis.graph'],
   # ['graphs/com-youtube.ungraph.txt'],
   # ['graphs/com-amazon.ungraph.txt']
-  ['graphs/mu-04/graph_50_10000_mu_0.4_100000-sorted*.bin', 'graphs/mu-04/part_50_10000_mu_0.4_100000-sorted.bin'],
-  ['graphs/mu-04/graph_50_10000_mu_0.4_1000000.bin', 'graphs/mu-04/part_50_10000_mu_0.4_1000000.bin']
+  # ['graphs/mu-04/graph_50_10000_mu_0.4_100000-sorted*.bin', 'graphs/mu-04/part_50_10000_mu_0.4_100000-sorted.bin'],
+  # ['graphs/mu-04/graph_50_10000_mu_0.4_1000000.bin', 'graphs/mu-04/part_50_10000_mu_0.4_1000000.bin']
 ]
 
 large_graphs = [
   # ['graphs/mu-04/graph_50_10000_mu_0.4_100000000.bin', 'graphs/mu-04/part_50_10000_mu_0.4_100000000.bin'],
   # ['graphs/mu-04/graph_50_10000_mu_0.4_200000000-sorted.bin', 'graphs/mu-04/part_50_10000_mu_0.4_200000000-sorted.bin'],
-  # ['graphs/graph_50_10000_mu_0.4_1000000000-sorted*.bin', 'graphs/part_50_10000_mu_0.4_1000000000-sorted.bin'],
+  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_1000000000-sorted*.bin", "#{ENV['WORK']}/graphs/part_50_10000_mu_0.4_1000000000-sorted.bin"],
 ]
 
 graphs.each do |graph|
