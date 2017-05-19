@@ -17,7 +17,7 @@ ARGV.each_with_index do |job_output_file, i|
     File.open(json_log).each do |line|
       begin
         event = JSON.parse(line)
-        start = event['ts'] if event['id'] == 9 && event['event'] == 'execute-start' && event['ts'] < start
+        start = event['ts'] if event['id'] == 7 && event['event'] == 'pushdata-done' && event['ts'] < start
         if event['id'] && event['id'] >= final_stage && event['label'] == 'ZipWithIndex' && event['event'] == 'pushdata-done'
           final_stage = event['id']
           ending = event['ts'] if event['ts'] > ending
