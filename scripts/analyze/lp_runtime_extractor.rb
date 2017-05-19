@@ -28,6 +28,6 @@ ARGV.each_with_index do |job_output_file, i|
   end
 
   open(job_output_file, 'a') do |f|
-    f.puts "#LOG# algorithm_run/1/runtime: #{(ending - start) / 1000000.0}"
+    f.puts "#LOG# program_run/0/runtime: #{(ending - start) / 1000000.0}"
   end
 end
