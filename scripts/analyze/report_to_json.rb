@@ -34,7 +34,7 @@ ARGF.each_line do |line|
 
   data[type] ||= {}
   data[type][local_id_to_uuid[id]] ||= {}
-  if attribute.end_with? '_id' && attribute != 'job_id'
+  if attribute.end_with?('_id') && attribute != 'job_id'
     data[type][local_id_to_uuid[id]][attribute] = local_id_to_uuid[value]
   else
     data[type][local_id_to_uuid[id]][attribute] = typify value
