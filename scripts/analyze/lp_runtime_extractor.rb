@@ -27,7 +27,9 @@ ARGV.each_with_index do |job_output_file, i|
     end
   end
 
-  open(job_output_file, 'a') do |f|
-    f.puts "#LOG# program_run/0/runtime: #{(ending - start) / 1000000.0}"
+  if start != Float::INFINITY && ending != 0
+    open(job_output_file, 'a') do |f|
+      f.puts "#LOG# program_run/0/runtime: #{(ending - start) / 1000000.0}"
+    end
   end
 end
