@@ -44,15 +44,15 @@ large_graphs = [
 
 graphs.each do |graph|
   groundtruth_option = graph.size == 2 ? "-v GROUNDTRUTH=#{ENV['HOME']}/#{graph[1]}" : ''
-  puts graph[0], `msub -v GRAPH=#{ENV['HOME']}/#{graph[0]} #{groundtruth_option} ~/code/scripts/moab/preprocess.sh`
+  puts graph[0], `msub -v GRAPH=#{graph[0]} #{groundtruth_option} ~/code/scripts/moab/preprocess.sh`
 end
 
 small_graphs.each do |graph|
   groundtruth_option = graph.size == 2 ? "-v GROUNDTRUTH=#{ENV['HOME']}/#{graph[1]}" : ''
-  puts graph[0], `msub -v GRAPH=#{ENV['HOME']}/#{graph[0]} #{groundtruth_option} ~/code/scripts/moab/preprocess_s.sh`
+  puts graph[0], `msub -v GRAPH=#{graph[0]} #{groundtruth_option} ~/code/scripts/moab/preprocess_s.sh`
 end
 
 large_graphs.each do |graph|
   groundtruth_option = graph.size == 2 ? "-v GROUNDTRUTH=#{ENV['WORK']}/#{graph[1]}" : ''
-  puts graph[0], `msub -v GRAPH=#{ENV['WORK']}/#{graph[0]} #{groundtruth_option} ~/code/scripts/moab/preprocess_l.sh`
+  puts graph[0], `msub -v GRAPH=#{graph[0]} #{groundtruth_option} ~/code/scripts/moab/preprocess_l.sh`
 end
