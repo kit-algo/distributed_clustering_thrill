@@ -4,8 +4,8 @@
 #MSUB -l nodes=16:ppn=28
 #MSUB -l pmem=4500mb
 #MSUB -q multinode
-#MSUB -v THRILL_WORKERS_PER_HOST=17
-#MSUB -v THRILL_RAM=120GiB
+#MSUB -v THRILL_WORKERS_PER_HOST=9
+#MSUB -v THRILL_RAM=110GiB
 #MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
 
 module load ${MPI_MODULE}
