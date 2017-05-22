@@ -18,7 +18,7 @@ graphs = {
 time_configs = {
   fast: '-l walltime=00:10:00',
   standard: '-l walltime=01:00:00',
-  slow: '-l walltime=05:00:00'
+  slow: '-l walltime=10:00:00'
 }
 
 node_configs = {
