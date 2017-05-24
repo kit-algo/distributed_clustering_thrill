@@ -242,7 +242,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
 }
 
 template<class Graph>
-auto partitionedLocalMoving(const Graph& graph) {
+auto partitionedLocalMoving(const Graph& graph, Logging::Id logging_id) {
   constexpr bool weighted = std::is_same<typename Graph::Node, NodeWithWeightedLinks>::value;
   using Node = typename std::conditional<weighted, NodeWithWeightedLinksAndTargetDegree, NodeWithLinksAndTargetDegree>::type;
 
@@ -285,7 +285,7 @@ auto partitionedLocalMoving(const Graph& graph) {
     // Local Moving
     .template GroupToIndex<std::vector<std::pair<typename Graph::Node, ClusterId>>>(
       [](const std::pair<Node, uint32_t>& node_partition) -> size_t { return node_partition.second; },
-      [total_weight = graph.total_weight, partition_element_size](auto& iterator, const uint32_t) {
+      [total_weight = graph.total_weight, partition_element_size, partition_size, logging_id](auto& iterator, const uint32_t) {
         // TODO deterministic random
         GhostGraph<weighted> graph(partition_element_size, total_weight);
         const std::vector<typename Graph::Node> reverse_mapping = graph.template initialize<typename Graph::Node>(
@@ -296,7 +296,11 @@ auto partitionedLocalMoving(const Graph& graph) {
           });
 
         GhostClusterStore clusters(graph.getNodeCount());
-        Modularity::localMoving(graph, clusters);
+        if (partition_size > 1) {
+          Modularity::localMoving(graph, clusters);
+        } else {
+          Modularity::louvain(graph, clusters, logging_id);
+        }
         clusters.rewriteClusterIds(reverse_mapping);
 
         std::vector<std::pair<typename Graph::Node, ClusterId>> mapping;

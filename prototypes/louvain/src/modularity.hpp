@@ -25,7 +25,8 @@ using EdgeId = typename Graph::EdgeId;
 using Weight = typename Graph::Weight;
 using ClusterId = typename ClusterStore::ClusterId;
 
-double modularity(Graph const &graph, ClusterStore const &clusters) {
+template<class GraphType, class ClusterStoreType>
+double modularity(GraphType const &graph, ClusterStoreType const &clusters) {
   std::vector<Weight> inner_weights(clusters.size(), 0);
   std::vector<Weight> incident_weights(clusters.size(), 0);
 
@@ -175,9 +176,11 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters, std::vector
   return changed;
 }
 
-void contractAndReapply(const Graph &, ClusterStore &, uint64_t, uint32_t);
+template<class GraphType, class ClusterStoreType>
+void contractAndReapply(const GraphType &, ClusterStoreType &, uint64_t, uint32_t);
 
-void louvain(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id, uint32_t level = 0) {
+template<class GraphType, class ClusterStoreType>
+void louvain(const GraphType& graph, ClusterStoreType &clusters, uint64_t algo_run_id, uint32_t level = 0) {
   assert(std::abs(modularity(graph, ClusterStore(graph.getNodeCount(), 0))) == 0);
 
   bool changed = localMoving(graph, clusters);
@@ -225,7 +228,8 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::v
   contractAndReapply(graph, clusters, algo_run_id, 0);
 }
 
-void contractAndReapply(const Graph& graph, ClusterStore &clusters, uint64_t algo_run_id, uint32_t level) {
+template<class GraphType, class ClusterStoreType>
+void contractAndReapply(const GraphType& graph, ClusterStoreType &clusters, uint64_t algo_run_id, uint32_t level) {
   ClusterId cluster_count = clusters.rewriteClusterIds();
 
   uint64_t level_logging_id = Logging::getUnusedId();
@@ -234,13 +238,13 @@ void contractAndReapply(const Graph& graph, ClusterStore &clusters, uint64_t alg
   Logging::report("algorithm_level", level_logging_id, "cluster_count", cluster_count);
   Logging::report("algorithm_level", level_logging_id, "level", level);
 
-  uint64_t distribution_logging_id = Logging::getUnusedId();
-  Logging::report("cluster_size_distribution", distribution_logging_id, "algorithm_level_id", level_logging_id);
-  std::map<uint32_t, uint32_t> size_distribution;
-  clusters.clusterSizeDistribution(size_distribution);
-  for (auto & size_count : size_distribution) {
-    Logging::report("cluster_size_distribution", distribution_logging_id, size_count.first, size_count.second);
-  }
+  // uint64_t distribution_logging_id = Logging::getUnusedId();
+  // Logging::report("cluster_size_distribution", distribution_logging_id, "algorithm_level_id", level_logging_id);
+  // std::map<uint32_t, uint32_t> size_distribution;
+  // clusters.clusterSizeDistribution(size_distribution);
+  // for (auto & size_count : size_distribution) {
+  //   Logging::report("cluster_size_distribution", distribution_logging_id, size_count.first, size_count.second);
+  // }
 
   std::vector<std::map<NodeId, Weight>> cluster_connection_weights(cluster_count);
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {

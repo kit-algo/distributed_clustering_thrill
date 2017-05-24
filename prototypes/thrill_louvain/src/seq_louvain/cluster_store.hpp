@@ -44,4 +44,22 @@ public:
       cluster_id = new_id;
     }
   }
+
+  ClusterId rewriteClusterIds(ClusterId id_counter = 0) {
+    std::unordered_map<NodeId, ClusterId> old_to_new;
+
+    for (ClusterId& cluster_id : clusters) {
+      if (old_to_new.find(cluster_id) == old_to_new.end()) {
+        old_to_new[cluster_id] = id_counter++;
+      }
+      ClusterId new_id = old_to_new[cluster_id];
+      cluster_id = new_id;
+    }
+
+    return id_counter;
+  }
+
+  size_t size() const {
+    return clusters.size();
+  }
 };
