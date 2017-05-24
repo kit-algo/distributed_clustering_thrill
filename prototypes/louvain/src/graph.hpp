@@ -13,7 +13,7 @@ class Graph {
 public:
 
   typedef uint32_t NodeId;
-  typedef uint32_t EdgeId; // TODO 64 Bit
+  typedef uint64_t EdgeId; // TODO 64 Bit
   typedef uint32_t Weight;
 
 private:

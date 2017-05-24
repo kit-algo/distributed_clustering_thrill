@@ -40,11 +40,11 @@ double modularity(GraphType const &graph, ClusterStoreType const &clusters) {
   }
 
   Weight inner_sum = std::accumulate(inner_weights.begin(), inner_weights.end(), 0);
-  uint64_t incident_sum = std::accumulate(incident_weights.begin(), incident_weights.end(), 0l, [](const uint64_t& agg, const uint64_t& elem) {
+  int128_t incident_sum = std::accumulate(incident_weights.begin(), incident_weights.end(), 0l, [](const int128_t& agg, const int128_t& elem) {
     return agg + (elem * elem);
   });
 
-  uint64_t total_weight = graph.getTotalWeight();
+  int128_t total_weight = graph.getTotalWeight();
   return (inner_sum / (2.*total_weight)) - (incident_sum / (4.*total_weight*total_weight));
 
   static_assert(sizeof(decltype(total_weight)) >= 2 * sizeof(Graph::EdgeId), "Modularity has to be able to captuare a value of maximum number of edges squared");
