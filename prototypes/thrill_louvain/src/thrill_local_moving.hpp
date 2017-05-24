@@ -234,15 +234,16 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
     Logging::report("algorithm_level", level_logging_id, "iterations", iteration);
   }
 
-  return node_clusters
+  return std::make_pair(node_clusters
     .Map(
       [](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) {
         return node_cluster.first;
-      });
+      }),
+    false);
 }
 
 template<class Graph>
-auto partitionedLocalMoving(const Graph& graph, Logging::Id logging_id) {
+auto partitionedLocalMoving(const Graph& graph, Logging::Id loggin_id) {
   constexpr bool weighted = std::is_same<typename Graph::Node, NodeWithWeightedLinks>::value;
   using Node = typename std::conditional<weighted, NodeWithWeightedLinksAndTargetDegree, NodeWithLinksAndTargetDegree>::type;
 
@@ -276,7 +277,7 @@ auto partitionedLocalMoving(const Graph& graph, Logging::Id logging_id) {
       },
       graph.node_count);
 
-  return nodes
+  return std::make_pair(nodes
     .Zip(thrill::NoRebalanceTag, node_partitions,
       [](const Node& node, const NodePartition& node_partition) {
         assert(node.id == node_partition.node_id);
@@ -285,7 +286,7 @@ auto partitionedLocalMoving(const Graph& graph, Logging::Id logging_id) {
     // Local Moving
     .template GroupToIndex<std::vector<std::pair<typename Graph::Node, ClusterId>>>(
       [](const std::pair<Node, uint32_t>& node_partition) -> size_t { return node_partition.second; },
-      [total_weight = graph.total_weight, partition_element_size, partition_size, logging_id](auto& iterator, const uint32_t) {
+      [total_weight = graph.total_weight, partition_element_size, partition_size, loggin_id](auto& iterator, const uint32_t) {
         // TODO deterministic random
         GhostGraph<weighted> graph(partition_element_size, total_weight);
         const std::vector<typename Graph::Node> reverse_mapping = graph.template initialize<typename Graph::Node>(
@@ -299,7 +300,10 @@ auto partitionedLocalMoving(const Graph& graph, Logging::Id logging_id) {
         if (partition_size > 1) {
           Modularity::localMoving(graph, clusters);
         } else {
-          Modularity::louvain(graph, clusters, logging_id);
+          Logging::Id seq_algo_logging_id = Logging::getUnusedId();
+          Logging::report("algorithm_run", seq_algo_logging_id, "distributed_algorithm_run_id", loggin_id);
+          Logging::report("algorithm_run", seq_algo_logging_id, "algorithm", "sequential louvain");
+          Modularity::louvain(graph, clusters, seq_algo_logging_id);
         }
         clusters.rewriteClusterIds(reverse_mapping);
 
@@ -319,7 +323,8 @@ auto partitionedLocalMoving(const Graph& graph, Logging::Id logging_id) {
     .ReduceToIndex(
       [](const std::pair<typename Graph::Node, ClusterId>& node_cluster) -> size_t { return node_cluster.first.id; },
       [](const std::pair<typename Graph::Node, ClusterId>& node_cluster, const std::pair<typename Graph::Node, ClusterId>&) { assert(false); return node_cluster; },
-      graph.node_count);
+      graph.node_count),
+    partition_size == 1);
 }
 
 } // LocalMoving

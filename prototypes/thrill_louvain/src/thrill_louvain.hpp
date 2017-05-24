@@ -20,15 +20,22 @@
 namespace Louvain {
 
 template<class NodeType, class F>
-auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, const F& local_moving, uint32_t level = 0) {
+auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, const F& local_moving, uint32_t level = 0, bool force_exit = false) {
   using EdgeType = typename NodeType::LinkType::EdgeType;
+
+  if (force_exit) {
+    auto node_clusters = graph.nodes.Keep().Map([](const NodeType& node) { return NodeCluster(node.id, node.id); }).Collapse();
+    auto final_nodes = graph.nodes.Map([](const NodeType& node) { return node.asNodeWithWeights(); }).Collapse();
+    return std::make_pair(node_clusters, DiaNodeGraph<NodeWithWeightedLinks> { final_nodes, graph.node_count, graph.total_weight });
+  }
 
   Logging::Id level_logging_id = 0;
   if (graph.nodes.context().my_rank() == 0) {
     level_logging_id = Logging::getUnusedId();
   }
 
-  auto clusters_with_nodes = local_moving(graph, level_logging_id)
+  auto lm_result = local_moving(graph, level_logging_id);
+  auto clusters_with_nodes = lm_result.first
     .template GroupByKey<std::pair<ClusterId, std::vector<NodeType>>>(
       [](const std::pair<NodeType, ClusterId>& node_cluster) { return node_cluster.second; },
       [](auto& iterator, const ClusterId cluster) {
@@ -122,7 +129,7 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
   auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
   assert(meta_graph_edges.Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
-  auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { nodes, cluster_count, graph.total_weight }, algorithm_run_id, local_moving, level + 1);
+  auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { nodes, cluster_count, graph.total_weight }, algorithm_run_id, local_moving, level + 1, lm_result.second);
   return std::make_pair(meta_result.first
     .Zip(clusters_with_node_ids,
       [](const NodeCluster& meta_cluster, const std::pair<ClusterId, std::vector<NodeId>>& cluster_node_ids) {
