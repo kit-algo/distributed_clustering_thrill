@@ -1,22 +1,25 @@
 #!/usr/bin/env ruby
 
 graphs = [
-  "#{ENV['HOME']}/graphs/uk-2002.metis-preprocessed-*.bin",
+  # "#{ENV['HOME']}/graphs/uk-2002.metis-preprocessed-*.bin",
   "#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_10000000-preprocessed-*.bin",
-  "#{ENV['HOME']}/graphs/com-friendster-preprocessed-*.bin",
+  # "#{ENV['HOME']}/graphs/com-friendster-preprocessed-*.bin",
 ]
 
 
 node_configs = [
-  '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
-  '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
-  '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-  '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
-  '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
-  '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-  '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
-  '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
-  '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+  '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
+  '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
+  '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+  # '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
+  # '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
+  # '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+  # '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
+  # '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
+  # '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+  # '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=2 ',
+  # '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=5 ',
+  # '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
 ]
 
 
