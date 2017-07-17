@@ -1,8 +1,8 @@
 #pragma once
 
-#include "graph.hpp"
-#include "modularity.hpp"
-#include "logging.hpp"
+#include "data/graph.hpp"
+#include "algo/modularity.hpp"
+#include "util/logging.hpp"
 
 #include <assert.h>
 #include <cstdint>

@@ -4,9 +4,9 @@
 #include <cstdint>
 #include <vector>
 
-#include "graph.hpp"
-#include "cluster_store.hpp"
-#include "similarity.hpp"
+#include "data/graph.hpp"
+#include "data/cluster_store.hpp"
+#include "algo/similarity.hpp"
 
 #define LOGGING_PREFIX "#LOG# "
 

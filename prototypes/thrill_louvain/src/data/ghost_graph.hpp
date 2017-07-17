@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <cstdint>
 
-#include "../thrill_graph.hpp"
+#include "data/thrill/graph.hpp"
 
 template<bool weighted = false>
 class GhostGraph {

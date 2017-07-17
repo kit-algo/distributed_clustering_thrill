@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <algorithm>
 
-#include "../thrill_graph.hpp"
+#include "data/thrill/graph.hpp"
 
 class GhostClusterStore {
 private:

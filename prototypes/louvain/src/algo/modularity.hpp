@@ -1,8 +1,8 @@
 #pragma once
 
-#include "graph.hpp"
-#include "cluster_store.hpp"
-#include "logging.hpp"
+#include "data/graph.hpp"
+#include "data/cluster_store.hpp"
+#include "util/logging.hpp"
 
 #include <map>
 #include <algorithm>

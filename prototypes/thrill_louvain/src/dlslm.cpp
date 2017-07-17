@@ -4,8 +4,8 @@
   #define MAX_ITERATIONS 32
 #endif
 
-#include "thrill_local_moving.hpp"
-#include "thrill_louvain.hpp"
+#include "algo/thrill/local_moving.hpp"
+#include "algo/thrill/louvain.hpp"
 
 
 int main(int argc, char const *argv[]) {

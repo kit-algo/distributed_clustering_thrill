@@ -1,7 +1,7 @@
 #pragma once
 
-#include "graph.hpp"
-#include "cluster_store.hpp"
+#include "data/graph.hpp"
+#include "data/cluster_store.hpp"
 
 #include <assert.h>
 #include <cstdint>

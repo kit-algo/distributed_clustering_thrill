@@ -1,7 +1,7 @@
 #pragma once
 
-#include "cluster_store.hpp"
-#include "graph.hpp"
+#include "data/cluster_store.hpp"
+#include "data/graph.hpp"
 
 #include <vector>
 #include <unordered_map>

@@ -16,14 +16,14 @@
 #include <algorithm>
 #include <sparsepp/spp.h>
 
-#include "util.hpp"
-#include "thrill_graph.hpp"
-#include "thrill_partitioning.hpp"
+#include "util/util.hpp"
+#include "data/thrill/graph.hpp"
+#include "algo/thrill/partitioning.hpp"
 
-#include "seq_louvain/graph.hpp"
-#include "seq_louvain/cluster_store.hpp"
-#include "modularity.hpp"
-#include "partitioning.hpp"
+#include "data/ghost_graph.hpp"
+#include "data/ghost_cluster_store.hpp"
+#include "algo/modularity.hpp"
+#include "algo/partitioning.hpp"
 
 namespace LocalMoving {
 

@@ -16,9 +16,9 @@
 #include <vector>
 #include <sparsepp/spp.h>
 
-#include "util.hpp"
+#include "util/util.hpp"
 
-#include "partitioning.hpp"
+#include "algo/partitioning.hpp"
 
 #define LP_FIXED_RATIO 4
 
