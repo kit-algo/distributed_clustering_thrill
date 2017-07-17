@@ -20,6 +20,7 @@ add_executable(partitioned_louvain src/partitioned_louvain.cpp)
 # add_executable(exp src/exp.cpp)
 add_executable(preprocess src/preprocessing.cpp)
 add_executable(distributed_clustering_analyser src/distributed_clustering_analyser.cpp)
+add_executable(dlslm_map_eq src/dlslm_map_eq.cpp)
 
 set_target_properties(node_based_local_moving PROPERTIES COMPILE_FLAGS "-D STOP_MOVECOUNT -D FIXED_RATIO=4")
 
@@ -31,6 +32,7 @@ target_link_libraries(partitioned_louvain thrill)
 # target_link_libraries(exp thrill)
 target_link_libraries(preprocess thrill)
 target_link_libraries(distributed_clustering_analyser thrill)
+target_link_libraries(dlslm_map_eq thrill)
 
 # add_executable(dlm_moved_dyn src/node_based_local_moving.cpp)
 # add_executable(dlm_moved_1 src/node_based_local_moving.cpp)
