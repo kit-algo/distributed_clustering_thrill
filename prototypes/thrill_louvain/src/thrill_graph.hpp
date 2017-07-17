@@ -142,6 +142,16 @@ struct NodeWithWeightedLinks {
 
   Weight weightedDegree() const { return weighted_degree_cache; }
 
+  Weight loopWeight() const {
+    Weight loops = 0;
+    for (const WeightedEdgeTarget& link : links) {
+      if (link.target == id) {
+        loops += link.weight;
+      }
+    }
+    return loops;
+  }
+
   void push_back(const WeightedEdgeTarget& link) {
     weighted_degree_cache += link.weight;
     links.push_back(link);
@@ -159,6 +169,16 @@ struct NodeWithLinks {
   std::vector<EdgeTarget> links;
 
   Weight weightedDegree() const { return links.size(); }
+
+  Weight loopWeight() const {
+    Weight loops = 0;
+    for (const EdgeTarget& link : links) {
+      if (link.target == id) {
+        loops++;
+      }
+    }
+    return loops;
+  }
 
   void push_back(const EdgeTarget& link) {
     links.push_back(link);
@@ -310,8 +330,9 @@ struct DiaGraph {
   size_t node_count, total_weight;
 };
 
-template<typename EdgeType, typename Stack>
-auto edgesToNodes(const thrill::DIA<EdgeType, Stack>& edges, uint32_t node_count) {
+template<typename EdgeDIA>
+auto edgesToNodes(const EdgeDIA& edges, uint32_t node_count) {
+  using EdgeType = typename EdgeDIA::ValueType;
   using NodeType = typename EdgeType::NodeType;
   using LinkType = typename NodeType::LinkType;
 
@@ -328,8 +349,9 @@ auto edgesToNodes(const thrill::DIA<EdgeType, Stack>& edges, uint32_t node_count
       node_count);
 }
 
-template<typename NodeType, typename Stack>
-auto nodesToEdges(const thrill::DIA<NodeType, Stack>& nodes) {
+template<typename NodeDIA>
+auto nodesToEdges(const NodeDIA& nodes) {
+  using NodeType = typename NodeDIA::ValueType;
   using LinkType = typename NodeType::LinkType;
   using EdgeType = typename LinkType::EdgeType;
 
