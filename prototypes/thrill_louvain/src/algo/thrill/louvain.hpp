@@ -12,10 +12,10 @@
 #include <vector>
 #include <cstdlib>
 
-#include "input.hpp"
-#include "util.hpp"
-#include "logging.hpp"
-#include "thrill_modularity.hpp"
+#include "util/thrill/input.hpp"
+#include "util/util.hpp"
+#include "util/logging.hpp"
+#include "algo/thrill/modularity.hpp"
 
 namespace Louvain {
 

@@ -8,7 +8,7 @@
 #include <vector>
 #include <algorithm>
 
-#include "input.hpp"
+#include "util/thrill/input.hpp"
 
 int main(int argc, char const *argv[]) {
   std::string graph_file(argv[1]);

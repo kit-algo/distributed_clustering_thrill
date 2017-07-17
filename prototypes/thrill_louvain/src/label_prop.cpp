@@ -6,9 +6,9 @@
 #include <iostream>
 #include <vector>
 
-#include "input.hpp"
-#include "thrill_partitioning.hpp"
-#include "logging.hpp"
+#include "util/thrill/input.hpp"
+#include "algo/thrill/partitioning.hpp"
+#include "util/logging.hpp"
 
 int main(int argc, char const *argv[]) {
   std::string graph_file = "";

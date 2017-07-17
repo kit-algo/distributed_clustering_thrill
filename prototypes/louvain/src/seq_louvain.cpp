@@ -1,10 +1,10 @@
-#include "graph.hpp"
-#include "modularity.hpp"
-#include "cluster_store.hpp"
-#include "similarity.hpp"
-#include "partitioning.hpp"
-#include "logging.hpp"
-#include "input.hpp"
+#include "data/graph.hpp"
+#include "data/cluster_store.hpp"
+#include "algo/modularity.hpp"
+#include "algo/similarity.hpp"
+#include "algo/partitioning.hpp"
+#include "util/logging.hpp"
+#include "util/input.hpp"
 
 #include <iostream>
 #include <string>

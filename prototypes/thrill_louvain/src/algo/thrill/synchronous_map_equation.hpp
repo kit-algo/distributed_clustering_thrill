@@ -16,14 +16,9 @@
 #include <algorithm>
 #include <sparsepp/spp.h>
 
-#include "util.hpp"
-#include "thrill_graph.hpp"
-#include "thrill_partitioning.hpp"
-
-#include "seq_louvain/graph.hpp"
-#include "seq_louvain/cluster_store.hpp"
-#include "modularity.hpp"
-#include "partitioning.hpp"
+#include "util/util.hpp"
+#include "util/logging.hpp"
+#include "data/thrill/graph.hpp"
 
 namespace LocalMoving {
 
@@ -328,90 +323,4 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
       }),
     false);
 }
-
-template<class Graph>
-auto partitionedLocalMoving(const Graph& graph, Logging::Id loggin_id) {
-  constexpr bool weighted = std::is_same<typename Graph::Node, NodeWithWeightedLinks>::value;
-  using Node = typename std::conditional<weighted, NodeWithWeightedLinksAndTargetDegree, NodeWithLinksAndTargetDegree>::type;
-
-  uint32_t partition_size = graph.nodes.context().num_workers();
-  uint32_t partition_element_size = Partitioning::partitionElementTargetSize(graph.node_count, partition_size);
-  if (partition_element_size < 100000 && graph.node_count < 1000000) {
-    partition_size = 1;
-    partition_element_size = graph.node_count;
-  }
-  auto node_partitions = partition(graph, partition_size);
-
-  using EdgeWithTargetDegreeType = typename std::conditional<weighted, std::tuple<NodeId, typename Graph::Node::LinkType, Weight>, std::tuple<NodeId, typename Graph::Node::LinkType, uint32_t>>::type;
-  auto nodes = graph.nodes
-    .template FlatMap<EdgeWithTargetDegreeType>(
-      [](const typename Graph::Node& node, auto emit) {
-        for (typename Graph::Node::LinkType link : node.links) {
-          NodeId old_target = link.target;
-          link.target = node.id;
-          emit(EdgeWithTargetDegreeType(old_target, link, node.weightedDegree()));
-        }
-      })
-    .template GroupToIndex<Node>(
-      [](const EdgeWithTargetDegreeType& edge_with_target_degree) { return std::get<0>(edge_with_target_degree); },
-      [](auto& iterator, const NodeId node_id) {
-        Node node { node_id, {} };
-        while (iterator.HasNext()) {
-          const EdgeWithTargetDegreeType& edge_with_target_degree = iterator.Next();
-          node.push_back(Node::LinkType::fromLink(std::get<1>(edge_with_target_degree), std::get<2>(edge_with_target_degree)));
-        }
-        return node;
-      },
-      graph.node_count);
-
-  return std::make_pair(nodes
-    .Zip(thrill::NoRebalanceTag, node_partitions,
-      [](const Node& node, const NodePartition& node_partition) {
-        assert(node.id == node_partition.node_id);
-        return std::make_pair(node, node_partition.partition);
-      })
-    // Local Moving
-    .template GroupToIndex<std::vector<std::pair<typename Graph::Node, ClusterId>>>(
-      [](const std::pair<Node, uint32_t>& node_partition) -> size_t { return node_partition.second; },
-      [total_weight = graph.total_weight, partition_element_size, partition_size, loggin_id](auto& iterator, const uint32_t) {
-        // TODO deterministic random
-        GhostGraph<weighted> graph(partition_element_size, total_weight);
-        const std::vector<typename Graph::Node> reverse_mapping = graph.template initialize<typename Graph::Node>(
-          [&iterator](const auto& emit) {
-            while (iterator.HasNext()) {
-              emit(iterator.Next().first);
-            }
-          });
-
-        GhostClusterStore clusters(graph.getNodeCount());
-        if (partition_size > 1) {
-          Modularity::localMoving(graph, clusters);
-        } else {
-          Logging::Id seq_algo_logging_id = Logging::getUnusedId();
-          Logging::report("algorithm_run", seq_algo_logging_id, "distributed_algorithm_run_id", loggin_id);
-          Logging::report("algorithm_run", seq_algo_logging_id, "algorithm", "sequential louvain");
-          Modularity::louvain(graph, clusters, seq_algo_logging_id);
-        }
-        clusters.rewriteClusterIds(reverse_mapping);
-
-        std::vector<std::pair<typename Graph::Node, ClusterId>> mapping;
-        mapping.reserve(graph.getNodeCount());
-        for (NodeId node = 0; node < graph.getNodeCount(); node++) {
-          mapping.emplace_back(reverse_mapping[node], clusters[node]);
-        }
-        return mapping;
-      }, partition_size)
-    .template FlatMap<std::pair<typename Graph::Node, ClusterId>>(
-      [](const std::vector<std::pair<typename Graph::Node, ClusterId>>& mapping, auto emit) {
-        for (const auto& pair : mapping) {
-          emit(pair);
-        }
-      })
-    .ReduceToIndex(
-      [](const std::pair<typename Graph::Node, ClusterId>& node_cluster) -> size_t { return node_cluster.first.id; },
-      [](const std::pair<typename Graph::Node, ClusterId>& node_cluster, const std::pair<typename Graph::Node, ClusterId>&) { assert(false); return node_cluster; },
-      graph.node_count),
-    partition_size == 1);
-}
-
 } // LocalMoving

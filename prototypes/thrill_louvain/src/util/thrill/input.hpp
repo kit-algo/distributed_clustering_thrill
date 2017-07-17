@@ -17,7 +17,7 @@
 #include <vector>
 #include <iostream>
 
-#include "thrill_graph.hpp"
+#include "data/thrill/graph.hpp"
 
 namespace Input {
 

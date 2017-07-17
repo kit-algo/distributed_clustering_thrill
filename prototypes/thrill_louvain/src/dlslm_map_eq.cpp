@@ -4,8 +4,8 @@
   #define MAX_ITERATIONS 32
 #endif
 
-#include "synchronous_map_equation.hpp"
-#include "thrill_louvain.hpp"
+#include "algo/thrill/synchronous_map_equation.hpp"
+#include "algo/thrill/louvain.hpp"
 
 
 int main(int argc, char const *argv[]) {

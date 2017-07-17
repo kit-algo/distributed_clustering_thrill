@@ -1,16 +1,16 @@
 #pragma once
 
-#include "graph.hpp"
-#include "cluster_store.hpp"
-#include "io.hpp"
-#include "logging.hpp"
+#include "data/graph.hpp"
+#include "data/cluster_store.hpp"
+#include "util/io.hpp"
+#include "util/logging.hpp"
 
 #include <memory>
 #include <iostream>
 #include <chrono>
 #include <set>
 
-#include <thrill/common/cmdline_parser.hpp>
+#include <tlx/cmdline_parser.hpp>
 
 using PartitionInput = std::pair<std::string, std::string>;
 
@@ -39,17 +39,17 @@ public:
     run_id(run_id),
     seed(std::chrono::system_clock::now().time_since_epoch().count()) {
 
-    thrill::common::CmdlineParser cp;
+    tlx::CmdlineParser cp;
 
-    cp.AddString('g', "ground-proof", "file", ground_proof_file, "A ground proof clustering to compare to");
-    cp.AddString('o', "output", "file", output_file, "The file to write the clustering to");
-    cp.AddUInt('s', "seed", "unsigned int", seed, "Fix random seed");
-    cp.AddFlag('f', "snap-format", "bool", snap_format, "Graph is in SNAP Edge List Format rather than DIMACS graph");
-    cp.AddFlag('b', "binary-format", "bool", binary_format, "Graph is in Thrill binary format rather than DIMACS graph");
-    cp.AddParamString("graph", graph_file, "The graph to perform clustering on, in metis format");
-    cp.AddOptParamStringlist("partitions", partitions_strings, "Partition with reporting UUID (comma seperated)");
+    cp.add_string('g', "ground-proof", "file", ground_proof_file, "A ground proof clustering to compare to");
+    cp.add_string('o', "output", "file", output_file, "The file to write the clustering to");
+    cp.add_unsigned('s', "seed", "unsigned int", seed, "Fix random seed");
+    cp.add_flag('f', "snap-format", "bool", snap_format, "Graph is in SNAP Edge List Format rather than DIMACS graph");
+    cp.add_flag('b', "binary-format", "bool", binary_format, "Graph is in Thrill binary format rather than DIMACS graph");
+    cp.add_param_string("graph", graph_file, "The graph to perform clustering on, in metis format");
+    cp.add_opt_param_stringlist("partitions", partitions_strings, "Partition with reporting UUID (comma seperated)");
 
-    if (!cp.Process(argc, argv)) {
+    if (!cp.process(argc, argv)) {
       exit = 1;
     }
 

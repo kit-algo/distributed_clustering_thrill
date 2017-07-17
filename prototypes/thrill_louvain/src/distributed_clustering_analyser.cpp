@@ -1,12 +1,12 @@
 #include <thrill/api/gather.hpp>
 #include <thrill/api/zip.hpp>
 
-#include "thrill_modularity.hpp"
-#include "thrill_louvain.hpp"
-#include "input.hpp"
+#include "algo/thrill/modularity.hpp"
+#include "algo/thrill/louvain.hpp"
+#include "util/thrill/input.hpp"
 
-#include "seq_louvain/cluster_store.hpp"
-#include "logging.hpp"
+#include "data/ghost_cluster_store.hpp"
+#include "util/logging.hpp"
 
 using int128_t = __int128_t;
 
