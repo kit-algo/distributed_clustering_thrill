@@ -29,11 +29,6 @@ namespace LocalMoving {
 
 using int128_t = __int128_t;
 
-struct Node {
-  NodeId id;
-  Weight degree;
-};
-
 struct NodeClusterLink {
   Weight inbetween_weight = 0;
   Weight total_weight = 0;
