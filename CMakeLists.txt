@@ -1,17 +1,17 @@
 cmake_minimum_required (VERSION 2.6)
 project (ThrillLouvain)
+
 include_directories("src")
-include_directories("../louvain/src")
-include_directories("../../lib/thrill")
-include_directories("../../lib/sparsepp")
-add_subdirectory (../../lib/thrill thrill/build)
+include_directories("lib/thrill")
+include_directories("lib/sparsepp")
+add_subdirectory(lib/thrill)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1z -Wall -Wextra")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3") # optimize
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")  # debug symbols
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D _GLIBCXX_DEBUG -D _GLIBXX_DEBUG_PEDANTIC") # out of bounds asserts
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=leak -fsanitize=undefined") # sanitize all the things
-# set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG") # disable asserts
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG") # disable asserts
 
 add_executable(dlslm_map_eq src/dlslm_map_eq.cpp)
 add_executable(dlslm src/dlslm.cpp)
@@ -29,3 +29,8 @@ target_link_libraries(dlplm thrill)
 target_link_libraries(label_prop thrill)
 target_link_libraries(preprocess thrill)
 target_link_libraries(distributed_clustering_analyser thrill)
+
+add_executable(seq_exp src/seq_exp.cpp)
+add_executable(seq_louvain src/seq_louvain.cpp)
+target_link_libraries(seq_exp thrill)
+target_link_libraries(seq_louvain thrill)
