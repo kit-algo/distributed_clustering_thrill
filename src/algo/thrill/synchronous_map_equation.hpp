@@ -49,6 +49,7 @@ double deltaMapEq(const Weight node_degree,
                   const IncidentClusterInfo& neighbored_cluster,
                   const Weight total_inter_vol,
                   const Weight total_weight) {
+  const Weight total_volumne = 2 * total_weight;
   int64_t cut_diff_old = 2 * current_cluster.inbetween_weight - node_degree + loop_weight;
   double values[5];
   if (current_cluster.cluster != neighbored_cluster.cluster) {
@@ -72,7 +73,7 @@ double deltaMapEq(const Weight node_degree,
 #pragma omp simd
   for (uint8_t i = 0; i < 5; ++i) {
     result[i] = 0;
-    values[i] /= total_weight;
+    values[i] /= total_volumne;
     if (values[i] > .0) {
       result[i] = values[i] * log(values[i]);
     }
@@ -232,7 +233,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
           double best_delta = deltaMapEq(node_degree(node), loop_weight(node), current_cluster_info, current_cluster_info, total_cut, total_weight);
 
           for (const IncidentClusterInfo& cluster_info : incoming) {
-            double delta = deltaMapEq(node_degree(node), loop_weight(node), current_cluster_info, cluster_info, total_cut, total_weight);;
+            double delta = deltaMapEq(node_degree(node), loop_weight(node), current_cluster_info, cluster_info, total_cut, total_weight);
             if (delta < best_delta) {
               best_delta = delta;
               best_cluster = cluster_info;
