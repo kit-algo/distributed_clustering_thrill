@@ -3,7 +3,7 @@
 #MSUB -l pmem=4500mb
 #MSUB -q multinode
 #MSUB -v THRILL_RAM=120GiB
-#MSUB -v MPI_MODULE=mpi/openmpi/2.0-gnu-5.2
+#MSUB -v MPI_MODULE=mpi/openmpi/2.1-gnu-7.1
 
 export THRILL_LOG="dlslm_map_eq-log-${MOAB_JOBID}"
 module load ${MPI_MODULE}
