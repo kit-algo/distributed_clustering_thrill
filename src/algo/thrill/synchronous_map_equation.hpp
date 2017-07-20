@@ -24,11 +24,6 @@ namespace LocalMoving {
 
 using int128_t = __int128_t;
 
-struct NodeClusterLink {
-  Weight inbetween_weight = 0;
-  Weight total_weight = 0;
-};
-
 struct IncidentClusterInfo {
   NodeId node_id;
   ClusterId cluster;
@@ -36,12 +31,6 @@ struct IncidentClusterInfo {
   Weight total_weight;
   Weight cut;
 };
-
-int128_t deltaModularity(const Weight node_degree, const IncidentClusterInfo& neighbored_cluster, Weight total_weight) {
-  int128_t e = int128_t(neighbored_cluster.inbetween_weight) * total_weight * 2;
-  int128_t a = int128_t(neighbored_cluster.total_weight) * node_degree;
-  return e - a;
-}
 
 double deltaMapEq(const Weight node_degree,
                   const Weight loop_weight,
