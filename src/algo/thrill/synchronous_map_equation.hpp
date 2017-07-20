@@ -134,7 +134,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
           }
 
           for (const typename NodeType::LinkType& link : node_cluster.first.links) {
-            if (included(link.target)) {
+            if (link.target != node_cluster.first.id && included(link.target)) {
              emit(IncidentClusterInfo {
                link.target,
                node_cluster.second,
@@ -165,10 +165,8 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
           }
           for (const NodeType& node : cluster_nodes.second) {
             for (const typename NodeType::LinkType& link : node.links) {
-              if (node.id != link.target) {
-                if (cluster_node_ids.find(link.target) == cluster_node_ids.end()) {
-                  cut += link.getWeight();
-                }
+              if (node.id != link.target && cluster_node_ids.find(link.target) == cluster_node_ids.end()) {
+                cut += link.getWeight();
               }
             }
           }
