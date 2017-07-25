@@ -16,11 +16,11 @@ time_configs = {
 }
 
 node_configs = {
-  s:  '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-  m:  '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-  l:  '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-  xl: '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
-  xxl: '-l nodes=32:ppn=28 -v THRILL_WORKERS_PER_HOST=17',
+  s:  '-l nodes=2:ppn=28 -v THRILL_WORKERS_PER_HOST=5',
+  m:  '-l nodes=4:ppn=28 -v THRILL_WORKERS_PER_HOST=5',
+  l:  '-l nodes=8:ppn=28 -v THRILL_WORKERS_PER_HOST=5',
+  xl: '-l nodes=16:ppn=28 -v THRILL_WORKERS_PER_HOST=5',
+  xxl: '-l nodes=32:ppn=28 -v THRILL_WORKERS_PER_HOST=5',
 }
 
 
