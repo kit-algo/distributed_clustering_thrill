@@ -97,7 +97,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
   auto cluster = [&id_range, &clusters](NodeId id) { return clusters[id - id_range.begin]; };
 
   auto degree_data = graph.nodes.Keep().Map([](const NodeType& node) { return std::make_pair(node.weightedDegree(), node.loopWeight()); });
-  Weight total_cut = degree_data.Keep().Map([](const std::pair<Weight, Weight>& degree_data) { return degree_data.first - degree_data.second; }).Size();
+  Weight total_cut = degree_data.Keep().Map([](const std::pair<Weight, Weight>& degree_data) { return degree_data.first - degree_data.second; }).Sum();
   degree_data.CollectLocal(&node_degrees);
   assert(node_degrees.size() == id_range.size());
 
