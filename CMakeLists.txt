@@ -4,6 +4,7 @@ project (ThrillLouvain)
 include_directories("src")
 include_directories("lib/thrill")
 include_directories("lib/sparsepp")
+include_directories("lib/vectorclass")
 add_subdirectory(lib/thrill)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y -Wall -Wextra")
@@ -19,7 +20,7 @@ add_executable(preprocess src/preprocessing.cpp)
 add_executable(distributed_clustering_analyser src/distributed_clustering_analyser.cpp)
 
 set_target_properties(dlslm PROPERTIES COMPILE_FLAGS "-D STOP_MOVECOUNT -D FIXED_RATIO=4")
-set_target_properties(dlslm_map_eq PROPERTIES COMPILE_FLAGS "-ffast-math -fopenmp -mavx2 -D STOP_MOVECOUNT -D FIXED_RATIO=4")
+set_target_properties(dlslm_map_eq PROPERTIES COMPILE_FLAGS "-ffast-math -fopenmp -mavx2 -mfma -D STOP_MOVECOUNT -D FIXED_RATIO=4")
 
 target_link_libraries(dlslm_map_eq thrill)
 target_link_libraries(dlslm thrill)
