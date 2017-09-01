@@ -91,6 +91,8 @@ public:
     return reverse_mapping;
   }
 
+  bool isWeighted() const { return weighted; }
+
   NodeId getNodeCount() const { return first_out.size() - 1; }
   NodeId getNodeCountIncludingGhost() const {
     if (weighted) {

@@ -2,11 +2,10 @@
 
 #include "data/graph.hpp"
 #include "data/cluster_store.hpp"
+#include "algo/contraction.hpp"
 #include "util/logging.hpp"
 
-#include <map>
 #include <algorithm>
-
 #include <iostream>
 #include <assert.h>
 #include <cmath>
@@ -230,12 +229,12 @@ void partitionedLouvain(const Graph& graph, ClusterStore &clusters, const std::v
 
 template<class GraphType, class ClusterStoreType>
 void contractAndReapply(const GraphType& graph, ClusterStoreType &clusters, uint64_t algo_run_id, uint32_t level) {
-  ClusterId cluster_count = clusters.rewriteClusterIds();
+  Graph meta_graph = Contraction::contract(graph, clusters);
 
   uint64_t level_logging_id = Logging::getUnusedId();
   Logging::report("algorithm_level", level_logging_id, "algorithm_run_id", algo_run_id);
   Logging::report("algorithm_level", level_logging_id, "node_count", graph.getNodeCount());
-  Logging::report("algorithm_level", level_logging_id, "cluster_count", cluster_count);
+  Logging::report("algorithm_level", level_logging_id, "cluster_count", meta_graph.getNodeCount());
   Logging::report("algorithm_level", level_logging_id, "level", level);
 
   // uint64_t distribution_logging_id = Logging::getUnusedId();
@@ -246,22 +245,8 @@ void contractAndReapply(const GraphType& graph, ClusterStoreType &clusters, uint
   //   Logging::report("cluster_size_distribution", distribution_logging_id, size_count.first, size_count.second);
   // }
 
-  std::vector<std::map<NodeId, Weight>> cluster_connection_weights(cluster_count);
-  for (NodeId node = 0; node < graph.getNodeCount(); node++) {
-    graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight weight) {
-      cluster_connection_weights[clusters[node]][clusters[neighbor]] += weight;
-    });
-  }
-
-  EdgeId edge_count = std::accumulate(cluster_connection_weights.begin(), cluster_connection_weights.end(), 0, [](const EdgeId agg, const std::map<NodeId, Weight>& elem) {
-    return agg + elem.size() / 2 + 1;
-  });
-  Graph meta_graph(cluster_count, edge_count, true);
-  meta_graph.setEdgesByAdjacencyMatrix(cluster_connection_weights);
-  cluster_connection_weights.clear();
-
   assert(graph.getTotalWeight() == meta_graph.getTotalWeight());
-  ClusterStore meta_singleton(cluster_count);
+  ClusterStore meta_singleton(meta_graph.getNodeCount());
   meta_singleton.assignSingletonClusterIds();
   assert(modularity(graph, clusters) == modularity(meta_graph, meta_singleton));
 
