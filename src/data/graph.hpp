@@ -14,7 +14,7 @@ public:
 
   typedef uint32_t NodeId;
   typedef uint64_t EdgeId; // TODO 64 Bit
-  typedef uint32_t Weight;
+  typedef uint64_t Weight;
 
 private:
 
@@ -33,10 +33,17 @@ public:
     first_out(node_count + 1, 2 * edge_count), degrees(weighted ? node_count : 0, 0),
     neighbors(2 * edge_count), weights(weighted ? 2 * edge_count : 0) {}
 
+  Graph(std::vector<EdgeId> first_out, std::vector<NodeId> neighbors, std::vector<Weight> weights) :
+    node_count(first_out.size() - 1), edge_count(neighbors.size() / 2), weighted(true),
+    first_out(std::move(first_out)), degrees(node_count), neighbors(std::move(neighbors)), weights(std::move(weights)) {
+      initializeAccumulatedWeights();
+    }
+
   NodeId getNodeCount() const { return node_count; }
   NodeId getNodeCountIncludingGhost() const { return node_count; }
   EdgeId getEdgeCount() const { return edge_count; }
   Weight getTotalWeight() const { return total_weight; }
+  bool isWeighted() const { return weighted; }
 
   void overrideTotalWeight(const Weight weight) { total_weight = weight; }
 
