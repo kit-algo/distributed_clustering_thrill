@@ -18,6 +18,7 @@
 
 #include "util/util.hpp"
 #include "data/thrill/graph.hpp"
+#include "data/local_dia_graph.hpp"
 #include "algo/thrill/partitioning.hpp"
 
 #include "data/ghost_graph.hpp"
@@ -61,6 +62,29 @@ static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
 
 template<class NodeType>
 auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations, Logging::Id level_logging_id) {
+  if (graph.node_count < 1000000) {
+    auto local_nodes = graph.nodes.Gather();
+    std::vector<ClusterId> local_result(local_nodes.size());
+
+    if (graph.nodes.context().my_rank() == 0) {
+      Logging::Id seq_algo_logging_id = Logging::getUnusedId();
+      Logging::report("algorithm_run", seq_algo_logging_id, "distributed_algorithm_run_id", level_logging_id);
+      Logging::report("algorithm_run", seq_algo_logging_id, "algorithm", "sequential louvain");
+      LocalDiaGraph<NodeType> local_graph(local_nodes, graph.total_weight);
+      ClusterStore clusters(graph.node_count);
+      Modularity::louvain(local_graph, clusters, seq_algo_logging_id);
+
+      for (NodeId node = 0; node < graph.node_count; node++) {
+        local_result[node] = clusters[node];
+      }
+    }
+
+    auto nodes = thrill::api::Distribute(graph.nodes.context(), local_nodes);
+    auto clusters = thrill::api::Distribute(graph.nodes.context(), local_result);
+
+    return std::make_pair(nodes.Zip(clusters, [](const NodeType& node, const ClusterId& cluster) { return std::make_pair(node, cluster); }).Collapse(), true);
+  }
+
   thrill::common::Range id_range = thrill::common::CalculateLocalRange(graph.node_count, graph.nodes.context().num_workers(), graph.nodes.context().my_rank());
   std::vector<Weight> node_degrees;
   node_degrees.reserve(id_range.size());
@@ -233,7 +257,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
     .Map(
       [](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) {
         return node_cluster.first;
-      }),
+      }).Collapse(),
     false);
 }
 

@@ -71,9 +71,9 @@ int128_t deltaModularity(const GraphType &graph,
   int128_t a = (target_cluster_incident_edges_weight - current_cluster_incident_edges_weight) * graph.nodeDegree(node);
   return e - a;
 
-  static_assert(sizeof(decltype(e)) >= 2 * sizeof(typename GraphType::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
-  static_assert(sizeof(decltype(a)) >= 2 * sizeof(typename GraphType::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
-  static_assert(sizeof(deltaModularity(std::declval<GraphType>(), std::declval<NodeId>(), std::declval<ClusterId>(), std::declval<ClusterId>(), std::declval<Weight>(), std::declval<Weight>(), std::declval<std::vector<Weight>>())) >= 2 * sizeof(typename GraphType::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
+  static_assert(sizeof(decltype(e)) >= 2 * sizeof(typename Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
+  static_assert(sizeof(decltype(a)) >= 2 * sizeof(typename Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
+  static_assert(sizeof(deltaModularity(std::declval<GraphType>(), std::declval<NodeId>(), std::declval<ClusterId>(), std::declval<ClusterId>(), std::declval<Weight>(), std::declval<Weight>(), std::declval<std::vector<Weight>>())) >= 2 * sizeof(typename Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
 }
 
 template<class GraphType, class ClusterStoreType>
