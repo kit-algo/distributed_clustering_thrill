@@ -36,8 +36,6 @@ Graph contract(const GraphType& graph, ClusterStoreType &clusters) {
 
   // prefix sums to be able to do indexing
   EdgeId edge_count = prefix_sum(original_edge_degree_per_cluster);
-  std::cout << edge_count << ", " << graph.getEdgeCount() << std::endl;
-  assert(edge_count == graph.getEdgeCount() * 2);
   std::vector<NodeId> cluster_heads(edge_count);
   std::vector<Weight> cluster_weights(weighted ? edge_count : 0);
 
