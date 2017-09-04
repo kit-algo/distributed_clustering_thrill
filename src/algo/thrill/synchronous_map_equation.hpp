@@ -67,14 +67,10 @@ double deltaMapEq(const Weight node_degree,
   Vec4d value_vec, result_vec;
   value_vec.load(values);
   value_vec *= inverse_total_volume;
-  result_vec = value_vec * log(value_vec);
+  result_vec = select(value_vec > .0, value_vec * log(value_vec), Vec4d(0,0,0,0));
   result_vec.store(result);
 
-  for (; i < 4; ++i) {
-    if (values[i] <= .0) {
-      result[i] = .0;
-    }
-  }
+  i = 4;
 #else
 #pragma omp simd
 #endif
@@ -86,7 +82,7 @@ double deltaMapEq(const Weight node_degree,
     }
   }
 
-  return result[0] + ((result[3] - result[4]) - (2 * (result[1] - result[2] )));
+  return result[0] + ((result[3] - result[4]) - (2 * (result[1] - result[2])));
 };
 
 bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t rate) {
