@@ -182,11 +182,10 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
     if (context.my_rank() == 0) {
       algorithm_run_id = Logging::getUnusedId();
     }
-    graph.nodes.Keep();
     auto node_clusters = run(graph, algorithm_run_id);
     node_clusters.Execute();
     size_t cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
-    double modularity = Modularity::Modularity(graph, node_clusters);
+    double modularity = Modularity::Modularity(Input::readToNodeGraph(argv[1], context), node_clusters);
 
     if (context.my_rank() == 0) {
       Logging::report("algorithm_run", algorithm_run_id, "program_run_id", program_run_logging_id);
