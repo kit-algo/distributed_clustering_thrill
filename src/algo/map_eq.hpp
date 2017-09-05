@@ -15,8 +15,17 @@
 
 namespace MapEq {
 
+std::default_random_engine rng;
+
+using NodeId = typename Graph::NodeId;
+using EdgeId = typename Graph::EdgeId;
+using Weight = typename Graph::Weight;
+using ClusterId = typename ClusterStore::ClusterId;
+
 template<class GraphType, class ClusterStoreType>
-bool localMoving(const GraphType& graph, ClusterStoreType &clusters, std::vector<NodeId>& nodes_to_move) {
+bool localMoving(const GraphType& graph, ClusterStoreType &clusters) {
+  std::vector<NodeId> nodes_to_move(graph.getNodeCount());
+  std::iota(nodes_to_move.begin(), nodes_to_move.end(), 0);
   bool changed = false;
 
   clusters.assignSingletonClusterIds();
@@ -28,23 +37,14 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters, std::vector
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     cluster_volumes[node] = graph.nodeDegree(node);
 
-    graph.forEachAdjacentNode(current_node, [&](NodeId neighbor, Weight weight) {
-      if (node != current_node) {
-        cluster_cut[node] += weight;
+    graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight weight) {
+      if (neighbor != node) {
+        cluster_cuts[node] += weight;
         total_inter_vol += weight;
       }
     });
   }
   std::shuffle(nodes_to_move.begin(), nodes_to_move.end(), rng);
-
-  const auto plogp_rel = [total_vol](Weight w) -> double {
-    if (w > 0) {
-      double p = static_cast<double>(w) / total_vol;
-      return p * log(p);
-    }
-
-    return 0;
-  };
 
   const auto update_cost = [&](const NodeId, const Weight deg_u, const Weight loop_u, const ClusterId clus_u, const ClusterId target_clus, const Weight weight_to_target, const Weight weight_to_orig) -> double {
     int64_t cut_diff_old = 2 * weight_to_orig - deg_u + loop_u;
@@ -67,22 +67,21 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters, std::vector
 
     double result[5];
 
-    uint8_t i = 0;
 #if MAX_VECTOR_SIZE >= 256
-    double inverse_total_volume = 1. / total_volumne;
+    double inverse_total_volume = 1. / total_vol;
     Vec4d value_vec, result_vec;
     value_vec.load(values);
     value_vec *= inverse_total_volume;
     result_vec = select(value_vec > .0, value_vec * log(value_vec), Vec4d(0,0,0,0));
     result_vec.store(result);
 
-    i = 4;
+    for (uint8_t i = 4; i < 5; ++i) {
 #else
 #pragma omp simd
+    for (uint8_t i = 0; i < 5; ++i) {
 #endif
-    for (; i < 5; ++i) {
       result[i] = 0;
-      values[i] /= total_volumne;
+      values[i] /= total_vol;
       if (values[i] > .0) {
         result[i] = values[i] * log(values[i]);
       }
@@ -140,10 +139,10 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters, std::vector
     double max_gain = update_cost(current_node, graph.nodeDegree(current_node), current_loop_weight, current_node_cluster, current_node_cluster, weight_between_node_and_current_cluster, weight_between_node_and_current_cluster);
 
     for (ClusterId& incident_cluster : incident_clusters) {
-      double gain = update_cost(current_node, graph.nodeDegree(current_node), current_loop_weight, current_node_cluster, incident_cluster, node_to_cluster_weights[neighbor_cluster], weight_between_node_and_current_cluster);
+      double gain = update_cost(current_node, graph.nodeDegree(current_node), current_loop_weight, current_node_cluster, incident_cluster, node_to_cluster_weights[incident_cluster], weight_between_node_and_current_cluster);
 
       if (gain < max_gain || (gain == max_gain && incident_cluster < best_cluster)) {
-        best_delta_modularity = neighbor_cluster_delta;
+        max_gain = gain;
         best_cluster = incident_cluster;
       }
 

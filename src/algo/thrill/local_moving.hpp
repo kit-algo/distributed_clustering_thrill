@@ -23,7 +23,7 @@
 
 #include "data/ghost_graph.hpp"
 #include "data/ghost_cluster_store.hpp"
-#include "algo/modularity.hpp"
+#include "algo/louvain.hpp"
 #include "algo/partitioning.hpp"
 
 namespace LocalMoving {
@@ -72,7 +72,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
       Logging::report("algorithm_run", seq_algo_logging_id, "algorithm", "sequential louvain");
       LocalDiaGraph<NodeType> local_graph(local_nodes, graph.total_weight);
       ClusterStore clusters(graph.node_count);
-      Modularity::louvain(local_graph, clusters, seq_algo_logging_id);
+      Louvain::louvainModularity(local_graph, clusters, seq_algo_logging_id);
 
       for (NodeId node = 0; node < graph.node_count; node++) {
         local_result[node] = clusters[node];
@@ -322,7 +322,7 @@ auto partitionedLocalMoving(const Graph& graph, Logging::Id loggin_id) {
           Logging::Id seq_algo_logging_id = Logging::getUnusedId();
           Logging::report("algorithm_run", seq_algo_logging_id, "distributed_algorithm_run_id", loggin_id);
           Logging::report("algorithm_run", seq_algo_logging_id, "algorithm", "sequential louvain");
-          Modularity::louvain(graph, clusters, seq_algo_logging_id);
+          Louvain::louvainModularity(graph, clusters, seq_algo_logging_id);
         }
         clusters.rewriteClusterIds(reverse_mapping);
 

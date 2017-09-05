@@ -2,7 +2,9 @@
 
 #include <thrill/api/cache.hpp>
 #include <thrill/api/collect_local.hpp>
+#include <thrill/api/distribute.hpp>
 #include <thrill/api/fold_by_key.hpp>
+#include <thrill/api/gather.hpp>
 #include <thrill/api/group_by_key.hpp>
 #include <thrill/api/group_to_index.hpp>
 #include <thrill/api/inner_join.hpp>
@@ -18,9 +20,11 @@
 #include "vectorclass.h"
 #include "vectormath_exp.h"
 
+#include "algo/louvain.hpp"
 #include "util/util.hpp"
 #include "util/logging.hpp"
 #include "data/thrill/graph.hpp"
+#include "data/local_dia_graph.hpp"
 
 namespace LocalMoving {
 
@@ -61,7 +65,6 @@ double deltaMapEq(const Weight node_degree,
 
   double result[5];
 
-  uint8_t i = 0;
 #if MAX_VECTOR_SIZE >= 256
   double inverse_total_volume = 1. / total_volumne;
   Vec4d value_vec, result_vec;
@@ -70,11 +73,11 @@ double deltaMapEq(const Weight node_degree,
   result_vec = select(value_vec > .0, value_vec * log(value_vec), Vec4d(0,0,0,0));
   result_vec.store(result);
 
-  i = 4;
+  for (uint8_t i = 4; i < 5; ++i) {
 #else
 #pragma omp simd
+  for (uint8_t i = 0; i < 5; ++i) {
 #endif
-  for (; i < 5; ++i) {
     result[i] = 0;
     values[i] /= total_volumne;
     if (values[i] > .0) {
@@ -99,6 +102,29 @@ static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
 
 template<class NodeType>
 auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations, Logging::Id level_logging_id) {
+  if (graph.node_count < 1000000) {
+    auto local_nodes = graph.nodes.Gather();
+    std::vector<ClusterId> local_result(local_nodes.size());
+
+    if (graph.nodes.context().my_rank() == 0) {
+      Logging::Id seq_algo_logging_id = Logging::getUnusedId();
+      Logging::report("algorithm_run", seq_algo_logging_id, "distributed_algorithm_run_id", level_logging_id);
+      Logging::report("algorithm_run", seq_algo_logging_id, "algorithm", "sequential louvain map eq");
+      LocalDiaGraph<NodeType> local_graph(local_nodes, graph.total_weight);
+      ClusterStore clusters(graph.node_count);
+      Louvain::louvainMapEq(local_graph, clusters, seq_algo_logging_id);
+
+      for (NodeId node = 0; node < graph.node_count; node++) {
+        local_result[node] = clusters[node];
+      }
+    }
+
+    auto nodes = thrill::api::Distribute(graph.nodes.context(), local_nodes);
+    auto clusters = thrill::api::Distribute(graph.nodes.context(), local_result);
+
+    return std::make_pair(nodes.Zip(clusters, [](const NodeType& node, const ClusterId& cluster) { return std::make_pair(node, cluster); }).Collapse(), true);
+  }
+
   thrill::common::Range id_range = thrill::common::CalculateLocalRange(graph.node_count, graph.nodes.context().num_workers(), graph.nodes.context().my_rank());
 
   std::vector<std::pair<Weight, Weight>> node_degrees;
@@ -322,7 +348,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
     .Map(
       [](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) {
         return node_cluster.first;
-      }),
+      }).Collapse(),
     false);
 }
 } // LocalMoving
