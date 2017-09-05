@@ -15,7 +15,7 @@
 #include "util/thrill/input.hpp"
 #include "util/util.hpp"
 #include "util/logging.hpp"
-#include "algo/thrill/modularity.hpp"
+#include "algo/thrill/clustering_quality.hpp"
 
 namespace Louvain {
 
@@ -185,7 +185,11 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
     auto node_clusters = run(graph, algorithm_run_id);
     node_clusters.Execute();
     size_t cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
-    double modularity = Modularity::Modularity(Input::readToNodeGraph(argv[1], context), node_clusters);
+
+    auto eval_graph = Input::readToNodeGraph(argv[1], context);
+    eval_graph.nodes.Keep();
+    double modularity = ClusteringQuality::modularity(eval_graph, node_clusters.Keep());
+    double map_eq = ClusteringQuality::mapEquation(eval_graph, node_clusters);
 
     if (context.my_rank() == 0) {
       Logging::report("algorithm_run", algorithm_run_id, "program_run_id", program_run_logging_id);
@@ -197,12 +201,14 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
         Logging::report("clustering", clustering_input.second, "source", "computation");
         Logging::report("clustering", clustering_input.second, "algorithm_run_id", algorithm_run_id);
         Logging::report("clustering", clustering_input.second, "modularity", modularity);
+        Logging::report("clustering", clustering_input.second, "map_equation", map_eq);
         Logging::report("clustering", clustering_input.second, "cluster_count", cluster_count);
       } else {
         Logging::Id clusters_logging_id = Logging::getUnusedId();
         Logging::report("clustering", clusters_logging_id, "source", "computation");
         Logging::report("clustering", clusters_logging_id, "algorithm_run_id", algorithm_run_id);
         Logging::report("clustering", clusters_logging_id, "modularity", modularity);
+        Logging::report("clustering", clusters_logging_id, "map_equation", map_eq);
         Logging::report("clustering", clusters_logging_id, "cluster_count", cluster_count);
       }
     }

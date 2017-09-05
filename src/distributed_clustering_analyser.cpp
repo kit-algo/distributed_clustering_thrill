@@ -1,7 +1,7 @@
 #include <thrill/api/gather.hpp>
 #include <thrill/api/zip.hpp>
 
-#include "algo/thrill/modularity.hpp"
+#include "algo/thrill/clustering_quality.hpp"
 #include "algo/thrill/louvain.hpp"
 #include "util/thrill/input.hpp"
 
