@@ -3,8 +3,8 @@
 #include "graph.hpp"
 
 #include <vector>
-#include <unordered_map>
-#include <map>
+#include <routingkit/bit_vector.h>
+#include <routingkit/id_mapper.h>
 #include <assert.h>
 
 using NodeId = typename Graph::NodeId;
@@ -58,34 +58,32 @@ public:
   }
 
   ClusterId rewriteClusterIds(std::vector<NodeId>& nodes, ClusterId id_counter = 0) {
-    std::unordered_map<NodeId, ClusterId> old_to_new;
+    RoutingKit::BitVector vector(size());
 
     for (NodeId node : nodes) {
-      ClusterId& cluster_id = node_clusters[node];
-      if (old_to_new.find(cluster_id) == old_to_new.end()) {
-        old_to_new[cluster_id] = id_counter++;
-      }
-      ClusterId new_id = old_to_new[cluster_id];
-      cluster_id = new_id;
+      vector.set(node_clusters[node]);
+    }
+    RoutingKit::LocalIDMapper id_mapper(vector);
+    for (NodeId node : nodes) {
+      node_clusters[node] = id_counter + id_mapper.to_local(node_clusters[node]);
     }
 
-    return id_counter;
+    return id_counter + id_mapper.local_id_count();
   }
 
   ClusterId rewriteClusterIds(ClusterId id_counter = 0) {
-    id_range_lower_bound = id_counter;
-    std::unordered_map<NodeId, ClusterId> old_to_new;
+    RoutingKit::BitVector vector(size());
 
+    for (ClusterId cluster_id : node_clusters) {
+      vector.set(cluster_id);
+    }
+    RoutingKit::LocalIDMapper id_mapper(vector);
     for (ClusterId& cluster_id : node_clusters) {
-      if (old_to_new.find(cluster_id) == old_to_new.end()) {
-        old_to_new[cluster_id] = id_counter++;
-      }
-      ClusterId new_id = old_to_new[cluster_id];
-      cluster_id = new_id;
+      cluster_id = id_counter + id_mapper.to_local(cluster_id);
     }
 
-    id_range_upper_bound = id_counter;
-    return id_counter;
+    id_range_upper_bound = id_counter + id_mapper.local_id_count();
+    return id_counter + id_mapper.local_id_count();
   }
 
   void intersection(const ClusterStore &other, ClusterStore &intersection) const {

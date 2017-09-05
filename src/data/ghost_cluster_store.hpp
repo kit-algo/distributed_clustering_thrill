@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <algorithm>
 
+#include <routingkit/bit_vector.h>
+#include <routingkit/id_mapper.h>
 #include "data/thrill/graph.hpp"
 
 class GhostClusterStore {
@@ -46,17 +48,17 @@ public:
   }
 
   ClusterId rewriteClusterIds(ClusterId id_counter = 0) {
-    std::unordered_map<NodeId, ClusterId> old_to_new;
+    RoutingKit::BitVector vector(size());
 
+    for (ClusterId cluster_id : clusters) {
+      vector.set(cluster_id);
+    }
+    RoutingKit::LocalIDMapper id_mapper(vector);
     for (ClusterId& cluster_id : clusters) {
-      if (old_to_new.find(cluster_id) == old_to_new.end()) {
-        old_to_new[cluster_id] = id_counter++;
-      }
-      ClusterId new_id = old_to_new[cluster_id];
-      cluster_id = new_id;
+      cluster_id = id_counter + id_mapper.to_local(cluster_id);
     }
 
-    return id_counter;
+    return id_counter + id_mapper.local_id_count();
   }
 
   size_t size() const {
