@@ -2,6 +2,10 @@
 
 #include "data/graph.hpp"
 
+using NodeId = typename Graph::NodeId;
+using EdgeId = typename Graph::EdgeId;
+using Weight = typename Graph::Weight;
+
 template<typename NodeType>
 class LocalDiaGraph {
 private:

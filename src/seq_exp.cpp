@@ -1,6 +1,6 @@
 #include "data/graph.hpp"
 #include "data/cluster_store.hpp"
-#include "algo/modularity.hpp"
+#include "algo/louvain.hpp"
 #include "algo/similarity.hpp"
 #include "algo/partitioning.hpp"
 #include "util/logging.hpp"
@@ -29,7 +29,7 @@ int main(int argc, char const *argv[]) {
 
   Logging::Id ground_proof_logging_id = 0;
   if (input.isGroundProofAvailable()) {
-    ground_proof_logging_id = Modularity::log_clustering(graph, input.getGroundProof());
+    ground_proof_logging_id = Louvain::log_clustering(graph, input.getGroundProof());
     Logging::report("clustering", ground_proof_logging_id, "source", "ground_proof");
     Logging::report("clustering", ground_proof_logging_id, "program_run_id", run_id);
   }
@@ -38,8 +38,8 @@ int main(int argc, char const *argv[]) {
   Logging::report("algorithm_run", base_algo_run_logging_id, "program_run_id", run_id);
   Logging::report("algorithm_run", base_algo_run_logging_id, "algorithm", "sequential louvain");
 
-  Modularity::louvain(graph, base_clusters, base_algo_run_logging_id);
-  Logging::Id base_cluster_logging_id = Modularity::log_clustering(graph, base_clusters);
+  Louvain::louvainModularity(graph, base_clusters, base_algo_run_logging_id);
+  Logging::Id base_cluster_logging_id = Louvain::log_clustering(graph, base_clusters);
   Logging::report("clustering", base_cluster_logging_id, "source", "computation");
   Logging::report("clustering", base_cluster_logging_id, "algorithm_run_id", base_algo_run_logging_id);
 
@@ -51,8 +51,8 @@ int main(int argc, char const *argv[]) {
   Logging::report("algorithm_run", compare_algo_run_logging_id, "program_run_id", run_id);
   Logging::report("algorithm_run", compare_algo_run_logging_id, "algorithm", "sequential louvain");
 
-  Modularity::louvain(graph, compare_clusters, compare_algo_run_logging_id);
-  Logging::Id compare_cluster_logging_id = Modularity::log_clustering(graph, compare_clusters);
+  Louvain::louvainModularity(graph, compare_clusters, compare_algo_run_logging_id);
+  Logging::Id compare_cluster_logging_id = Louvain::log_clustering(graph, compare_clusters);
   Logging::report("clustering", compare_cluster_logging_id, "source", "computation");
   Logging::report("clustering", compare_cluster_logging_id, "algorithm_run_id", compare_algo_run_logging_id);
 
@@ -74,11 +74,11 @@ int main(int argc, char const *argv[]) {
       Logging::report("algorithm_run", compare_algo_run_logging_id, "allow_move_to_ghosts", allow_move_to_ghosts);
 
       if (allow_move_to_ghosts) {
-        Modularity::partitionedLouvain<true>(graph, compare_clusters, partitions, compare_algo_run_logging_id, partition_element_logging_ids);
+        Louvain::partitionedLouvain<true>(graph, compare_clusters, partitions, compare_algo_run_logging_id, partition_element_logging_ids);
       } else {
-        Modularity::partitionedLouvain<false>(graph, compare_clusters, partitions, compare_algo_run_logging_id, partition_element_logging_ids);
+        Louvain::partitionedLouvain<false>(graph, compare_clusters, partitions, compare_algo_run_logging_id, partition_element_logging_ids);
       }
-      compare_cluster_logging_id = Modularity::log_clustering(graph, compare_clusters);
+      compare_cluster_logging_id = Louvain::log_clustering(graph, compare_clusters);
       Logging::report("clustering", compare_cluster_logging_id, "source", "computation");
       Logging::report("clustering", compare_cluster_logging_id, "algorithm_run_id", compare_algo_run_logging_id);
 
