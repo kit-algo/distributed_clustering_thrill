@@ -3,6 +3,8 @@
 #include <iostream>
 #include <cstdint>
 #include <vector>
+#include <limits>
+#include <iomanip>
 
 #include "data/graph.hpp"
 #include "data/cluster_store.hpp"
@@ -62,4 +64,13 @@ std::pair<std::string, std::string> parse_input_with_logging_id(const std::strin
   }
   return pair;
 }
+
+template<class IdType, class KeyType>
+void report_timestamp(const std::string & type, const IdType id, const KeyType & key) {
+  std::cout << LOGGING_PREFIX << type << '/' << id << '/' << key << ": "
+    << std::setprecision(std::numeric_limits<double>::max_digits10)
+    << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
+    << std::endl;
+}
+
 }
