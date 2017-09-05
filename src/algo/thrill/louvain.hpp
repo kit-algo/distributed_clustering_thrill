@@ -28,9 +28,19 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
     level_logging_id = Logging::getUnusedId();
   }
 
+  if (level == 0) {
+    graph.nodes.Execute();
+    if (graph.nodes.context().my_rank() == 0) {
+      Logging::report_timestamp("algorithm_run", algorithm_run_id, "start_ts");
+    }
+  }
+
   auto lm_result = local_moving(graph, level_logging_id);
 
   if (lm_result.second) {
+    if (graph.nodes.context().my_rank() == 0) {
+      Logging::report_timestamp("algorithm_run", algorithm_run_id, "done_ts");
+    }
     return lm_result.first.Map([](const std::pair<NodeType, ClusterId>& node_cluster) { return NodeCluster(node_cluster.first.id, node_cluster.second); }).Collapse();
   }
 
@@ -56,6 +66,9 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
   }
 
   if (graph.node_count == cluster_count) {
+    if (graph.nodes.context().my_rank() == 0) {
+      Logging::report_timestamp("algorithm_run", algorithm_run_id, "done_ts");
+    }
     return clusters_with_nodes.Map([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes) { return NodeCluster(cluster_nodes.first, cluster_nodes.first); }).Collapse();
   }
 
