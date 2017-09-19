@@ -5,6 +5,7 @@
 #include <vector>
 #include <limits>
 #include <iomanip>
+#include <chrono>
 
 #include "data/graph.hpp"
 #include "data/cluster_store.hpp"
