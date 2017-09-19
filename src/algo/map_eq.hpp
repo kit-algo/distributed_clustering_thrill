@@ -46,6 +46,43 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters) {
   }
   std::shuffle(nodes_to_move.begin(), nodes_to_move.end(), rng);
 
+#ifndef NDEBUG
+  const auto plogp_rel = [total_vol](Weight w) -> double {
+    if (w > 0) {
+      double p = static_cast<double>(w) / total_vol;
+      return p * log(p);
+    }
+
+    return 0;
+  };
+
+  long double sum_p_log_p_cluster_cut = 0;
+  long double sum_p_log_p_cluster_cut_plus_vol = 0;
+
+  auto update_p_log_p_sums = [&]() {
+    sum_p_log_p_cluster_cut = std::accumulate<decltype(cluster_cuts.begin()), long double>(cluster_cuts.begin(), cluster_cuts.end(), .0, [&](long double sum, Weight cut) {
+      return sum + plogp_rel(cut);
+    });
+
+    sum_p_log_p_cluster_cut_plus_vol = 0;
+    for (size_t i = 0; i < cluster_cuts.size(); ++i) {
+      sum_p_log_p_cluster_cut_plus_vol += plogp_rel(cluster_cuts[i] + cluster_volumes[i]);
+    }
+  };
+
+  update_p_log_p_sums();
+
+  const long double sum_p_log_p_w_alpha = std::accumulate<decltype(cluster_cuts.begin()), long double>(cluster_volumes.begin(), cluster_volumes.end(), .0, [&](long double sum, Weight vol) {
+    return sum + plogp_rel(vol);
+  });
+
+  const auto map_equation = [&]() -> long double {
+    return plogp_rel(total_inter_vol) - 2 * sum_p_log_p_cluster_cut + sum_p_log_p_cluster_cut_plus_vol - sum_p_log_p_w_alpha;
+  };
+
+  std::vector<Weight> debug_cluster_cut(cluster_cuts.size(), 0);
+#endif
+
   const auto update_cost = [&](const NodeId, const Weight deg_u, const Weight loop_u, const ClusterId clus_u, const ClusterId target_clus, const Weight weight_to_target, const Weight weight_to_orig) -> double {
     int64_t cut_diff_old = 2 * weight_to_orig - deg_u + loop_u;
     double values[5];
@@ -87,10 +124,22 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters) {
       }
     }
 
-    return result[0] + ((result[3] - result[4]) - (2 * (result[1] - result[2] )));
+    return result[0] + ((result[3] - result[4]) - (2 * (result[1] - result[2])));
   };
 
   const auto move_node = [&](const NodeId u, const Weight deg_u, const Weight loop_u, const ClusterId clus_u, const ClusterId target_clus, const Weight weight_to_target, const Weight weight_to_orig) {
+  #ifndef NDEBUG
+    long double old_val = map_equation();
+    assert(old_val > 0);
+    double diff = update_cost(u, deg_u, loop_u, clus_u, target_clus, weight_to_target, weight_to_orig) - update_cost(u, deg_u, loop_u, clus_u, clus_u, weight_to_orig, weight_to_orig);
+    assert(diff < 0);
+
+    sum_p_log_p_cluster_cut -= plogp_rel(cluster_cuts[clus_u]);
+    sum_p_log_p_cluster_cut_plus_vol -= plogp_rel(cluster_cuts[clus_u] + cluster_volumes[clus_u]);
+    sum_p_log_p_cluster_cut -= plogp_rel(cluster_cuts[target_clus]);
+    sum_p_log_p_cluster_cut_plus_vol -= plogp_rel(cluster_cuts[target_clus] + cluster_volumes[target_clus]);
+  #endif
+
     int64_t cut_diff_old = 2 * weight_to_orig - deg_u + loop_u;
     int64_t cut_diff_new = deg_u - 2 * weight_to_target - loop_u;
 
@@ -104,6 +153,43 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters) {
     cluster_volumes[clus_u] -= deg_u;
 
     clusters.set(u, target_clus);
+
+  #ifndef NDEBUG
+    sum_p_log_p_cluster_cut += plogp_rel(cluster_cuts[clus_u]);
+    sum_p_log_p_cluster_cut_plus_vol += plogp_rel(cluster_cuts[clus_u] + cluster_volumes[clus_u]);
+    sum_p_log_p_cluster_cut += plogp_rel(cluster_cuts[target_clus]);
+    sum_p_log_p_cluster_cut_plus_vol += plogp_rel(cluster_cuts[target_clus] + cluster_volumes[target_clus]);
+
+    // if (u % 1000 == 0) {
+    if (false) {
+      debug_cluster_cut.assign(cluster_cuts.size(), 0);
+      for (NodeId u = 0; u < graph.getNodeCount(); ++u) {
+        ClusterId part_u = clusters[u];
+        graph.forEachAdjacentNode(u, [&](NodeId v, Weight w) {
+          if (part_u != clusters[v]) {
+            debug_cluster_cut[part_u] += w;
+          }
+        });
+      }
+
+      for (size_t i = 0; i < debug_cluster_cut.size(); ++i) {
+        assert(cluster_cuts[i] == debug_cluster_cut[i]);
+      }
+
+      assert(std::accumulate(debug_cluster_cut.begin(), debug_cluster_cut.end(), 0ul) == total_inter_vol);
+    }
+
+    long double new_val = map_equation();
+    assert(new_val > 0);
+    if (std::abs(old_val + diff - new_val) > 0.0001) {
+      std::cout << "Old: " << old_val << ", diff: " << diff << " new: " << new_val << std::endl;
+      update_p_log_p_sums();
+      std::cout << "After update: " << map_equation() << std::endl;
+      assert(false);
+    }
+    // assert(loop_u == 0);
+    assert(std::accumulate(cluster_cuts.begin(), cluster_cuts.end(), 0ull) == total_inter_vol);
+#endif
   };
 
   std::vector<Weight> node_to_cluster_weights(graph.getNodeCountIncludingGhost(), 0);
@@ -144,6 +230,7 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters) {
       if (gain < max_gain || (gain == max_gain && incident_cluster < best_cluster)) {
         max_gain = gain;
         best_cluster = incident_cluster;
+        weight_between_node_and_best_cluster = node_to_cluster_weights[incident_cluster];
       }
 
       node_to_cluster_weights[incident_cluster] = 0;
@@ -155,10 +242,16 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters) {
       unchanged_count = 0;
       changed = true;
       move_node(current_node, graph.nodeDegree(current_node), current_loop_weight, current_node_cluster, best_cluster, weight_between_node_and_best_cluster, weight_between_node_and_current_cluster);
+    } else {
+      unchanged_count++;
     }
 
     current_node_index++;
     if (current_node_index >= nodes_to_move.size()) {
+#ifndef NDEBUG
+      update_p_log_p_sums();
+      std::cout << "Map equation after iteration " << current_iteration << " is " << map_equation() << std::endl;
+#endif
       current_node_index = 0;
       current_iteration++;
       std::shuffle(nodes_to_move.begin(), nodes_to_move.end(), rng);
