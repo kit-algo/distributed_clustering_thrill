@@ -21,6 +21,6 @@ jobs = [
 ]
 
 jobs.each do |job|
-  groundtruth_option = job[0].size == 2 ? "-v GROUNDTRUTH=#{ENV['WORK']}/#{job[0][1]}" : ''
+  groundtruth_option = job[0].size == 2 ? "-v GROUNDTRUTH=#{job[0][1]}" : ''
   puts job[0][0], `msub -v GRAPH=#{job[0][0]} #{groundtruth_option} #{job[1]} #{job[2]} ~/code/scripts/moab/preprocess.sh`
 end
