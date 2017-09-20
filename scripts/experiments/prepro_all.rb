@@ -17,7 +17,7 @@
 # ]
 
 jobs = [
-  [["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_1000000000-sorted*.bin", "#{ENV['WORK']}/graphs/part_50_10000_mu_0.4_1000000000-sorted.bin"], '-l walltime=12:00:00', '-l nodes=32:ppn=28'],
+  [["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_1000000-sorted*.bin", "#{ENV['WORK']}/graphs/part_50_10000_mu_0.4_1000000-sorted.bin"], '-l walltime=00:10:00', '-l nodes=2:ppn=28'],
 ]
 
 jobs.each do |job|
