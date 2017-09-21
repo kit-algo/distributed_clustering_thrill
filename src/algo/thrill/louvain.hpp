@@ -189,6 +189,11 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
       #if defined(MAX_ITERATIONS)
         Logging::report("program_run", program_run_logging_id, "max_iterations", MAX_ITERATIONS);
       #endif
+      #if defined(SWITCH_TO_SEQ)
+        Logging::report("program_run", program_run_logging_id, "switch_to_seq", true);
+      #else
+        Logging::report("program_run", program_run_logging_id, "switch_to_seq", false);
+      #endif
     }
 
     Logging::Id algorithm_run_id = 0;
