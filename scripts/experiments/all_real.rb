@@ -12,9 +12,11 @@ jobs = [
   ["#{ENV['HOME']}/graphs/europe.osm-preprocessed-*.bin", 1, 0, 2],
 ]
 
+`mkdir clusterings`
+
 jobs.each do |job|
   graph, hours, minutes, nodes = *job
-  puts `msub -v GRAPH=#{graph} -l walltime=#{"%02d" % hours}:#{"%02d" % minutes}:00 -l nodes=#{[nodes, 2].max}:ppn=28 #{ENV['HOME']}/code/scripts/moab/#{nodes == 1 ? 'fake_single_' : ''}dlslm.sh`
-  puts `msub -v GRAPH=#{graph} -l walltime=#{"%02d" % hours}:#{"%02d" % minutes}:00 -l nodes=#{[nodes, 2].max}:ppn=28 #{ENV['HOME']}/code/scripts/moab/#{nodes == 1 ? 'fake_single_' : ''}dlslm_with_seq.sh`
-  puts `msub -v GRAPH=#{graph} -l walltime=#{"%02d" % (hours * 2)}:#{"%02d" % (minutes * 2)}:00 -l nodes=#{[nodes, 2].max}:ppn=28 #{ENV['HOME']}/code/scripts/moab/#{nodes == 1 ? 'fake_single_' : ''}dlslm_map_eq.sh`
+  puts `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/mod -l walltime=#{"%02d" % hours}:#{"%02d" % minutes}:00 -l nodes=#{[nodes, 2].max}:ppn=28 #{ENV['HOME']}/code/scripts/moab/#{nodes == 1 ? 'fake_single_' : ''}dlslm.sh`
+  puts `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/mods -l walltime=#{"%02d" % hours}:#{"%02d" % minutes}:00 -l nodes=#{[nodes, 2].max}:ppn=28 #{ENV['HOME']}/code/scripts/moab/#{nodes == 1 ? 'fake_single_' : ''}dlslm_with_seq.sh`
+  puts `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/me -l walltime=#{"%02d" % (hours * 2)}:#{"%02d" % (minutes * 2)}:00 -l nodes=#{[nodes, 2].max}:ppn=28 #{ENV['HOME']}/code/scripts/moab/#{nodes == 1 ? 'fake_single_' : ''}dlslm_map_eq.sh`
 end
