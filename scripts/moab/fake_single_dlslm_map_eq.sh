@@ -11,12 +11,11 @@ echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} 
 
 result_id=$(ruby -e "require 'securerandom'; puts SecureRandom.uuid")
 executable="$HOME/code/release/dlslm_map_eq"
-startexe="$HOME/code/lib/thrill/run/slurm/invoke.sh ${executable}"
-echo $startexe "$GRAPH" "$CLUSTERING-$MOAB_JOBID-@@@@-#####.bin,$result_id"
+echo $executable "$GRAPH" "$CLUSTERING-$MOAB_JOBID-@@@@-#####.bin,$result_id"
 exec srun -v \
      --exclusive \
      --ntasks="1" \
      --ntasks-per-node="1" \
      --kill-on-bad-exit \
      --mem=0 \
-     $startexe "$GRAPH" "$CLUSTERING-$MOAB_JOBID-@@@@-#####.bin,$result_id"
+     $executable "$GRAPH" "$CLUSTERING-$MOAB_JOBID-@@@@-#####.bin,$result_id"
