@@ -207,7 +207,7 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
     auto eval_graph = Input::readToNodeGraph(argv[1], context);
     eval_graph.nodes.Keep();
     double modularity = ClusteringQuality::modularity(eval_graph, node_clusters.Keep());
-    double map_eq = ClusteringQuality::mapEquation(eval_graph, node_clusters);
+    double map_eq = ClusteringQuality::mapEquation(eval_graph, node_clusters.Keep());
 
     if (context.my_rank() == 0) {
       Logging::report("algorithm_run", algorithm_run_id, "program_run_id", program_run_logging_id);
