@@ -9,7 +9,7 @@ jobs = [
   ["#{ENV['HOME']}/graphs/com-orkut.ungraph-preprocessed-*.bin", 1, 0, 8],
   ["#{ENV['HOME']}/graphs/com-youtube.ungraph-preprocessed-*.bin", 0, 10, 2],
   ["#{ENV['HOME']}/graphs/com-amazon.ungraph-preprocessed-*.bin", 0, 10, 2],
-  ["#{ENV['HOME']}/graphs/europe.osm-preprocessed-*.bin", 1, 0, 2],
+  ["#{ENV['HOME']}/graphs/europe.osm-preprocessed-*.bin", 1, 0, 8],
 ]
 
 `mkdir clusterings`
