@@ -3,6 +3,7 @@
 #MSUB -l pmem=4570mb
 #MSUB -q multinode
 #MSUB -v THRILL_WORKERS_PER_HOST=16
+#MSUB -v THRILL_LOCAL=1
 #MSUB -v THRILL_RAM=120GiB
 
 module load compiler/gnu/7.1
