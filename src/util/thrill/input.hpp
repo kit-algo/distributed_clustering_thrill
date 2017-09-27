@@ -104,7 +104,8 @@ DiaNodeGraph<NodeWithLinks> readDimacsToNodeGraph(const std::string& file, thril
         assert(!neighbors.empty());
 
         return NodeWithLinks { NodeId(node.second - 1), neighbors };
-      });
+      })
+    .Rebalance();
 
   Weight total_weight = nodes
     .Keep()
