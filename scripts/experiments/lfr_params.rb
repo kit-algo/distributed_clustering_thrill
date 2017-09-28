@@ -2,7 +2,7 @@
 
 require 'securerandom'
 
-algos = ['seq_louvain', 'dlslm_map_eq', 'dlslm_with_seq', 'dlslm']
+algos = ['seq_louvain', 'dlslm_map_eq', 'dlslm_with_seq', 'dlslm', 'infomap']
 
 graphs = Dir.glob(File.join(ARGV[0], '**/*.graph'))
 algos.each do |algo|
@@ -16,6 +16,8 @@ graphs.each do |graph|
     algos.each do |algo|
       if algo == 'seq_louvain'
         cmd = "./#{algo} #{graph} -o #{ARGV[1]}/#{algo}/#{name}.run#{i}.part"
+      elsif algo == 'infomap'
+        cmd = "./#{algo} -ilink-list #{graph} --clu #{ARGV[1]}/#{algo} --out-name #{name}.run#{i}.clu"
       else
         cmd = "./#{algo} #{graph} #{ARGV[1]}/#{algo}/#{name}.run#{i}.part,#{SecureRandom.uuid}"
       end
