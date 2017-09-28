@@ -10,7 +10,7 @@ algos.each do |algo|
 end
 
 graphs.each do |graph|
-  name = graph.split('/').last.split('.').first
+  name = graph.split('/').last.split('.')[0..-2].join('.')
 
   3.times do |i|
     algos.each do |algo|
