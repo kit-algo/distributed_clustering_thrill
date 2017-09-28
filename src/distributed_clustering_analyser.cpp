@@ -5,7 +5,6 @@
 #include "algo/thrill/louvain.hpp"
 #include "util/thrill/input.hpp"
 
-#include "data/ghost_cluster_store.hpp"
 #include "util/logging.hpp"
 
 using int128_t = __int128_t;
@@ -37,55 +36,15 @@ int main(int, char const *argv[]) {
 
     size_t cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
 
-    auto edges = graph.nodes
-      .Zip(node_clusters,
-        [](const NodeWithLinks& node, const NodeCluster& node_cluster) {
-          assert(node.id == node_cluster.first);
-          return std::make_pair(node, node_cluster.second);
-        })
-      .template FlatMap<Edge>(
-        [](const std::pair<NodeWithLinks, ClusterId>& node_cluster, auto emit) {
-          for (const auto& link : node_cluster.first.links) {
-            emit(Edge { link.target, node_cluster.second });
-          }
-        });
-
-    auto cluster_degrees_and_inside_weights = edgesToNodes(edges, graph.node_count)
-      .Zip(node_clusters,
-        [](const NodeWithLinks& node, const NodeCluster& node_cluster) {
-          assert(node.id == node_cluster.first);
-          return std::make_pair(node, node_cluster.second);
-        })
-      .template FlatMap<Edge>(
-        [](const std::pair<NodeWithLinks, ClusterId>& node_cluster, auto emit) {
-          for (const auto& link : node_cluster.first.links) {
-            emit(Edge { node_cluster.second, link.target });
-          }
-        })
-      .Map([](const Edge& edge) { return WeightedEdge { edge.tail, edge.head, edge.getWeight() }; })
-      .ReduceByKey(
-        [](const WeightedEdge& edge) { return Util::combine_u32ints(edge.tail, edge.head); },
-        [](const WeightedEdge& edge1, const WeightedEdge& edge2) { return WeightedEdge { edge1.tail, edge1.head, edge1.weight + edge2.weight }; })
-      .Map([](const WeightedEdge& edge) { return std::make_pair(edge.tail, std::pair<uint64_t, uint64_t>(edge.getWeight(), edge.tail == edge.head ? edge.getWeight() : 0)); })
-      .ReducePair(
-        [](const std::pair<uint64_t, uint64_t>& weights1, const std::pair<uint64_t, uint64_t>& weights2) {
-          return std::make_pair(weights1.first + weights2.first, weights1.second + weights2.second);
-        })
-      .Map(
-        [](const std::pair<ClusterId, std::pair<uint64_t, uint64_t>>& weights) {
-          return std::make_pair(int128_t(weights.second.first) * int128_t(weights.second.first), weights.second.second);
-        })
-      .AllReduce(
-        [](const std::pair<int128_t, uint64_t>& weights1, const std::pair<int128_t, uint64_t>& weights2) {
-          return std::make_pair(weights1.first + weights2.first, weights1.second + weights2.second);
-        });
-
-    double modularity = (cluster_degrees_and_inside_weights.second / (2.* graph.total_weight)) - (cluster_degrees_and_inside_weights.first / (4.*graph.total_weight*graph.total_weight));
+    graph.nodes.Keep();
+    double modularity = ClusteringQuality::modularity(graph, node_clusters.Keep());
+    double map_eq = ClusteringQuality::mapEquation(graph, node_clusters);
 
     if (context.my_rank() == 0) {
       Logging::report("clustering", algo_clustering_input.second, "path", algo_clustering_input.first);
       Logging::report("clustering", algo_clustering_input.second, "source", "ground_truth");
       Logging::report("clustering", algo_clustering_input.second, "modularity", modularity);
+      Logging::report("clustering", algo_clustering_input.second, "map_equation", map_eq);
       Logging::report("clustering", algo_clustering_input.second, "cluster_count", cluster_count);
     }
   });
