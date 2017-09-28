@@ -17,7 +17,7 @@ graphs.each do |graph|
       if algo == 'seq_louvain'
         cmd = "./#{algo} #{graph} -o #{ARGV[1]}/#{algo}/#{name}.run#{i}.part"
       elsif algo == 'infomap'
-        cmd = "./#{algo} -ilink-list #{graph[0..-6]}txt --clu #{ARGV[1]}/#{algo} --out-name #{name}.run#{i}.clu"
+        cmd = "./#{algo} #{graph[0..-6]}txt #{ARGV[1]}/#{algo} -ilink-list --clu -2 -s#{SecureRandom.random_number(4294967295)} --out-name #{name}.run#{i}.clu"
       else
         cmd = "./#{algo} #{graph} #{ARGV[1]}/#{algo}/#{name}.run#{i}.part,#{SecureRandom.uuid}"
       end
