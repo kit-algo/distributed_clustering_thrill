@@ -3,6 +3,7 @@
 #include <thrill/api/inner_join.hpp>
 #include <thrill/api/reduce_by_key.hpp>
 #include <thrill/api/all_reduce.hpp>
+#include <thrill/api/fold_by_key.hpp>
 #include <thrill/api/collapse.hpp>
 
 #include <cstdint>
