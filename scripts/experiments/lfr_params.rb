@@ -19,7 +19,7 @@ graphs.each do |graph|
       elsif algo == 'infomap'
         cmd = "./#{algo} #{graph[0..-6]}txt #{ARGV[1]}/#{algo} -ilink-list --clu -2 -v -s#{SecureRandom.random_number(4294967295)} --out-name #{name}.run#{i}.clu"
       else
-        cmd = "./#{algo} #{graph} #{ARGV[1]}/#{algo}/#{name}.run#{i}.part,#{SecureRandom.uuid}"
+        cmd = "./#{algo} #{graph} #{ARGV[1]}/#{algo}/#{name}.run#{i}-@@@@-#####.bin,#{SecureRandom.uuid}"
       end
       puts cmd
       begin
