@@ -167,6 +167,11 @@ bool ends_with(const std::string& value, const std::string& ending) {
   return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
+bool begins_with(const std::string& value, const std::string& begin) {
+  if (begin.size() > value.size()) return false;
+  return std::equal(begin.begin(), begin.end(), value.begin());
+}
+
 DiaGraph<NodeWithLinks, Edge> readGraph(const std::string& file, thrill::Context& context) {
   if (ends_with(file, ".graph")) {
     return readDimacsGraph(file, context);
@@ -206,7 +211,25 @@ DiaNodeGraph<NodeWithLinks> readToNodeGraph(const std::string& file, thrill::Con
 }
 
 auto readClustering(const std::string& file, thrill::Context& context) {
-  return thrill::ReadBinary<NodeCluster>(context, file);
+  if (ends_with(file, ".bin")) {
+    return thrill::ReadBinary<NodeCluster>(context, file);
+  } else {
+    return thrill::ReadLines(context, file)
+      .Filter([](const std::string& line) { return !(begins_with(line, "*") || begins_with(line, "#") || line.empty()); })
+      .ZipWithIndex([](const std::string line, const size_t index) { return std::make_pair(line, index); })
+      .Map(
+        [](const std::pair<std::string, size_t>& line_node) {
+          std::istringstream line_stream(line_node.first);
+          ClusterId cluster = 0;
+
+          if (!line_stream >> cluster) {
+            assert(false);
+          }
+
+          return NodeCluster(line_node.second, cluster);
+        })
+      .Collapse();
+  }
 }
 
 } // Input
