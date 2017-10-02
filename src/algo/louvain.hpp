@@ -125,8 +125,9 @@ void contractAndReapply(const GraphType& graph, ClusterStoreType &clusters, uint
   }
 }
 
-Logging::Id log_clustering(const Graph & graph, const ClusterStore & clusters) {
+Logging::Id log_clustering(const Graph & graph, ClusterStore& clusters) {
   Logging::Id logging_id = Logging::getUnusedId();
+  Logging::report("clustering", logging_id, "cluster_count", clusters.rewriteClusterIds());
   Logging::report("clustering", logging_id, "modularity", Modularity::modularity(graph, clusters));
   Logging::report("clustering", logging_id, "map_equation", MapEq::mapEquation(graph, clusters));
   return logging_id;
