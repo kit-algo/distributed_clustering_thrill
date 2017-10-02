@@ -14,10 +14,8 @@ graphs.each do |graph|
 
   3.times do |i|
     algos.each do |algo|
-      if algo == 'seq_louvain'
+      if algo == 'seq_louvain' || algo == 'infomap'
         cmd = "./#{algo} #{graph} -o #{ARGV[1]}/#{algo}/#{name}.run#{i}.part"
-      elsif algo == 'infomap'
-        cmd = "./#{algo} #{graph[0..-6]}txt #{ARGV[1]}/#{algo} -ilink-list --clu -2 -v -s#{SecureRandom.random_number(4294967295)} --out-name #{name}.run#{i}.clu"
       else
         cmd = "./#{algo} #{graph} #{ARGV[1]}/#{algo}/#{name}.run#{i}-@@@@-#####.bin,#{SecureRandom.uuid}"
       end
