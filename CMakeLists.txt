@@ -45,6 +45,8 @@ target_link_libraries(distributed_clustering_analyser thrill)
 add_executable(seq_exp src/seq_exp.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 add_executable(seq_louvain src/seq_louvain.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 add_executable(infomap src/infomap.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
+set_target_properties(infomap PROPERTIES COMPILE_FLAGS "-D NS_INFOMAP")
+
 target_link_libraries(seq_exp thrill)
 target_link_libraries(seq_louvain thrill)
 target_link_libraries(infomap thrill "${CMAKE_SOURCE_DIR}/lib/infomap/lib/libInfomap.a")
