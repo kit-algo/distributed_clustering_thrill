@@ -62,8 +62,12 @@ double modularity(const DiaNodeGraph<NodeType>& graph, const ClusterDIA& cluster
 template<typename NodeType, typename ClusterDIA>
 double mapEquation(const DiaNodeGraph<NodeType>& graph, const ClusterDIA& clusters) {
   auto relative_p_log_p = [total_vol = 2 * graph.total_weight](double p) {
-    double relative = p / total_vol;
-    return relative * log(relative);
+    if (p > 0) {
+      double relative = p / total_vol;
+      return relative * log(relative);
+    } else {
+      return 0;
+    }
   };
 
   auto components = graph.nodes
