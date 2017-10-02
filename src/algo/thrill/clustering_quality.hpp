@@ -66,7 +66,7 @@ double mapEquation(const DiaNodeGraph<NodeType>& graph, const ClusterDIA& cluste
       double relative = p / total_vol;
       return relative * log(relative);
     } else {
-      return 0;
+      return 0.;
     }
   };
 
