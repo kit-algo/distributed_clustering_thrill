@@ -6,7 +6,14 @@ include_directories("lib/thrill")
 include_directories("lib/sparsepp")
 include_directories("lib/vectorclass")
 include_directories("lib/RoutingKit/include")
+include_directories("lib/infomap/include")
 add_subdirectory(lib/thrill)
+
+add_custom_target(
+   infomap_lib
+   COMMAND make lib
+   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/lib/infomap/"
+)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y -Wall -Wextra -fopenmp -mavx2 -mfma -ffast-math")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O3") # abuse for dev builds
@@ -37,5 +44,8 @@ target_link_libraries(distributed_clustering_analyser thrill)
 
 add_executable(seq_exp src/seq_exp.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 add_executable(seq_louvain src/seq_louvain.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
+add_executable(infomap src/infomap.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 target_link_libraries(seq_exp thrill)
 target_link_libraries(seq_louvain thrill)
+target_link_libraries(infomap thrill "${CMAKE_SOURCE_DIR}/lib/infomap/lib/libInfomap.a")
+add_dependencies(infomap infomap_lib)
