@@ -20,7 +20,7 @@ int main(int argc, char const *argv[]) {
 
   const Graph& graph = input.getGraph();
 
-  infomap::Infomap infomap_wrapper("--clu -2");
+  infomap::Infomap infomap_wrapper("--clu -2 -s" + std::to_string(input.getSeed()));
 
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     graph.forEachAdjacentNode(node, [&](NodeId neighbor, auto) {
