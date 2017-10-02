@@ -261,4 +261,46 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters) {
   return changed;
 }
 
+
+template<class GraphType, class ClusterStoreType>
+double mapEquation(const GraphType& graph, const ClusterStoreType &clusters) {
+  std::vector<Weight> cluster_volumes(clusters.idRangeUpperBound());
+  std::vector<Weight> cluster_cuts(clusters.idRangeUpperBound());
+  const Weight total_vol = graph.getTotalWeight() * 2;
+  Weight total_inter_vol = 0;
+  long double sum_p_log_p_w_alpha = 0;
+
+  const auto plogp_rel = [total_vol](Weight w) -> double {
+    if (w > 0) {
+      double p = static_cast<double>(w) / total_vol;
+      return p * log(p);
+    }
+
+    return 0;
+  };
+
+  for (NodeId node = 0; node < graph.getNodeCount(); node++) {
+    cluster_volumes[clusters[node]] += graph.nodeDegree(node);
+    sum_p_log_p_w_alpha += plogp_rel(graph.nodeDegree(node));
+
+    graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight weight) {
+      if (clusters[neighbor] != clusters[node]) {
+        cluster_cuts[clusters[node]] += weight;
+        total_inter_vol += weight;
+      }
+    });
+  }
+
+  long double sum_p_log_p_cluster_cut = std::accumulate<decltype(cluster_cuts.begin()), long double>(cluster_cuts.begin(), cluster_cuts.end(), .0, [&](long double sum, Weight cut) {
+    return sum + plogp_rel(cut);
+  });
+
+  long double sum_p_log_p_cluster_cut_plus_vol = 0;
+  for (size_t i = 0; i < cluster_cuts.size(); ++i) {
+    sum_p_log_p_cluster_cut_plus_vol += plogp_rel(cluster_cuts[i] + cluster_volumes[i]);
+  }
+
+  return plogp_rel(total_inter_vol) - 2 * sum_p_log_p_cluster_cut + sum_p_log_p_cluster_cut_plus_vol - sum_p_log_p_w_alpha;
+}
+
 };
