@@ -7,3 +7,6 @@
 [submodule "lib/RoutingKit"]
 	path = lib/RoutingKit
 	url = https://github.com/RoutingKit/RoutingKit.git
+[submodule "lib/infomap"]
+	path = lib/infomap
+	url = https://github.com/mapequation/infomap.git
