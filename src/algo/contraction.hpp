@@ -23,62 +23,56 @@ T prefix_sum(std::vector<T>& elements) {
 
 template<class GraphType, class ClusterStoreType>
 Graph contract(const GraphType& graph, ClusterStoreType &clusters) {
-  bool weighted = graph.isWeighted();
   const ClusterId cluster_count = clusters.rewriteClusterIds();
-  std::vector<EdgeId> original_edge_degree_per_cluster(cluster_count + 1, 0);
 
-  // count orig degrees for each cluster
+  // we will need to efficiently iterate over all nodes but in order of their clustering
+  std::vector<NodeId> node_ids_ordered_by_cluster(graph.getNodeCount());
+  // we build the list up using bucket sort
+  // we can count the number of nodes in each cluster
+  // this allows us to use one vector for all buckets rather than one for each bucket
+  std::vector<NodeId> cluster_node_counts(cluster_count, 0);
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
-    graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight) {
-      original_edge_degree_per_cluster[clusters[neighbor]]++;
-    });
+    cluster_node_counts[clusters[node]]++;
+  }
+  prefix_sum(cluster_node_counts);
+  for (NodeId node = 0; node < graph.getNodeCount(); node++) {
+    node_ids_ordered_by_cluster[cluster_node_counts[clusters[node]]] = node;
+    cluster_node_counts[clusters[node]]++;
   }
 
-  // prefix sums to be able to do indexing
-  EdgeId edge_count = prefix_sum(original_edge_degree_per_cluster);
-  std::vector<NodeId> cluster_heads(edge_count);
-  std::vector<Weight> cluster_weights(weighted ? edge_count : 0);
-
-  // bucket sort
-  for (NodeId node = 0; node < graph.getNodeCount(); node++) {
-    graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight weight) {
-      EdgeId index = original_edge_degree_per_cluster[clusters[neighbor]];
-      cluster_heads[index] = clusters[node];
-      if (weighted) {
-        cluster_weights[index] = weight;
-      }
-      original_edge_degree_per_cluster[clusters[neighbor]]++;
-    });
-  }
-  assert(*(original_edge_degree_per_cluster.end() - 1) == edge_count);
-  assert(*(original_edge_degree_per_cluster.end() - 2) == edge_count);
-
+  // vector for meta node degrees, and later the meta first out
   std::vector<EdgeId> meta_node_degrees(cluster_count + 1, 0);
+  // two vectors to emulate a more efficient map to store which neighbor clusters where already encountered
   std::vector<bool> encountered_clusters(cluster_count, false);
   std::vector<ClusterId> encountered_clusters_list;
 
-  EdgeId start = 0;
-  for (ClusterId c = 0; c < cluster_count; c++) {
-    EdgeId end = original_edge_degree_per_cluster[c];
+  ClusterId current_cluster = clusters[node_ids_ordered_by_cluster[0]];
+  // iterating over nodes ordered by clusters
+  for (const NodeId node : node_ids_ordered_by_cluster) {
+    // reset stuff whenever we come to a new cluster
+    if (clusters[node] != current_cluster) {
+      current_cluster = clusters[node];
 
-    for (EdgeId edge = start; edge < end; edge++) {
-      ClusterId neighbor = cluster_heads[edge];
-      if (!encountered_clusters[neighbor]) {
-        meta_node_degrees[neighbor]++;
-        encountered_clusters[neighbor] = true;
-        encountered_clusters_list.push_back(neighbor);
+      for (ClusterId neighbor : encountered_clusters_list) {
+        encountered_clusters[neighbor] = false;
       }
+
+      encountered_clusters_list.clear();
     }
 
-    if (encountered_clusters[c]) {
-      meta_node_degrees[c]++;
-    }
+    graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight) {
+      ClusterId neighbor_cluster = clusters[neighbor];
+      if (!encountered_clusters[neighbor_cluster]) {
+        meta_node_degrees[current_cluster]++;
+        encountered_clusters[neighbor_cluster] = true;
+        encountered_clusters_list.push_back(neighbor_cluster);
 
-    for (ClusterId neighbor : encountered_clusters_list) {
-      encountered_clusters[neighbor] = false;
-    }
-    encountered_clusters_list.clear();
-    start = end;
+        // loops need to be represented twice
+        if (current_cluster == neighbor_cluster) {
+          meta_node_degrees[current_cluster]++;
+        }
+      }
+    });
   }
 
   EdgeId meta_edge_count = prefix_sum(meta_node_degrees);
@@ -86,34 +80,36 @@ Graph contract(const GraphType& graph, ClusterStoreType &clusters) {
   std::vector<ClusterId> meta_graph_heads(meta_edge_count, cluster_count);
   std::vector<Weight> meta_graph_weights(meta_edge_count);
 
-  start = 0;
-  for (ClusterId c = 0; c < cluster_count; c++) {
-    EdgeId end = original_edge_degree_per_cluster[c];
+  current_cluster = clusters[node_ids_ordered_by_cluster[0]];
+  // iterating over nodes ordered by clusters
+  for (const NodeId node : node_ids_ordered_by_cluster) {
+    // reset stuff whenever we come to a new cluster
+    if (clusters[node] != current_cluster) {
+      current_cluster = clusters[node];
+    }
 
-    for (EdgeId edge = start; edge < end; edge++) {
-      ClusterId neighbor = cluster_heads[edge];
-      Weight weight = weighted ? cluster_weights[edge] : 1;
+    graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight weight) {
+      ClusterId neighbor_cluster = clusters[neighbor];
 
-      EdgeId meta_edge_index = meta_node_degrees[neighbor];
-      if (meta_edge_index > 0 && (neighbor == 0 || meta_node_degrees[neighbor - 1] < meta_edge_index - 1) && meta_graph_heads[meta_edge_index - 1] == c) {
+      EdgeId meta_edge_index = meta_node_degrees[neighbor_cluster];
+      if (meta_edge_index > 0 && (neighbor_cluster == 0 || meta_node_degrees[neighbor_cluster - 1] < meta_edge_index - 1) && meta_graph_heads[meta_edge_index - 1] == current_cluster) {
         meta_edge_index--;
       } else {
-        meta_node_degrees[neighbor]++;
-        if (c == neighbor) {
-          meta_node_degrees[neighbor]++;
-          meta_graph_heads[meta_edge_index] = c;
+        meta_node_degrees[neighbor_cluster]++;
+        if (current_cluster == neighbor_cluster) {
+          meta_node_degrees[neighbor_cluster]++;
+          meta_graph_heads[meta_edge_index] = current_cluster;
           meta_edge_index++;
         }
       }
-      meta_graph_heads[meta_edge_index] = c;
+      meta_graph_heads[meta_edge_index] = current_cluster;
       meta_graph_weights[meta_edge_index] += weight;
-    }
-
-    start = end;
+    });
   }
 
   for (EdgeId e = 0; e < meta_edge_count; e++) {
     if (meta_graph_weights[e] == 0) {
+      assert(meta_graph_heads[e+1] == meta_graph_heads[e]);
       assert(meta_graph_weights[e+1] % 2 == 0);
       meta_graph_weights[e+1] /= 2;
       meta_graph_weights[e] = meta_graph_weights[e+1];
