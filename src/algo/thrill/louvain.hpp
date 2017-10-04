@@ -202,12 +202,17 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
     }
     auto node_clusters = run(graph, algorithm_run_id);
     node_clusters.Execute();
+    if (argc > 2) {
+      auto clustering_input = Logging::parse_input_with_logging_id(argv[2]);
+      node_clusters.Keep().WriteBinary(clustering_input.first);
+    }
+
     size_t cluster_count = node_clusters.Keep().Map([](const NodeCluster& node_cluster) { return node_cluster.second; }).Uniq().Size();
 
     auto eval_graph = Input::readToNodeGraph(argv[1], context);
     eval_graph.nodes.Keep();
     double modularity = ClusteringQuality::modularity(eval_graph, node_clusters.Keep());
-    double map_eq = ClusteringQuality::mapEquation(eval_graph, node_clusters.Keep());
+    double map_eq = ClusteringQuality::mapEquation(eval_graph, node_clusters);
 
     if (context.my_rank() == 0) {
       Logging::report("algorithm_run", algorithm_run_id, "program_run_id", program_run_logging_id);
@@ -229,11 +234,6 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
         Logging::report("clustering", clusters_logging_id, "map_equation", map_eq);
         Logging::report("clustering", clusters_logging_id, "cluster_count", cluster_count);
       }
-    }
-
-    if (argc > 2) {
-      auto clustering_input = Logging::parse_input_with_logging_id(argv[2]);
-      node_clusters.WriteBinary(clustering_input.first);
     }
   });
 }
