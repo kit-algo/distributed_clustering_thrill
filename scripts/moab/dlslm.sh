@@ -4,6 +4,7 @@
 #MSUB -q multinode
 #MSUB -v THRILL_WORKERS_PER_HOST=16
 #MSUB -v THRILL_RAM=120GiB
+#MSUB -v GLIBCPP_FORCE_NEW=1
 
 module load compiler/gnu/7.1
 
