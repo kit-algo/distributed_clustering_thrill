@@ -19,6 +19,8 @@ graphs = [
 algos = ['seq_louvain', 'infomap']
 
 graphs.each do |graph|
+  name = graph.split('/').last.split('.')[0..-2].join('.')
+
   algos.each do |algo|
     cmd = "./#{algo} -b #{graph} -o #{ARGV[0]}/clusterings/#{algo}-#{name}.part"
     puts cmd
