@@ -14,7 +14,7 @@ graphs = [
   "#{graph_dir}/europe.osm-preprocessed-*.bin",
 ]
 
-`mkdir #{ARGV[1]}/clusterings`
+`mkdir #{ARGV[0]}/clusterings`
 
 algos = ['seq_louvain', 'infomap']
 
