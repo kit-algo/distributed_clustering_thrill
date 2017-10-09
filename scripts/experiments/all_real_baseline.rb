@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-graph_dir = '/algoDaten/zeitz/graphs/realworld'
+graph_dir = '/algoDaten/zeitz/graphs/realworld-preprocessed'
 
 graphs = [
   "#{graph_dir}/uk-2002.metis-preprocessed-*.bin",
@@ -14,13 +14,13 @@ graphs = [
   "#{graph_dir}/europe.osm-preprocessed-*.bin",
 ]
 
-`mkdir clusterings`
+`mkdir #{ARGV[1]}/clusterings`
 
 algos = ['seq_louvain', 'infomap']
 
 graphs.each do |graph|
   algos.each do |algo|
-    cmd = "./#{algo} -b #{graph} -o #{ARGV[1]}/clusterings/#{algo}-#{name}.part"
+    cmd = "./#{algo} -b #{graph} -o #{ARGV[0]}/clusterings/#{algo}-#{name}.part"
     puts cmd
     begin
       system "#{cmd} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[0]} ./report_to_json.rb"
