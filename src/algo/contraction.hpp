@@ -92,7 +92,7 @@ Graph contract(const GraphType& graph, ClusterStoreType &clusters) {
       ClusterId neighbor_cluster = clusters[neighbor];
 
       EdgeId meta_edge_index = meta_node_degrees[neighbor_cluster];
-      if (meta_edge_index > 0 && (neighbor_cluster == 0 || meta_node_degrees[neighbor_cluster - 1] < meta_edge_index - 1) && meta_graph_heads[meta_edge_index - 1] == current_cluster) {
+      if (meta_edge_index > 0 && (neighbor_cluster == 0 || meta_node_degrees[neighbor_cluster - 1] <= meta_edge_index - 1) && meta_graph_heads[meta_edge_index - 1] == current_cluster) {
         meta_edge_index--;
       } else {
         meta_node_degrees[neighbor_cluster]++;
