@@ -22,7 +22,7 @@ graphs.each do |graph|
   name = graph.split('/').last.split('.')[0..-2].join('.')
 
   algos.each do |algo|
-    cmd = "./#{algo} -b #{graph} -o #{ARGV[0]}/clusterings/#{algo}-#{name}.part"
+    cmd = "./#{algo} -b #{graph} -o #{ARGV[0]}/clusterings/#{algo}-#{name[0..-3]}.part"
     puts cmd
     begin
       system "#{cmd} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[0]} ./report_to_json.rb"
