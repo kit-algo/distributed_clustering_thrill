@@ -3,15 +3,15 @@
 graph_dir = '/algoDaten/zeitz/graphs/realworld-preprocessed'
 
 graphs = [
-  "#{graph_dir}/uk-2002.metis-preprocessed-*.bin",
-  "#{graph_dir}/uk-2007-05.metis-preprocessed-*.bin",
-  "#{graph_dir}/in-2004.metis-preprocessed-*.bin",
-  "#{graph_dir}/com-friendster-preprocessed-*.bin",
-  "#{graph_dir}/com-lj.ungraph-preprocessed-*.bin",
-  "#{graph_dir}/com-orkut.ungraph-preprocessed-*.bin",
-  "#{graph_dir}/com-youtube.ungraph-preprocessed-*.bin",
   "#{graph_dir}/com-amazon.ungraph-preprocessed-*.bin",
+  "#{graph_dir}/com-youtube.ungraph-preprocessed-*.bin",
+  "#{graph_dir}/in-2004.metis-preprocessed-*.bin",
+  "#{graph_dir}/com-lj.ungraph-preprocessed-*.bin",
   "#{graph_dir}/europe.osm-preprocessed-*.bin",
+  "#{graph_dir}/com-orkut.ungraph-preprocessed-*.bin",
+  "#{graph_dir}/uk-2002.metis-preprocessed-*.bin",
+  "#{graph_dir}/com-friendster-preprocessed-*.bin",
+  "#{graph_dir}/uk-2007-05.metis-preprocessed-*.bin",
 ]
 
 `mkdir #{ARGV[0]}/clusterings`
