@@ -47,7 +47,7 @@ Dir.chdir(Pathname.new(__FILE__).realpath.dirname) do
   commit = `git rev-parse HEAD`.strip
 end
 
-data['program_run'].each do |_id, run|
+data['program_run']&.each do |_id, run|
   run['timestamp'] = timestamp
   run['commit'] = commit
 end
