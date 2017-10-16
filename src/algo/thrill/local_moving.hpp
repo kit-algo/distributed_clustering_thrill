@@ -260,7 +260,11 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
       [](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) {
         return node_cluster.first;
       }).Collapse(),
-    false);
+    #if defined(NO_CONTRACTION)
+      true);
+    #else
+      false);
+    #endif
 }
 
 template<class Graph>

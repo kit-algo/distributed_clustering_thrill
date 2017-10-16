@@ -194,6 +194,11 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
       #else
         Logging::report("program_run", program_run_logging_id, "switch_to_seq", false);
       #endif
+      #if defined(NO_CONTRACTION)
+        Logging::report("program_run", program_run_logging_id, "contraction", false);
+      #else
+        Logging::report("program_run", program_run_logging_id, "contraction", true);
+      #endif
     }
 
     Logging::Id algorithm_run_id = 0;
