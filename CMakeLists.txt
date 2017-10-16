@@ -23,6 +23,7 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O3") # abuse for dev builds
 add_executable(dlslm_map_eq src/dlslm_map_eq.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 add_executable(dlslm src/dlslm.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 add_executable(dlslm_with_seq src/dlslm.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
+add_executable(dlslm_no_contraction src/dlslm.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 add_executable(dlplm src/dlplm.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 add_executable(label_prop src/label_prop.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 add_executable(preprocess src/preprocessing.cpp)
@@ -31,11 +32,13 @@ add_executable(distributed_clustering_analyser src/distributed_clustering_analys
 
 set_target_properties(dlslm PROPERTIES COMPILE_FLAGS "-D STOP_MOVECOUNT -D FIXED_RATIO=4")
 set_target_properties(dlslm_with_seq PROPERTIES COMPILE_FLAGS "-D STOP_MOVECOUNT -D FIXED_RATIO=4 -D SWITCH_TO_SEQ")
+set_target_properties(dlslm_no_contraction PROPERTIES COMPILE_FLAGS "-D STOP_MOVECOUNT -D FIXED_RATIO=4 -D NO_CONTRACTION")
 set_target_properties(dlslm_map_eq PROPERTIES COMPILE_FLAGS "-D STOP_MOVECOUNT -D FIXED_RATIO=4")
 
 target_link_libraries(dlslm_map_eq thrill)
 target_link_libraries(dlslm thrill)
 target_link_libraries(dlslm_with_seq thrill)
+target_link_libraries(dlslm_no_contraction thrill)
 target_link_libraries(dlplm thrill)
 target_link_libraries(label_prop thrill)
 target_link_libraries(preprocess thrill)
