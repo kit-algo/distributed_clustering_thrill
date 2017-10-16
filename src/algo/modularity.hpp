@@ -37,8 +37,8 @@ double modularity(GraphType const &graph, ClusterStoreType const &clusters) {
   }
 
   Weight inner_sum = std::accumulate(inner_weights.begin(), inner_weights.end(), 0);
-  int128_t incident_sum = std::accumulate(incident_weights.begin(), incident_weights.end(), 0l, [](const int128_t& agg, const int128_t& elem) {
-    return agg + (elem * elem);
+  int128_t incident_sum = std::accumulate(incident_weights.begin(), incident_weights.end(), 0l, [](const int128_t& agg, const Weight& elem) {
+    return agg + ((int128_t) elem * (int128_t) elem);
   });
 
   int128_t total_weight = graph.getTotalWeight();
@@ -116,7 +116,7 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters, std::vector
     ClusterId current_node_cluster = clusters[current_node];
     Weight weight_between_node_and_current_cluster = 0;
     ClusterId best_cluster = current_node_cluster;
-    int64_t best_delta_modularity = 0;
+    int128_t best_delta_modularity = 0;
 
     // double current_modularity = 0;
     // current_modularity = modularity(graph, clusters);
@@ -137,7 +137,7 @@ bool localMoving(const GraphType& graph, ClusterStoreType &clusters, std::vector
     });
 
     for (ClusterId& incident_cluster : incident_clusters) {
-      int64_t neighbor_cluster_delta = deltaModularity(graph, current_node, current_node_cluster, incident_cluster, weight_between_node_and_current_cluster, node_to_cluster_weights[incident_cluster], cluster_weights);
+      int128_t neighbor_cluster_delta = deltaModularity(graph, current_node, current_node_cluster, incident_cluster, weight_between_node_and_current_cluster, node_to_cluster_weights[incident_cluster], cluster_weights);
       // std::cout << current_node << " -> " << neighbor << "(" << clusters[neighbor] << "): " << neighbor_cluster_delta << "\n";
       if (neighbor_cluster_delta > best_delta_modularity) {
         best_delta_modularity = neighbor_cluster_delta;
