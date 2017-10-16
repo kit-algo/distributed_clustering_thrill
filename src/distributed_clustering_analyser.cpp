@@ -42,7 +42,6 @@ int main(int, char const *argv[]) {
 
     if (context.my_rank() == 0) {
       Logging::report("clustering", algo_clustering_input.second, "path", algo_clustering_input.first);
-      Logging::report("clustering", algo_clustering_input.second, "source", "ground_truth");
       Logging::report("clustering", algo_clustering_input.second, "modularity", modularity);
       Logging::report("clustering", algo_clustering_input.second, "map_equation", map_eq);
       Logging::report("clustering", algo_clustering_input.second, "cluster_count", cluster_count);
