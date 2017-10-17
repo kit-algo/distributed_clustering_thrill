@@ -6,7 +6,6 @@
 
 import numpy as np
 import matplotlib as mpl
-get_ipython().magic('matplotlib inline')
 
 import pandas as pd
 
