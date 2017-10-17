@@ -1,9 +1,11 @@
 #!/usr/bin/env ruby
 
+require 'securerandom'
+
 jobs = [
-  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_512000000-sorted-preprocessed-*.bin", "clusterings/me-13191014-*.bin", 1, 0, 32],
-  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_512000000-sorted-preprocessed-*.bin", "clusterings/mod-13191012-*.bin", 1, 0, 32],
-  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_256000000-sorted-preprocessed-*.bin", "clusterings/mod-13191009-*.bin", 1, 0, 16],
+  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_512000000-sorted-preprocessed-*.bin", "clusterings/me-13191014-*.bin,#{SecureRandom.uuid}", 2, 0, 32],
+  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_512000000-sorted-preprocessed-*.bin", "clusterings/mod-13191012-*.bin,#{SecureRandom.uuid}", 2, 0, 32],
+  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_256000000-sorted-preprocessed-*.bin", "clusterings/mod-13191009-*.bin,#{SecureRandom.uuid}", 2, 0, 16],
 ]
 
 jobs.each do |job|
