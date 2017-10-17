@@ -130,12 +130,12 @@ public:
 
 private:
   void initializeAccumulatedWeights() {
-    assert(std::accumulate(weights.begin(), weights.end(), 0) % 2 == 0);
+    assert(std::accumulate(weights.begin(), weights.end(), Weight(0)) % 2 == 0);
     if (weighted) {
       for (NodeId node = 0; node < node_count; node++) {
-        degrees[node] = std::accumulate(weights.begin() + first_out[node], weights.begin() + first_out[node + 1], 0);
+        degrees[node] = std::accumulate(weights.begin() + first_out[node], weights.begin() + first_out[node + 1], Weight(0));
       }
-      total_weight = std::accumulate(degrees.begin(), degrees.end(), 0) / 2;
+      total_weight = std::accumulate(degrees.begin(), degrees.end(), Weight(0)) / 2;
     } else {
       total_weight = edge_count;
     }

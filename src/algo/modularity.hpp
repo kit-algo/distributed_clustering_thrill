@@ -24,25 +24,39 @@ using ClusterId = typename ClusterStore::ClusterId;
 
 template<class GraphType, class ClusterStoreType>
 double modularity(GraphType const &graph, ClusterStoreType const &clusters) {
-  std::vector<Weight> inner_weights(clusters.size(), 0);
-  std::vector<Weight> incident_weights(clusters.size(), 0);
+  const ClusterId cluster_count = clusters.idRangeUpperBound();
+  assert(clusters.size() == graph.getNodeCount());
+  std::vector<Weight> inner_weights(cluster_count, 0);
+  std::vector<Weight> incident_weights(cluster_count, 0);
 
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
+    assert(clusters[node] < cluster_count);
     incident_weights[clusters[node]] += graph.nodeDegree(node);
     graph.forEachAdjacentNode(node, [&](NodeId neighbor, Weight weight) {
+      assert(neighbor < graph.getNodeCount());
+      assert(clusters[neighbor] < cluster_count);
       if (clusters[neighbor] == clusters[node]) {
         inner_weights[clusters[node]] += weight;
       }
     });
   }
 
-  Weight inner_sum = std::accumulate(inner_weights.begin(), inner_weights.end(), 0);
-  int128_t incident_sum = std::accumulate(incident_weights.begin(), incident_weights.end(), 0l, [](const int128_t& agg, const Weight& elem) {
-    return agg + ((int128_t) elem * (int128_t) elem);
+  Weight inner_sum = std::accumulate(inner_weights.begin(), inner_weights.end(), Weight(0));
+  assert(inner_sum <= Weight(2) * graph.getTotalWeight());
+  int128_t incident_sum = std::accumulate(incident_weights.begin(), incident_weights.end(), (int128_t) 0, [](const int128_t& agg, const Weight& elem) {
+    return agg + (((int128_t) elem) * ((int128_t) elem));
   });
 
+  assert(inner_weights.size() == cluster_count);
+  assert(incident_weights.size() == cluster_count);
+
   int128_t total_weight = graph.getTotalWeight();
-  return (inner_sum / (2.*total_weight)) - (incident_sum / (4.*total_weight*total_weight));
+  total_weight *= 2;
+  assert(total_weight <= (1ull << 48));
+  double modularity = (double(inner_sum) / double(total_weight)) - (double(incident_sum) / double(total_weight * total_weight));
+  assert(modularity <= 1.0);
+  assert(modularity >= -0.5);
+  return modularity;
 
   static_assert(sizeof(decltype(total_weight)) >= 2 * sizeof(Graph::EdgeId), "Modularity has to be able to captuare a value of maximum number of edges squared");
   static_assert(sizeof(decltype(incident_sum)) >= 2 * sizeof(Graph::EdgeId), "Modularity has to be able to captuare a value of maximum number of edges squared");
@@ -65,8 +79,8 @@ int128_t deltaModularity(const GraphType &graph,
 
   int128_t current_cluster_incident_edges_weight = cluster_weights[current_cluster] - graph.nodeDegree(node);
 
-  int128_t e = (graph.getTotalWeight() * 2 * (weight_between_node_and_target_cluster - weight_between_node_and_current_cluster));
-  int128_t a = (target_cluster_incident_edges_weight - current_cluster_incident_edges_weight) * graph.nodeDegree(node);
+  int128_t e = (int128_t(graph.getTotalWeight()) * int128_t(2) * (weight_between_node_and_target_cluster - weight_between_node_and_current_cluster));
+  int128_t a = (target_cluster_incident_edges_weight - current_cluster_incident_edges_weight) * int128_t(graph.nodeDegree(node));
   return e - a;
 
   static_assert(sizeof(decltype(e)) >= 2 * sizeof(typename Graph::EdgeId), "Delta Modularity has to be able to captuare a value of maximum number of edges squared");
