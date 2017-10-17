@@ -22,17 +22,17 @@ from networkit import *
 
 def plot_and_save(df, name, kind='line', xlabel=None, ylabel=None, **kwargs):
     ax = df.plot(kind=kind, **kwargs)
-
+    
     if xlabel != None:
         ax.set_xlabel(xlabel)
     if ylabel != None:
         ax.set_ylabel(ylabel)
-
+    
     ax.legend().set_visible(False)
     mpl.pyplot.savefig("../../dist-thrill-cluster/plots/" + name + "_no_legend.png", dpi=300)
     ax.legend().set_visible(True)
     mpl.pyplot.savefig("../../dist-thrill-cluster/plots/" + name + ".png", dpi=300)
-
+    
     df.to_csv("../../dist-thrill-cluster/plots/" + name + ".csv")
 
 
@@ -54,8 +54,8 @@ frames = { typename: pd.DataFrame.from_dict(items, orient='index') for typename,
 # In[3]:
 
 
-dlslm_label = 'Distr. Modularity'
-dlslm_me_label = 'Distr. MapEq'
+dlslm_label = 'DSLM-Mod'
+dlslm_me_label = 'DSLM-Map'
 seq_postfix = ' w. Seq.'
 no_contraction_postfix = ' w/o Contraction'
 dlslm_ws_label = dlslm_label + seq_postfix
@@ -78,17 +78,17 @@ frames['algorithm_run']['algorithm'] += frames['algorithm_run'].merge(frames['pr
 def siml(x):
     files = sorted(glob.glob(os.path.expanduser("/algoDaten/zeitz/graphs/LFR/part" + x['graph'][33:])))
     ground_truth = community.BinaryEdgeListPartitionReader(0, 4).read(files)
-
+    
     files = sorted(glob.glob(os.path.expanduser('/amd.home/home/i11/zeitz/ma/data/results/paper/weak_scaling2/' + x['path'].replace('@@@@-#####', '*'))))
     if not files:
         files = sorted(glob.glob(os.path.expanduser('/amd.home/home/i11/zeitz/ma/data/results/paper/weak_scaling_quality/' + x['path'].replace('@@@@-#####', '*'))))
     clustering = community.BinaryEdgeListPartitionReader(0, 4).read(files)
-
+        
     g = graph.Graph(ground_truth.numberOfElements())
     nmi = 1.0 - community.NMIDistance().getDissimilarity(g, clustering, ground_truth)
     ari = 1.0 - community.AdjustedRandMeasure().getDissimilarity(g, clustering, ground_truth)
     return pd.Series([nmi, ari, clustering.numberOfSubsets()])
-
+    
 frames['clustering'][['NMI', 'ARI', 'cluster_count']] = frames['clustering']     .merge(frames['algorithm_run'], left_on='algorithm_run_id', right_index=True)     .merge(frames['program_run'], left_on='program_run_id', right_index=True)     .apply(siml, axis=1)
 
 
