@@ -29,6 +29,7 @@ add_executable(label_prop src/label_prop.cpp lib/RoutingKit/src/bit_select.cpp l
 add_executable(preprocess src/preprocessing.cpp)
 add_executable(preprocess_ground_truth src/preprocess_ground_truth.cpp)
 add_executable(distributed_clustering_analyser src/distributed_clustering_analyser.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
+add_executable(streaming_clustering_analyser src/streaming_cluster_analysis.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 
 set_target_properties(dlslm PROPERTIES COMPILE_FLAGS "-D STOP_MOVECOUNT -D FIXED_RATIO=4")
 set_target_properties(dlslm_with_seq PROPERTIES COMPILE_FLAGS "-D STOP_MOVECOUNT -D FIXED_RATIO=4 -D SWITCH_TO_SEQ")
@@ -44,6 +45,7 @@ target_link_libraries(label_prop thrill)
 target_link_libraries(preprocess thrill)
 target_link_libraries(preprocess_ground_truth thrill)
 target_link_libraries(distributed_clustering_analyser thrill)
+target_link_libraries(streaming_clustering_analyser thrill)
 
 add_executable(seq_exp src/seq_exp.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
 add_executable(seq_louvain src/seq_louvain.cpp lib/RoutingKit/src/bit_select.cpp lib/RoutingKit/src/bit_vector.cpp lib/RoutingKit/src/id_mapper.cpp)
