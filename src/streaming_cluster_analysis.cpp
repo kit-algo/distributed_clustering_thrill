@@ -18,7 +18,7 @@ using int128_t = __int128_t;
 
 int main(int, char const *argv[]) {
   const NodeId node_count = std::stoi(argv[3]);
-  ClusterStore clusters = IO::read_binary_clustering(argv[2], 100000);
+  ClusterStore clusters = IO::read_binary_clustering(argv[2], node_count);
   clusters.rewriteClusterIds();
   const ClusterId cluster_count = clusters.idRangeUpperBound();
 
