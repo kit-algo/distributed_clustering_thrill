@@ -8,6 +8,7 @@
 #include <sstream>
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 
 #include <thrill/vfs/file_io.hpp>
 
@@ -156,6 +157,42 @@ Graph::EdgeId read_graph_bin(const std::string& glob, std::vector<std::vector<Gr
   return read_graph_bin(files, neighbors);
 };
 
+template<typename F>
+void stream_bin_graph(const std::string& glob, const F& f) {
+  thrill::vfs::FileList paths = thrill::vfs::Glob(std::vector<std::string>(1, glob), thrill::vfs::GlobType::File);
+
+  if (!paths.empty()) {
+    std::ifstream is;
+    size_t _file_index = 0;
+
+    auto next_input = [&]() {
+      is.close();
+      if (_file_index < paths.size()) {
+        is.open(paths[_file_index++].path);
+      }
+    };
+
+    next_input();
+
+    for (NodeId u = 0; is.good() && is.is_open(); ++u) {
+      for (size_t deg = GetVarint(is); deg > 0 && is.good(); --deg) {
+        uint32_t v;
+        if (!is.read(reinterpret_cast<char*>(&v), 4)) {
+          throw std::runtime_error("I/O error while reading next neighbor");
+        }
+
+        assert(u != v);
+        f(u, v);
+        f(v, u);
+      }
+
+      if (is.is_open() && (is.peek() == std::char_traits<char>::eof() || !is.good())) {
+        next_input();
+      }
+    }
+  }
+}
+
 void read_clustering(const std::string& filename, ClusterStore& clusters) {
   open_file(filename, [&](auto& file) {
     std::string line;
@@ -214,6 +251,47 @@ void read_partition(const std::string& filename, std::vector<uint32_t>& node_par
       node++;
     }
   });
+}
+
+ClusterStore read_binary_clustering(const std::string& glob, const size_t num_nodes) {
+  constexpr size_t width = sizeof(ClusterId);
+
+  ClusterStore clusters(num_nodes);
+
+  thrill::vfs::FileList paths = thrill::vfs::Glob(std::vector<std::string>(1, glob), thrill::vfs::GlobType::File);
+
+  std::ifstream is;
+
+  size_t _file_index = 0;
+
+  auto next_input = [&]() {
+    is.close();
+    if (_file_index < paths.size()) {
+      is.open(paths[_file_index++].path, std::ios_base::in | std::ios_base::binary);
+      if (!is) {
+        throw std::runtime_error("Error: partition file couldn't be opened");
+      }
+    }
+  };
+
+  next_input();
+
+
+  ClusterId u = 0, p = 0;
+
+  while (is.good() && is.is_open()) {
+    is.read(reinterpret_cast<char*>(&u), width);
+    is.read(reinterpret_cast<char*>(&p), width);
+
+    assert(u < num_nodes);
+    clusters.set(u, p);
+
+    if (is.is_open() && (is.peek() == std::char_traits<char>::eof() || !is.good())) {
+      next_input();
+    }
+  }
+
+  return clusters;
 }
 
 }
