@@ -16,6 +16,32 @@ using ClusterId = typename ClusterStore::ClusterId;
 
 using int128_t = __int128_t;
 
+std::ostream&
+operator<<( std::ostream& dest, __int128_t value )
+{
+    std::ostream::sentry s( dest );
+    if ( s ) {
+        __uint128_t tmp = value < 0 ? -value : value;
+        char buffer[ 128 ];
+        char* d = std::end( buffer );
+        do
+        {
+            -- d;
+            *d = "0123456789"[ tmp % 10 ];
+            tmp /= 10;
+        } while ( tmp != 0 );
+        if ( value < 0 ) {
+            -- d;
+            *d = '-';
+        }
+        int len = std::end( buffer ) - d;
+        if ( dest.rdbuf()->sputn( d, len ) != len ) {
+            dest.setstate( std::ios_base::badbit );
+        }
+    }
+    return dest;
+}
+
 int main(int, char const *argv[]) {
   const NodeId node_count = std::stoi(argv[3]);
   ClusterStore clusters = IO::read_binary_clustering(argv[2], node_count);
@@ -52,6 +78,12 @@ int main(int, char const *argv[]) {
   int128_t incident_sum = std::accumulate(total_volumes.begin(), total_volumes.end(), (int128_t) 0, [](const int128_t& agg, const Weight& elem) {
     return agg + (((int128_t) elem) * ((int128_t) elem));
   });
+
+  std::cout << "total_volume: " << total_volume
+    << " total_cut: " << total_cut
+    << " inner_sum: " << inner_sum
+    << " incident_sum: " << incident_sum
+    << std::endl;
 
   assert(total_volume <= (1ull << 48));
   double modularity = (double(inner_sum) / double(total_volume)) - (double(incident_sum) / double(total_volume * total_volume));
