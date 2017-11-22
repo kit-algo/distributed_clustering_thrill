@@ -33,7 +33,11 @@ public:
 
   inline void set(const NodeId node, const ClusterId cluster_id) {
     assert(cluster_id >= id_range_lower_bound);
-    assert(cluster_id < id_range_upper_bound);
+
+    if (cluster_id >= id_range_upper_bound) {
+      id_range_upper_bound = cluster_id + 1;
+    }
+
     node_clusters[node] = cluster_id;
   }
 
@@ -58,7 +62,7 @@ public:
   }
 
   ClusterId rewriteClusterIds(std::vector<NodeId>& nodes, ClusterId id_counter = 0) {
-    RoutingKit::BitVector vector(size());
+    RoutingKit::BitVector vector(idRangeUpperBound());
 
     for (NodeId node : nodes) {
       vector.set(node_clusters[node]);
@@ -72,7 +76,7 @@ public:
   }
 
   ClusterId rewriteClusterIds(ClusterId id_counter = 0) {
-    RoutingKit::BitVector vector(size());
+    RoutingKit::BitVector vector(idRangeUpperBound());
 
     for (ClusterId cluster_id : node_clusters) {
       vector.set(cluster_id);
