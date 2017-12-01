@@ -12,5 +12,5 @@ echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} 
 mpi_options="--bind-to core --map-by node:PE=16 -report-bindings"
 executable="$HOME/gossip_map/release/apps/GossipMap/GossipMap"
 startexe="mpirun -n ${MOAB_NODECOUNT} ${mpi_options} ${executable}"
-echo $startexe "--graph ${GRAPH} --prefix ${OUT_PREFIX} --ncpus 16"
-exec $startexe "--graph ${GRAPH} --prefix ${OUT_PREFIX} --ncpus 16"
+echo $startexe --graph ${GRAPH} --prefix ${OUT_PREFIX} --ncpus 16
+exec $startexe --graph ${GRAPH} --prefix ${OUT_PREFIX} --ncpus 16
