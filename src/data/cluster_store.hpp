@@ -61,6 +61,16 @@ public:
     id_range_upper_bound = size();
   }
 
+  ClusterId clusterCount() const {
+    RoutingKit::BitVector vector(idRangeUpperBound());
+
+    for (ClusterId cluster : node_clusters) {
+      vector.set(cluster);
+    }
+
+    return vector.population_count();
+  }
+
   ClusterId rewriteClusterIds(std::vector<NodeId>& nodes, ClusterId id_counter = 0) {
     RoutingKit::BitVector vector(idRangeUpperBound());
 

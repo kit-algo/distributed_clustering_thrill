@@ -321,21 +321,30 @@ auto partitionedLocalMoving(const Graph& graph, Logging::Id loggin_id) {
             }
           });
 
-        GhostClusterStore clusters(graph.getNodeCount());
+        std::vector<std::pair<typename Graph::Node, ClusterId>> mapping;
+        mapping.reserve(graph.getNodeCount());
         if (partition_size > 1) {
+          GhostClusterStore clusters(graph.getNodeCount());
+
           Modularity::localMoving(graph, clusters);
+
+          clusters.rewriteClusterIds(reverse_mapping);
+          for (NodeId node = 0; node < graph.getNodeCount(); node++) {
+            mapping.emplace_back(reverse_mapping[node], clusters[node]);
+          }
         } else {
+          ClusterStore clusters(graph.getNodeCount());
+
           Logging::Id seq_algo_logging_id = Logging::getUnusedId();
           Logging::report("algorithm_run", seq_algo_logging_id, "distributed_algorithm_run_id", loggin_id);
           Logging::report("algorithm_run", seq_algo_logging_id, "algorithm", "sequential louvain");
           Louvain::louvainModularity(graph, clusters, seq_algo_logging_id);
-        }
-        clusters.rewriteClusterIds(reverse_mapping);
 
-        std::vector<std::pair<typename Graph::Node, ClusterId>> mapping;
-        mapping.reserve(graph.getNodeCount());
-        for (NodeId node = 0; node < graph.getNodeCount(); node++) {
-          mapping.emplace_back(reverse_mapping[node], clusters[node]);
+          clusters.rewriteClusterIds();
+
+          for (NodeId node = 0; node < graph.getNodeCount(); node++) {
+            mapping.emplace_back(reverse_mapping[node], clusters[node]);
+          }
         }
         return mapping;
       }, partition_size)
