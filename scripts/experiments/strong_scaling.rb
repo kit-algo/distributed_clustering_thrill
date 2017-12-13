@@ -1,12 +1,12 @@
 #!/usr/bin/env ruby
 
 jobs = [
-  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 4, 10, 1],
-  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 3, 10, 2],
-  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 2, 10, 4],
-  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 1, 10, 8],
-  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 0, 30, 16],
-  ["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 0, 10, 32],
+  ["#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 4, 10, 1],
+  ["#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 3, 10, 2],
+  ["#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 2, 10, 4],
+  ["#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 1, 10, 8],
+  ["#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 0, 30, 16],
+  ["#{ENV['HOME']}/graphs/mu-04/graph_50_10000_mu_0.4_16000000-sorted-preprocessed-*.bin", 0, 10, 32],
 ]
 
 `mkdir clusterings`
