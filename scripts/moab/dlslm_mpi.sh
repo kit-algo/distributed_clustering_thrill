@@ -12,7 +12,7 @@ echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores with ${MOAB_NODECOUNT} 
 
 result_id=$(ruby -e "require 'securerandom'; puts SecureRandom.uuid")
 executable="$HOME/code/release/dlslm"
-mpi_options="--bind-to core --map-by node:PE=17 -report-bindings"
+mpi_options="--bind-to core --map-by node:PE=28 -report-bindings"
 startexe="mpirun -n ${MOAB_NODECOUNT} ${mpi_options} ${executable}"
 echo $startexe "$GRAPH" "$CLUSTERING-$MOAB_JOBID-@@@@-#####.bin,$result_id"
 exec $startexe "$GRAPH" "$CLUSTERING-$MOAB_JOBID-@@@@-#####.bin,$result_id"
