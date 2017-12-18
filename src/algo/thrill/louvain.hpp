@@ -45,14 +45,11 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
   }
 
   auto clusters_with_nodes = lm_result.first
-    .template GroupByKey<std::pair<ClusterId, std::vector<NodeType>>>(
+    .template FoldByKey<std::vector<NodeType>>(thrill::NoDuplicateDetectionTag,
       [](const std::pair<NodeType, ClusterId>& node_cluster) { return node_cluster.second; },
-      [](auto& iterator, const ClusterId cluster) {
-        std::vector<NodeType> nodes;
-        while (iterator.HasNext()) {
-          nodes.push_back(iterator.Next().first);
-        }
-        return std::make_pair(cluster, nodes);
+      [](std::vector<NodeType>&& acc, const std::pair<NodeType, ClusterId>& node_cluster) {
+        acc.push_back(node_cluster.first);
+        return std::move(acc);
       })
     .ZipWithIndex([](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, ClusterId new_id) { return std::make_pair(new_id, cluster_nodes.second); });
 
