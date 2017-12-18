@@ -17,7 +17,7 @@
 #include "util/util.hpp"
 #include "util/logging.hpp"
 #include "algo/thrill/clustering_quality.hpp"
-#include "algo/thrill/contraction_k_way_merge.hpp"
+#include "algo/thrill/contraction.hpp"
 
 namespace Louvain {
 
@@ -135,7 +135,7 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
             cluster_weight += link.weight;
           }
         }
-        auto links = ContractionKWayMerge::sort_and_merge_links(cluster_nodes.second, cluster_nodes.first, cluster_count);
+        auto links = Contraction::sort_and_merge_links(cluster_nodes.second, cluster_nodes.first, cluster_count);
         return NodeWithWeightedLinks { cluster_nodes.first, std::move(links), cluster_weight };
       })
     .Cache();

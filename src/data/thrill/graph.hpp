@@ -344,7 +344,6 @@ auto edgesToNodes(const EdgeDIA& edges, uint32_t node_count) {
         while (iterator.HasNext()) {
           first.push_back(LinkType::fromEdge(iterator.Next()));
         }
-        // std::sort(first.links.begin(), first.links.end(), [](const LinkType& a, const LinkType& b) { return a.target < b.target; });
         return first;
       },
       node_count);
