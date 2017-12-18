@@ -16,13 +16,12 @@
 #include "util/util.hpp"
 #include "util/logging.hpp"
 #include "algo/thrill/clustering_quality.hpp"
+#include "algo/thrill/contraction_k_way_merge.hpp"
 
 namespace Louvain {
 
 template<class NodeType, class F>
 auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, const F& local_moving, uint32_t level = 0) {
-  using EdgeType = typename NodeType::LinkType::EdgeType;
-
   Logging::Id level_logging_id = 0;
   if (graph.nodes.context().my_rank() == 0) {
     level_logging_id = Logging::getUnusedId();
@@ -98,46 +97,42 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
 
   auto half_meta_edges = clusters_with_nodes
     // Build Meta Graph
-    .template FlatMap<EdgeType>(
+    .template FlatMap<WeightedEdge>(
       [](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
+        std::vector<std::vector<WeightedEdgeTarget>> links;
+        links.reserve(cluster_nodes.second.size());
+
         for (const NodeType& node : cluster_nodes.second) {
+          links.emplace_back();
+          links.back().reserve(node.links.size());
+
           for (const typename NodeType::LinkType& link : node.links) {
-            EdgeType edge = EdgeType::fromLink(cluster_nodes.first, link);
-            edge.flip();
-            emit(edge);
+            links.back().push_back(WeightedEdgeTarget { link.target, link.getWeight() });
           }
         }
-      });
-  auto meta_graph_edges = edgesToNodes(half_meta_edges, graph.node_count)
-    .Zip(thrill::NoRebalanceTag, mapping,
-      [](const NodeType& node, const NodeCluster& node_cluster) {
-        assert(node.id == node_cluster.first);
-        return std::make_pair(node_cluster.second, node);
-      })
-    .template FlatMap<EdgeType>(
-      [](const std::pair<ClusterId, NodeType>& cluster_node, auto emit) {
-        for (const typename NodeType::LinkType& link : cluster_node.second.links) {
-          emit(EdgeType::fromLink(cluster_node.first, link));
-        }
-      })
-    .Map([](const EdgeType& edge) { return WeightedEdge { edge.tail, edge.head, edge.getWeight() }; })
-    .ReduceByKey(
-      [](const WeightedEdge& edge) { return Util::combine_u32ints(edge.tail, edge.head); },
-      [](const WeightedEdge& edge1, const WeightedEdge& edge2) { return WeightedEdge { edge1.tail, edge1.head, edge1.weight + edge2.weight }; })
-    // turn loops into forward and backward arc
-    .template FlatMap<WeightedEdge>(
-      [](const WeightedEdge & edge, auto emit) {
-        if (edge.tail == edge.head) {
-          assert(edge.weight % 2 == 0);
-          emit(WeightedEdge { edge.tail, edge.head, edge.weight / 2 });
-          emit(WeightedEdge { edge.tail, edge.head, edge.weight / 2 });
-        } else {
+
+        for (const WeightedEdgeTarget& link : ContractionKWayMerge::kWayMerge(std::move(links))) {
+          WeightedEdge edge = WeightedEdge::fromLink(cluster_nodes.first, link);
+          edge.flip();
           emit(edge);
         }
       });
+  auto nodes = edgesToNodes(half_meta_edges, graph.node_count)
+    .Zip(thrill::NoRebalanceTag, mapping,
+      [](const NodeWithWeightedLinks& node, const NodeCluster& node_cluster) {
+        std::cout << node.id << " " << node_cluster.first << std::endl;
+        assert(node.id == node_cluster.first);
+        return std::make_pair(node_cluster.second, node);
+      })
+    .Map(
+      [cluster_count](const std::pair<ClusterId, NodeWithWeightedLinks>& cluster_node) {
+        auto links = ContractionKWayMerge::sort_and_merge_links(cluster_node.second.links, cluster_node.first, cluster_count);
+        return NodeWithWeightedLinks { cluster_node.first, std::move(links) };
+      })
+    .Collapse();
 
-  auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
-  assert(meta_graph_edges.Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
+  // auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
+  // assert(meta_graph_edges.Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
   auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { nodes, cluster_count, graph.total_weight }, algorithm_run_id, local_moving, level + 1);
   return meta_result
