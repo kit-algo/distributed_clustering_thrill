@@ -42,6 +42,10 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
       Logging::report_timestamp("algorithm_run", algorithm_run_id, "done_ts");
     }
     return lm_result.first.Map([](const std::pair<NodeType, ClusterId>& node_cluster) { return NodeCluster(node_cluster.first.id, node_cluster.second); }).Collapse();
+  } else {
+    if (graph.nodes.context().my_rank() == 0) {
+      Logging::report_timestamp("algorithm_level", level_logging_id, "lm_supposedly_done_ts");
+    }
   }
 
   auto clusters_with_nodes = lm_result.first
@@ -60,6 +64,7 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
     Logging::report("algorithm_level", level_logging_id, "node_count", graph.node_count);
     Logging::report("algorithm_level", level_logging_id, "cluster_count", cluster_count);
     Logging::report("algorithm_level", level_logging_id, "level", level);
+    Logging::report_timestamp("algorithm_level", level_logging_id, "lm_def_done_ts");
   }
 
   if (graph.node_count == cluster_count) {
@@ -138,6 +143,10 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
     .Cache();
 
   assert(nodesToEdges(meta_nodes.Keep()).Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
+
+  if (clusters_with_nodes.context().my_rank() == 0) {
+    Logging::report_timestamp("algorithm_level", level_logging_id, "contraction_done_ts");
+  }
 
   auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { meta_nodes, cluster_count, graph.total_weight }, algorithm_run_id, local_moving, level + 1);
   return meta_result
