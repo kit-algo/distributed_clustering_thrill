@@ -102,29 +102,40 @@ std::vector<WeightedEdgeTarget> kWayMerge(std::vector<std::vector<WeightedEdgeTa
   return std::move(containers[next_intermediate]);
 }
 
-std::vector<WeightedEdgeTarget> sort_and_merge_links(const std::vector<WeightedEdgeTarget>& links, ClusterId own_cluster, ClusterId cluster_count) {
+std::vector<WeightedEdgeTarget> sort_and_merge_links(const std::vector<NodeWithWeightedLinks>& nodes, ClusterId own_cluster, ClusterId cluster_count) {
   RoutingKit::BitVector neighboring_cluster_ids(cluster_count);
-  for (const WeightedEdgeTarget& link : links) {
-    neighboring_cluster_ids.set(link.target);
+  for (const NodeWithWeightedLinks& node : nodes) {
+    for (const WeightedEdgeTarget& link : node.links) {
+      neighboring_cluster_ids.set(link.target);
+    }
   }
 
-  std::vector<WeightedEdgeTarget> output_links(neighboring_cluster_ids.population_count());
-  RoutingKit::LocalIDMapper id_mapper(neighboring_cluster_ids);
-  for (const WeightedEdgeTarget& link : links) {
-    size_t index = id_mapper.to_local(link.target);
-    if (neighboring_cluster_ids.is_set(own_cluster) && link.target > own_cluster) {
-      index += 1;
-    }
+  size_t num_entries = neighboring_cluster_ids.population_count();
+  if (neighboring_cluster_ids.is_set(own_cluster)) {
+    num_entries++;
+  }
+  std::vector<WeightedEdgeTarget> output_links(num_entries);
 
-    output_links[index].target = link.target;
-    output_links[index].weight += link.weight;
+  RoutingKit::LocalIDMapper id_mapper(neighboring_cluster_ids);
+  for (const NodeWithWeightedLinks& node : nodes) {
+    for (const WeightedEdgeTarget& link : node.links) {
+      size_t index = id_mapper.to_local(link.target);
+      if (neighboring_cluster_ids.is_set(own_cluster) && link.target > own_cluster) {
+        index += 1;
+      }
+
+      output_links[index].target = link.target;
+      output_links[index].weight += link.weight;
+    }
   }
 
   if (neighboring_cluster_ids.is_set(own_cluster)) {
     size_t index = id_mapper.to_local(own_cluster);
+    assert(output_links[index].target == own_cluster);
     assert(output_links[index].weight % 2 == 0);
     output_links[index].weight /= 2;
     output_links[index + 1].weight = output_links[index].weight;
+    output_links[index + 1].target = own_cluster;
   }
 
   return output_links;

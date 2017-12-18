@@ -11,6 +11,7 @@
 
 #include <vector>
 #include <cstdlib>
+#include <sparsepp/spp.h>
 
 #include "util/thrill/input.hpp"
 #include "util/util.hpp"
@@ -99,42 +100,49 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
     // Build Meta Graph
     .template FlatMap<WeightedEdge>(
       [](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
-        std::vector<std::vector<WeightedEdgeTarget>> links;
-        links.reserve(cluster_nodes.second.size());
+        spp::sparse_hash_map<NodeId, Weight> cluster_links;
 
         for (const NodeType& node : cluster_nodes.second) {
-          links.emplace_back();
-          links.back().reserve(node.links.size());
-
           for (const typename NodeType::LinkType& link : node.links) {
-            links.back().push_back(WeightedEdgeTarget { link.target, link.getWeight() });
+            cluster_links[link.target] += link.getWeight();
           }
         }
 
-        for (const WeightedEdgeTarget& link : ContractionKWayMerge::kWayMerge(std::move(links))) {
-          WeightedEdge edge = WeightedEdge::fromLink(cluster_nodes.first, link);
-          edge.flip();
-          emit(edge);
+        for (const auto& cluster_link : cluster_links) {
+          emit(WeightedEdge { cluster_link.first, cluster_nodes.first, cluster_link.second });
         }
       });
-  auto nodes = edgesToNodes(half_meta_edges, graph.node_count)
+  auto meta_nodes = edgesToNodes(half_meta_edges, graph.node_count)
     .Zip(thrill::NoRebalanceTag, mapping,
       [](const NodeWithWeightedLinks& node, const NodeCluster& node_cluster) {
-        std::cout << node.id << " " << node_cluster.first << std::endl;
         assert(node.id == node_cluster.first);
         return std::make_pair(node_cluster.second, node);
       })
+    .template GroupToIndex<std::pair<ClusterId, std::vector<NodeWithWeightedLinks>>>(
+      [](const std::pair<ClusterId, NodeWithWeightedLinks>& cluster_node) { return cluster_node.first; },
+      [](auto& iterator, const ClusterId cluster) {
+        std::vector<NodeWithWeightedLinks> nodes;
+        while (iterator.HasNext()) {
+          nodes.push_back(iterator.Next().second);
+        }
+        return std::make_pair(cluster, nodes);
+      }, cluster_count)
     .Map(
-      [cluster_count](const std::pair<ClusterId, NodeWithWeightedLinks>& cluster_node) {
-        auto links = ContractionKWayMerge::sort_and_merge_links(cluster_node.second.links, cluster_node.first, cluster_count);
-        return NodeWithWeightedLinks { cluster_node.first, std::move(links) };
+      [cluster_count](const std::pair<ClusterId, std::vector<NodeWithWeightedLinks>>& cluster_nodes) {
+        Weight cluster_weight = 0;
+        for (const NodeWithWeightedLinks& node : cluster_nodes.second) {
+          for (const WeightedEdgeTarget& link : node.links) {
+            cluster_weight += link.weight;
+          }
+        }
+        auto links = ContractionKWayMerge::sort_and_merge_links(cluster_nodes.second, cluster_nodes.first, cluster_count);
+        return NodeWithWeightedLinks { cluster_nodes.first, std::move(links), cluster_weight };
       })
-    .Collapse();
+    .Cache();
 
-  // auto nodes = edgesToNodes(meta_graph_edges, cluster_count).Collapse();
-  // assert(meta_graph_edges.Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
+  assert(nodesToEdges(meta_nodes.Keep()).Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
 
-  auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { nodes, cluster_count, graph.total_weight }, algorithm_run_id, local_moving, level + 1);
+  auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { meta_nodes, cluster_count, graph.total_weight }, algorithm_run_id, local_moving, level + 1);
   return meta_result
     .Zip(clusters_with_node_ids,
       [](const NodeCluster& meta_cluster, const std::pair<ClusterId, std::vector<NodeId>>& cluster_node_ids) {
