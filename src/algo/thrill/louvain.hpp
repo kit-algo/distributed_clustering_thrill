@@ -143,8 +143,10 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
     .Cache();
 
   assert(nodesToEdges(meta_nodes.Keep()).Map([](const WeightedEdge& edge) { return edge.getWeight(); }).Sum() / 2 == graph.total_weight);
+  size_t num_meta_edges = nodesToEdges(meta_nodes.Keep()).Size() / 2;
 
   if (clusters_with_nodes.context().my_rank() == 0) {
+    Logging::report("algorithm_level", level_logging_id, "meta_edge_count", num_meta_edges);
     Logging::report_timestamp("algorithm_level", level_logging_id, "contraction_done_ts");
   }
 
