@@ -165,20 +165,14 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
               }
             })) :
         reduceToBestCluster(node_clusters
-          .template GroupToIndex<std::pair<ClusterId, std::vector<NodeType>>>(
+          .template FoldByKey<std::vector<NodeType>>(thrill::NoDuplicateDetectionTag,
             [](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) { return node_cluster.first.second; },
-            [](auto& iterator, const ClusterId cluster) {
-              std::vector<NodeType> nodes;
-              while (iterator.HasNext()) {
-                nodes.push_back(iterator.Next().first.first);
-              }
-              return std::make_pair(cluster, std::move(nodes));
-            },
-            graph.node_count)
+            [](std::vector<NodeType>&& acc, const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster) {
+              acc.push_back(node_cluster.first.first);
+              return std::move(acc);
+            })
           .template FlatMap<IncidentClusterInfo>(
             [&included](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
-              if (cluster_nodes.second.empty()) { return; }
-
               spp::sparse_hash_map<NodeId, NodeClusterLink> node_cluster_links;
               Weight total_weight = 0;
               for (const NodeType& node : cluster_nodes.second) {
