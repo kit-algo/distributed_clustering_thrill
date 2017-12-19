@@ -172,11 +172,13 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
               while (iterator.HasNext()) {
                 nodes.push_back(iterator.Next().first.first);
               }
-              return std::make_pair(cluster, nodes);
+              return std::make_pair(cluster, std::move(nodes));
             },
             graph.node_count)
           .template FlatMap<IncidentClusterInfo>(
             [&included](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
+              if (cluster_nodes.second.empty()) { return; }
+
               spp::sparse_hash_map<NodeId, NodeClusterLink> node_cluster_links;
               Weight total_weight = 0;
               for (const NodeType& node : cluster_nodes.second) {
