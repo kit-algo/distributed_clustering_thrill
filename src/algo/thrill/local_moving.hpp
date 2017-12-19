@@ -172,39 +172,83 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
               return std::move(acc);
             })
           .template FlatMap<IncidentClusterInfo>(
-            [&included](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
-              spp::sparse_hash_map<NodeId, NodeClusterLink> node_cluster_links;
+            [&included, node_count = graph.node_count](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
+              size_t max_degree = 0;
               Weight total_weight = 0;
               for (const NodeType& node : cluster_nodes.second) {
                 total_weight += node.weightedDegree();
-              }
-              for (const NodeType& node : cluster_nodes.second) {
-                for (const typename NodeType::LinkType& link : node.links) {
-                  if (node.id != link.target && included(link.target)) {
-                    auto it = node_cluster_links.find(link.target);
-                    if (it != node_cluster_links.end()) {
-                      it->second.inbetween_weight += link.getWeight();
-                    } else {
-                      node_cluster_links[link.target] = NodeClusterLink {
-                        link.getWeight(),
-                        total_weight
-                      };
-                    }
-                  }
-                }
-                if (included(node.id)) {
-                  NodeClusterLink& cluster_link = node_cluster_links[node.id];
-                  cluster_link.total_weight = total_weight - node.weightedDegree();
+                if (node.links.size() > max_degree) {
+                  max_degree = node.links.size();
                 }
               }
 
-              for (const auto& node_cluster_link : node_cluster_links) {
-                emit(IncidentClusterInfo {
-                  node_cluster_link.first,
-                  cluster_nodes.first,
-                  node_cluster_link.second.inbetween_weight,
-                  node_cluster_link.second.total_weight
-                });
+              if (max_degree > node_count / 2) {
+                std::vector<Weight> node_cluster_links(node_count);
+                for (const NodeType& node : cluster_nodes.second) {
+                  for (const typename NodeType::LinkType& link : node.links) {
+                    if (node.id != link.target && included(link.target)) {
+                      node_cluster_links[link.target] += link.getWeight();
+                    }
+                  }
+                }
+
+                for (const NodeType& node : cluster_nodes.second) {
+                  if (included(node.id)) {
+                    emit(IncidentClusterInfo {
+                      node.id,
+                      cluster_nodes.first,
+                      node_cluster_links[node.id],
+                      total_weight - node.weightedDegree()
+                    });
+                    node_cluster_links[node.id] = 0;
+                  }
+                }
+
+                for (NodeId n = 0; n < node_count; n++) {
+                  if (node_cluster_links[n] > 0) {
+                    emit(IncidentClusterInfo {
+                      n,
+                      cluster_nodes.first,
+                      node_cluster_links[n],
+                      total_weight
+                    });
+                  }
+                }
+              } else {
+                spp::sparse_hash_map<NodeId, Weight> node_cluster_links;
+                for (const NodeType& node : cluster_nodes.second) {
+                  for (const typename NodeType::LinkType& link : node.links) {
+                    if (node.id != link.target && included(link.target)) {
+                      node_cluster_links[link.target] += link.getWeight();
+                    }
+                  }
+                }
+
+                for (const NodeType& node : cluster_nodes.second) {
+                  if (included(node.id)) {
+                    Weight node_cluster_link_weight = 0;
+                    auto it = node_cluster_links.find(node.id);
+                    if (it != node_cluster_links.end()) {
+                      node_cluster_link_weight = it->second;
+                      node_cluster_links.erase(it);
+                    }
+                    emit(IncidentClusterInfo {
+                      node.id,
+                      cluster_nodes.first,
+                      node_cluster_link_weight,
+                      total_weight - node.weightedDegree()
+                    });
+                  }
+                }
+
+                for (const auto& node_cluster_link : node_cluster_links) {
+                  emit(IncidentClusterInfo {
+                    node_cluster_link.first,
+                    cluster_nodes.first,
+                    node_cluster_link.second,
+                    total_weight
+                  });
+                }
               }
             }))
           )
