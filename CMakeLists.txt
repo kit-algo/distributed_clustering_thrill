@@ -7,6 +7,7 @@ include_directories("lib/sparsepp")
 include_directories("lib/vectorclass")
 include_directories("lib/RoutingKit/include")
 include_directories("lib/infomap/include")
+include_directories("lib/sparsehash/src")
 add_subdirectory(lib/thrill)
 
 add_custom_target(

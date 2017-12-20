@@ -10,3 +10,6 @@
 [submodule "lib/infomap"]
 	path = lib/infomap
 	url = https://github.com/mapequation/infomap.git
+[submodule "lib/sparsehash"]
+	path = lib/sparsehash
+	url = https://github.com/sparsehash/sparsehash
