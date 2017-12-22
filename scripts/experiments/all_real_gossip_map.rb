@@ -24,7 +24,7 @@ jobs.each do |job|
     `touch #{gossip_map_file}`
     puts `msub -l walltime=#{"%02d" % (hours * 4)}:#{"%02d" % (minutes * 4)}:00 -l nodes=#{nodes}:ppn=28 -v GRAPH=#{gossip_map_file} -v OUT_PREFIX=clusterings/#{graph_name} ~/code/scripts/moab/gossip_map.sh`
   else
-    conversion_job_id = `msub -l walltime=#{"%02d" % (hours * 4)}:#{"%02d" % (minutes * 4)}:00 -v GRAPH=#{graph} -v OUT=#{gossip_map_file} ~/code/scripts/moab/gossip_map_conversion.sh`
+    conversion_job_id = `msub -l walltime=#{"%02d" % (hours * 4)}:#{"%02d" % (minutes * 4)}:00 -v GRAPH=#{graph} -v OUT=#{gossip_map_file} ~/code/scripts/moab/gossip_map_conversion.sh`.strip
     puts `msub -l depend=afterok:#{conversion_job_id} -l walltime=#{"%02d" % (hours * 4)}:#{"%02d" % (minutes * 4)}:00 -v GRAPH=#{gossip_map_file} -v OUT_PREFIX=clusterings/#{graph_name} ~/code/scripts/moab/gossip_map.sh`
   end
 end
