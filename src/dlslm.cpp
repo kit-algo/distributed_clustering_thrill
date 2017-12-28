@@ -9,9 +9,9 @@
 
 
 int main(int argc, char const *argv[]) {
-  return Louvain::performAndEvaluate(argc, argv, "synchronous local moving with modularity", [](const auto& graph, Logging::Id logging_id, std::mt19937_64& random_engine) {
-    return Louvain::louvain(graph, logging_id, random_engine, [](const auto& graph, Logging::Id level_logging_id, std::mt19937_64& random_engine) {
-      return LocalMoving::distributedLocalMoving(graph, MAX_ITERATIONS, level_logging_id, random_engine);
+  return Louvain::performAndEvaluate(argc, argv, "synchronous local moving with modularity", [](const auto& graph, Logging::Id logging_id) {
+    return Louvain::louvain(graph, logging_id, [](const auto& graph, Logging::Id level_logging_id) {
+      return LocalMoving::distributedLocalMoving(graph, MAX_ITERATIONS, level_logging_id);
     });
   });
 }

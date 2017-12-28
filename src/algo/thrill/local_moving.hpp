@@ -20,7 +20,6 @@
 #include "data/thrill/graph.hpp"
 #include "data/local_dia_graph.hpp"
 #include "algo/thrill/partitioning.hpp"
-#include "algo/permutation.hpp"
 
 #include "data/ghost_graph.hpp"
 #include "data/ghost_cluster_store.hpp"
@@ -30,6 +29,11 @@
 namespace LocalMoving {
 
 using int128_t = __int128_t;
+
+struct NodeClusterLink {
+  Weight inbetween_weight = 0;
+  Weight total_weight = 0;
+};
 
 struct IncidentClusterInfo {
   NodeId node_id;
@@ -57,7 +61,7 @@ bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t ra
 static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
 
 template<class NodeType>
-auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations, Logging::Id level_logging_id, std::mt19937_64& random_engine) {
+auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations, Logging::Id level_logging_id) {
   #if defined(SWITCH_TO_SEQ)
     if (graph.node_count < 1000000) {
       auto local_nodes = graph.nodes.Gather();
@@ -127,33 +131,11 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
   #endif
   uint32_t rate_sum = 0;
 
-  Permutation permutation(graph.node_count, 0, 0);
-  Permutation inverse_permutation(graph.node_count, 0, 0);
-  NodeId chunk_size = 0;
-  #if defined(FIXED_RATIO)
-    chunk_size = (permutation.max_input() + FIXED_RATIO - 1) / FIXED_RATIO;
-  #endif
-  NodeId subiteration_chunk = 0;
-
   uint32_t iteration;
   for (iteration = 0; iteration < num_iterations; iteration++) {
+    auto included = [iteration, rate](const NodeId id) { return nodeIncluded(id, iteration, rate); };
+
     size_t considered_nodes_estimate = graph.node_count * rate / 1000;
-
-    #if defined(FIXED_RATIO)
-      if (iteration % FIXED_RATIO == 0) {
-        permutation = Permutation(graph.node_count, random_engine);
-        inverse_permutation = permutation.invert();
-      }
-      subiteration_chunk = iteration % FIXED_RATIO;
-    #else
-      permutation = Permutation(graph.node_count, random_engine);
-      inverse_permutation = permutation.invert();
-      chunk_size = considered_nodes_estimate;
-    #endif
-
-    auto included = [chunk_size, subiteration_chunk, &permutation](const NodeId id) {
-      return permutation(id) / chunk_size == subiteration_chunk;
-    };
 
     if (considered_nodes_estimate > 0) {
       node_clusters = (iteration == 0 ?
@@ -190,7 +172,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
               return std::move(acc);
             })
           .template FlatMap<IncidentClusterInfo>(
-            [&included, &permutation, &inverse_permutation, chunk_size, subiteration_chunk, node_count = graph.node_count](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
+            [&included, node_count = graph.node_count](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
               if (cluster_nodes.second.size() == 1) {
                 auto& node = cluster_nodes.second[0];
                 for (const typename NodeType::LinkType& link : node.links) {
@@ -211,47 +193,41 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
                 return;
               }
 
-              double expected_fraction_of_excluded_nodes = 1.0;
+              size_t max_degree = 0;
               Weight total_weight = 0;
               for (const NodeType& node : cluster_nodes.second) {
                 total_weight += node.weightedDegree();
-
-                if (expected_fraction_of_excluded_nodes > 0.5) {
-                  double neighbors_to_total_fraction = double(node.links.size()) / double(node_count);
-                  expected_fraction_of_excluded_nodes *= (1.0 - neighbors_to_total_fraction);
+                if (node.links.size() > max_degree) {
+                  max_degree = node.links.size();
                 }
               }
 
-              if (expected_fraction_of_excluded_nodes <= 0.5) {
-                std::vector<Weight> node_cluster_links(chunk_size);
+              if (max_degree > node_count / 2) {
+                std::vector<Weight> node_cluster_links(node_count);
                 for (const NodeType& node : cluster_nodes.second) {
                   for (const typename NodeType::LinkType& link : node.links) {
                     if (node.id != link.target && included(link.target)) {
-                      node_cluster_links[permutation(link.target) % chunk_size] += link.getWeight();
+                      node_cluster_links[link.target] += link.getWeight();
                     }
                   }
                 }
 
                 for (const NodeType& node : cluster_nodes.second) {
-                  NodeId index = permutation(node.id) % chunk_size;
                   if (included(node.id)) {
                     emit(IncidentClusterInfo {
                       node.id,
                       cluster_nodes.first,
-                      node_cluster_links[index],
+                      node_cluster_links[node.id],
                       total_weight - node.weightedDegree()
                     });
-                    node_cluster_links[index] = 0;
+                    node_cluster_links[node.id] = 0;
                   }
                 }
 
-                for (NodeId n = 0; n < chunk_size; n++) {
+                for (NodeId n = 0; n < node_count; n++) {
                   if (node_cluster_links[n] > 0) {
-                    NodeId original_node = inverse_permutation(n + subiteration_chunk * chunk_size);
-                    assert(original_node < node_count);
-                    assert(included(original_node));
                     emit(IncidentClusterInfo {
-                      original_node,
+                      n,
                       cluster_nodes.first,
                       node_cluster_links[n],
                       total_weight
