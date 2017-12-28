@@ -173,6 +173,11 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
             })
           .template FlatMap<IncidentClusterInfo>(
             [&included, node_count = graph.node_count](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
+              Weight total_weight = 0;
+              for (const NodeType& node : cluster_nodes.second) {
+                total_weight += node.weightedDegree();
+              }
+
               if (cluster_nodes.second.size() == 1) {
                 auto& node = cluster_nodes.second[0];
                 for (const typename NodeType::LinkType& link : node.links) {
@@ -181,58 +186,18 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
                       link.target,
                       cluster_nodes.first,
                       link.getWeight(),
-                      node.weightedDegree()
+                      total_weight
                     });
                   }
                 }
 
                 if (included(node.id)) {
-                  emit(IncidentClusterInfo { node.id, cluster_nodes.first, 0, 0 });
-                }
-
-                return;
-              }
-
-              size_t max_degree = 0;
-              Weight total_weight = 0;
-              for (const NodeType& node : cluster_nodes.second) {
-                total_weight += node.weightedDegree();
-                if (node.links.size() > max_degree) {
-                  max_degree = node.links.size();
-                }
-              }
-
-              if (max_degree > node_count / 2) {
-                std::vector<Weight> node_cluster_links(node_count);
-                for (const NodeType& node : cluster_nodes.second) {
-                  for (const typename NodeType::LinkType& link : node.links) {
-                    if (node.id != link.target && included(link.target)) {
-                      node_cluster_links[link.target] += link.getWeight();
-                    }
-                  }
-                }
-
-                for (const NodeType& node : cluster_nodes.second) {
-                  if (included(node.id)) {
-                    emit(IncidentClusterInfo {
-                      node.id,
-                      cluster_nodes.first,
-                      node_cluster_links[node.id],
-                      total_weight - node.weightedDegree()
-                    });
-                    node_cluster_links[node.id] = 0;
-                  }
-                }
-
-                for (NodeId n = 0; n < node_count; n++) {
-                  if (node_cluster_links[n] > 0) {
-                    emit(IncidentClusterInfo {
-                      n,
-                      cluster_nodes.first,
-                      node_cluster_links[n],
-                      total_weight
-                    });
-                  }
+                  emit(IncidentClusterInfo {
+                    node.id,
+                    cluster_nodes.first,
+                    0,
+                    0
+                  });
                 }
               } else {
                 google::dense_hash_map<NodeId, Weight> node_cluster_links;
