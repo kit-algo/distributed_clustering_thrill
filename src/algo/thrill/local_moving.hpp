@@ -14,7 +14,7 @@
 
 #include <vector>
 #include <algorithm>
-#include <sparsehash/dense_hash_map>
+#include <sparsepp/spp.h>
 
 #include "util/util.hpp"
 #include "data/thrill/graph.hpp"
@@ -200,9 +200,7 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
                   });
                 }
               } else {
-                google::dense_hash_map<NodeId, Weight> node_cluster_links;
-                node_cluster_links.set_empty_key(NodeId(-1));
-                node_cluster_links.set_deleted_key(NodeId(-2));
+                spp::sparse_hash_map<NodeId, Weight> node_cluster_links;
                 for (const NodeType& node : cluster_nodes.second) {
                   for (const typename NodeType::LinkType& link : node.links) {
                     if (node.id != link.target && included(link.target)) {

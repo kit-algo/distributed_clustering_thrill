@@ -11,7 +11,7 @@
 
 #include <vector>
 #include <cstdlib>
-#include <sparsehash/dense_hash_map>
+#include <sparsepp/spp.h>
 
 #include "util/thrill/input.hpp"
 #include "util/util.hpp"
@@ -101,9 +101,7 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
     // Build Meta Graph
     .template FlatMap<WeightedEdge>(
       [](const std::pair<ClusterId, std::vector<NodeType>>& cluster_nodes, auto emit) {
-        google::dense_hash_map<NodeId, Weight> cluster_links;
-        cluster_links.set_empty_key(NodeId(-1));
-        cluster_links.set_deleted_key(NodeId(-2));
+        spp::sparse_hash_map<NodeId, Weight> cluster_links;
 
         for (const NodeType& node : cluster_nodes.second) {
           for (const typename NodeType::LinkType& link : node.links) {
