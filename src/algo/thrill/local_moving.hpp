@@ -48,12 +48,12 @@ int128_t deltaModularity(const Weight node_degree, const IncidentClusterInfo& ne
   return e - a;
 }
 
-bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t rate) {
+bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t rate, const uint32_t seed) {
   #if defined(FIXED_RATIO)
-    uint32_t hash = Util::combined_hash(node, iteration / FIXED_RATIO);
+    uint32_t hash = Util::combined_hash(node, iteration / FIXED_RATIO, seed);
     return hash % FIXED_RATIO == iteration % FIXED_RATIO;
   #else
-    uint32_t hash = Util::combined_hash(node, iteration);
+    uint32_t hash = Util::combined_hash(node, iteration, seed);
     return hash % 1000 < rate;
   #endif
 }
@@ -61,7 +61,7 @@ bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t ra
 static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
 
 template<class NodeType>
-auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations, Logging::Id level_logging_id) {
+auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations, const uint32_t seed, Logging::Id level_logging_id) {
   #if defined(SWITCH_TO_SEQ)
     if (graph.node_count < 1000000) {
       auto local_nodes = graph.nodes.Gather();
@@ -131,9 +131,11 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
   #endif
   uint32_t rate_sum = 0;
 
+  uint32_t level_seed = Util::combined_hash(seed, level_logging_id);
+
   uint32_t iteration;
   for (iteration = 0; iteration < num_iterations; iteration++) {
-    auto included = [iteration, rate](const NodeId id) { return nodeIncluded(id, iteration, rate); };
+    auto included = [iteration, rate, level_seed](const NodeId id) { return nodeIncluded(id, iteration, rate, level_seed); };
 
     size_t considered_nodes_estimate = graph.node_count * rate / 1000;
 

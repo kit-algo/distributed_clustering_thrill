@@ -22,7 +22,7 @@
 namespace Louvain {
 
 template<class NodeType, class F>
-auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, const F& local_moving, uint32_t level = 0) {
+auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, uint32_t seed, const F& local_moving, uint32_t level = 0) {
   Logging::Id level_logging_id = 0;
   if (graph.nodes.context().my_rank() == 0) {
     level_logging_id = Logging::getUnusedId();
@@ -35,7 +35,7 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
     }
   }
 
-  auto lm_result = local_moving(graph, level_logging_id);
+  auto lm_result = local_moving(graph, seed, level_logging_id);
 
   if (lm_result.second) {
     if (graph.nodes.context().my_rank() == 0) {
@@ -149,7 +149,7 @@ auto louvain(const DiaNodeGraph<NodeType>& graph, Logging::Id algorithm_run_id, 
     Logging::report_timestamp("algorithm_level", level_logging_id, "contraction_done_ts");
   }
 
-  auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { meta_nodes, cluster_count, graph.total_weight }, algorithm_run_id, local_moving, level + 1);
+  auto meta_result = louvain(DiaNodeGraph<NodeWithWeightedLinks> { meta_nodes, cluster_count, graph.total_weight }, algorithm_run_id, seed, local_moving, level + 1);
   return meta_result
     .Zip(clusters_with_node_ids,
       [](const NodeCluster& meta_cluster, const std::pair<ClusterId, std::vector<NodeId>>& cluster_node_ids) {
@@ -172,6 +172,11 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
 
     auto graph = Input::readToNodeGraph(argv[1], context);
 
+    uint32_t seed = 42;
+    if (getenv("SEED")) {
+      seed = std::stoi(getenv("SEED"));
+    }
+
     Logging::Id program_run_logging_id;
     if (context.my_rank() == 0) {
       program_run_logging_id = Logging::getUnusedId();
@@ -182,6 +187,7 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
       Logging::report("program_run", program_run_logging_id, "graph", argv[1]);
       Logging::report("program_run", program_run_logging_id, "node_count", graph.node_count);
       Logging::report("program_run", program_run_logging_id, "edge_count", graph.total_weight);
+      Logging::report("program_run", program_run_logging_id, "seed", seed);
       if (getenv("MOAB_JOBID")) {
         Logging::report("program_run", program_run_logging_id, "job_id", getenv("MOAB_JOBID"));
       }
@@ -215,7 +221,7 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
     if (context.my_rank() == 0) {
       algorithm_run_id = Logging::getUnusedId();
     }
-    auto node_clusters = run(graph, algorithm_run_id);
+    auto node_clusters = run(graph, algorithm_run_id, seed);
     node_clusters.Execute();
     if (argc > 2) {
       auto clustering_input = Logging::parse_input_with_logging_id(argv[2]);

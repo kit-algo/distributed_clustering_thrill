@@ -88,12 +88,12 @@ double deltaMapEq(const Weight node_degree,
   return result[0] + ((result[3] - result[4]) - (2 * (result[1] - result[2])));
 };
 
-bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t rate) {
+bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t rate, const uint32_t seed) {
   #if defined(FIXED_RATIO)
-    uint32_t hash = Util::combined_hash(node, iteration / FIXED_RATIO);
+    uint32_t hash = Util::combined_hash(node, iteration / FIXED_RATIO, seed);
     return hash % FIXED_RATIO == iteration % FIXED_RATIO;
   #else
-    uint32_t hash = Util::combined_hash(node, iteration);
+    uint32_t hash = Util::combined_hash(node, iteration, seed);
     return hash % 1000 < rate;
   #endif
 }
@@ -101,7 +101,7 @@ bool nodeIncluded(const NodeId node, const uint32_t iteration, const uint32_t ra
 static_assert(sizeof(EdgeTargetWithDegree) == 8, "Too big");
 
 template<class NodeType>
-auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations, Logging::Id level_logging_id) {
+auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_iterations, const uint32_t seed, Logging::Id level_logging_id) {
   thrill::common::Range id_range = thrill::common::CalculateLocalRange(graph.node_count, graph.nodes.context().num_workers(), graph.nodes.context().my_rank());
 
   std::vector<std::pair<Weight, Weight>> node_degrees;
@@ -261,9 +261,11 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
   #endif
   uint32_t rate_sum = 0;
 
+  uint32_t level_seed = Util::combined_hash(seed, level_logging_id);
+
   uint32_t iteration;
   for (iteration = 0; iteration < num_iterations; iteration++) {
-    auto included = [iteration, rate](const NodeId id) { return nodeIncluded(id, iteration, rate); };
+    auto included = [iteration, rate, level_seed](const NodeId id) { return nodeIncluded(id, iteration, rate, level_seed); };
 
     clusters.clear();
     node_clusters.Keep().Map([](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster_moved) { return node_cluster_moved.first.second; }).CollectLocal(&clusters);
