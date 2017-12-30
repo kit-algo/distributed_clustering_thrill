@@ -261,11 +261,9 @@ auto distributedLocalMoving(const DiaNodeGraph<NodeType>& graph, uint32_t num_it
   #endif
   uint32_t rate_sum = 0;
 
-  uint32_t level_seed = Util::combined_hash(seed, level_logging_id);
-
   uint32_t iteration;
   for (iteration = 0; iteration < num_iterations; iteration++) {
-    auto included = [iteration, rate, level_seed](const NodeId id) { return nodeIncluded(id, iteration, rate, level_seed); };
+    auto included = [iteration, rate, seed](const NodeId id) { return nodeIncluded(id, iteration, rate, seed); };
 
     clusters.clear();
     node_clusters.Keep().Map([](const std::pair<std::pair<NodeType, ClusterId>, bool>& node_cluster_moved) { return node_cluster_moved.first.second; }).CollectLocal(&clusters);
