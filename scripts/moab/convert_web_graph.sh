@@ -1,7 +1,7 @@
 #!/bin/bash
 #MSUB -N convert web graph
 #MSUB -l nodes=1:ppn=1
-#MSUB -l mem=64gb
+#MSUB -l mem=64000mb
 #MSUB -l walltime=05:00:00
 #MSUB -q singlenode
 
