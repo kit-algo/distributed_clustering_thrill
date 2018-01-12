@@ -17,10 +17,12 @@
 # ]
 
 jobs = [
-  [["#{ENV['WORK']}/graphs/graph_50_10000_mu_0.4_1000000-sorted*.bin", "#{ENV['WORK']}/graphs/part_50_10000_mu_0.4_1000000-sorted.bin"], '-l walltime=00:10:00', '-l nodes=2:ppn=28'],
+  [["#{ENV['WORK']}/eu-2015.graph*.bin"], '-l walltime=05:00:00', '-l nodes=32:ppn=28'],
 ]
+
+BLOCK_SIZE = 1024 * 128
 
 jobs.each do |job|
   groundtruth_option = job[0].size == 2 ? "-v GROUNDTRUTH=#{job[0][1]}" : ''
-  puts job[0][0], `msub -v GRAPH=#{job[0][0]} #{groundtruth_option} #{job[1]} #{job[2]} ~/code/scripts/moab/preprocess.sh`
+  puts job[0][0], `msub -v THRILL_BLOCK_SIZE=#{BLOCK_SIZE} -v GRAPH=#{job[0][0]} #{groundtruth_option} #{job[1]} #{job[2]} ~/code/scripts/moab/preprocess.sh`
 end
