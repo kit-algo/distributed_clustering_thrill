@@ -11,5 +11,5 @@ echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores"
 
 export PYTHONPATH="$PYTHONPATH:$HOME/networkit"
 executable="$HOME/code/scripts/plm.py"
-echo $executable "$GRAPH" "$CLUSTERING-$MOAB_JOBID.part" prior
-exec $executable "$GRAPH" "$CLUSTERING-$MOAB_JOBID.part" prior
+echo $executable "$GRAPH" "$CLUSTERING-$MOAB_JOBID.part"
+exec $executable "$GRAPH" "$CLUSTERING-$MOAB_JOBID.part"
