@@ -2,7 +2,7 @@
 
 import sys
 
-from networkit import *
+from networkit import graphio, community
 from glob import glob
 
 g = graphio.ThrillGraphBinaryReader().read(sorted(glob(sys.argv[1])))
