@@ -2,6 +2,9 @@
 
 scripts_dir = File.expand_path(File.dirname(__FILE__))
 
+# fixing collapse notifications in thrill output
+# sed -i -e ':a;N;$!ba;s/\[worker [[:digit:]]\+ [[:digit:]]\+\] Collapse rejected File from parent due to non-empty function stack\.\n//g' job_uc1_*
+
 Dir.chdir(ARGV.first) do
   `mkdir reports`
   puts 'fix json'
