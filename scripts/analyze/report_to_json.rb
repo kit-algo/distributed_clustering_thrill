@@ -47,11 +47,12 @@ Dir.chdir(Pathname.new(__FILE__).realpath.dirname) do
   commit = `git rev-parse HEAD`.strip
 end
 
-data['program_run']&.each do |_id, run|
-  run['timestamp'] = timestamp
-  run['commit'] = commit
+if data['program_run']
+  data['program_run'].each do |_id, run|
+    run['timestamp'] = timestamp
+    run['commit'] = commit
+  end
 end
-
 
 Dir.chdir ENV['MA_RESULT_OUTPUT_DIR'] if ENV['MA_RESULT_OUTPUT_DIR']
 counter = 0
