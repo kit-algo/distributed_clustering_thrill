@@ -55,3 +55,26 @@ def work(clustering_path):
 count = multiprocessing.cpu_count()
 pool = multiprocessing.Pool(processes=count)
 pool.map(work, set(["clusterings/{}-@@@@-#####.bin".format(file_pattern.match(file).group(1)) for file in listdir(path.join(base_dir, "clusterings")) if file_pattern.match(file)]))
+
+def work2(row):
+  index, row_data = row
+
+  graph_files = row_data['graph'].replace('/home/kit/iti/ji4215', '/algoDaten/zeitz')
+  clustering_files = path.join(base_dir, row_data['path'].replace('@@@@-#####', '*'))
+
+  print(["./streaming_clustering_analyser", graph_files, clustering_files, row_data['node_count']])
+  output = check_output(["./streaming_clustering_analyser", graph_files, clustering_files, str(row_data['node_count'])]).decode("utf-8")
+  output.replace("clustering/0", "clustering/{}".format(index))
+
+  tmpfile_name = "_tmp_{}".format(index)
+  tmpfile = open(tmpfile_name, "w")
+  tmpfile.write(output)
+  tmpfile.close()
+  check_output(["./report_to_json.rb", tmpfile_name])
+  check_output(["rm", tmpfile_name])
+
+df = frames['clustering'] \
+  .iloc[frames['clustering']['modularity'].isnull() | frames['clustering']['map_equation'].isnull() | frames['clustering']['cluster_count'].isnull()] \
+  .merge(frames['algorithm_run'], left_on='algorithm_run_id', right_index=True) \
+  .merge(frames['program_run'], left_on='program_run_id', right_index=True)
+pool.map(work2, df.iterrows())
