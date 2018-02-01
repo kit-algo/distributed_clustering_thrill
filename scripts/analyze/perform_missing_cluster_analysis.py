@@ -27,12 +27,6 @@ from subprocess import check_output
 file_pattern = re.compile('^(.+-(\d+))-\d+-\d+\.bin$')
 jobid_pattern = re.compile('^clusterings/.+-(\d+)-@@@@-#####.bin$')
 
-bin_to_algo = {
-  "/home/kit/iti/ji4215/code/release/dlslm": "synchronous local moving with modularity",
-  "/home/kit/iti/ji4215/code/release/dlslm_no_contraction": "synchronous local moving with modularity",
-  "/home/kit/iti/ji4215/code/release/dlslm_map_eq": "synchronous local moving with map equation"
-}
-
 base_dir = path.dirname(sys.argv[1])
 
 def work(clustering_path):
