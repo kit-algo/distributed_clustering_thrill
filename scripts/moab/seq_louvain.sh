@@ -9,5 +9,5 @@ module load compiler/gnu/7.1
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores"
 
 executable="$HOME/code/release/seq_louvain"
-echo $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part"
-exec $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part"
+echo $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part.bin"
+exec $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part.bin"
