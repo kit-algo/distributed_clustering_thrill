@@ -15,7 +15,7 @@ graphs.each do |graph|
   3.times do |i|
     algos.each do |algo|
       if algo == 'seq_louvain' || algo == 'infomap'
-        cmd = "./#{algo} #{graph} -o #{ARGV[1]}/#{algo}/#{name}.run#{i}.part"
+        cmd = "./#{algo} #{graph} -o #{ARGV[1]}/#{algo}/#{name}.run#{i}.part.bin"
       else
         cmd = "./#{algo} #{graph} #{ARGV[1]}/#{algo}/#{name}.run#{i}-@@@@-#####.bin,#{SecureRandom.uuid}"
       end
