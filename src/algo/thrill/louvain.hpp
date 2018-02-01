@@ -220,6 +220,8 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
     Logging::Id algorithm_run_id = 0;
     if (context.my_rank() == 0) {
       algorithm_run_id = Logging::getUnusedId();
+      Logging::report("algorithm_run", algorithm_run_id, "program_run_id", program_run_logging_id);
+      Logging::report("algorithm_run", algorithm_run_id, "algorithm", algo);
     }
     auto node_clusters = run(graph, algorithm_run_id, seed);
     node_clusters.Execute();
@@ -236,9 +238,6 @@ auto performAndEvaluate(int argc, char const *argv[], const std::string& algo, c
     double map_eq = ClusteringQuality::mapEquation(eval_graph, node_clusters);
 
     if (context.my_rank() == 0) {
-      Logging::report("algorithm_run", algorithm_run_id, "program_run_id", program_run_logging_id);
-      Logging::report("algorithm_run", algorithm_run_id, "algorithm", algo);
-
       if (argc > 2) {
         auto clustering_input = Logging::parse_input_with_logging_id(argv[2]);
         Logging::report("clustering", clustering_input.second, "path", clustering_input.first);
