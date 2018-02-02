@@ -73,8 +73,7 @@ def work2(row):
   check_output(["./report_to_json.rb", tmpfile_name])
   check_output(["rm", tmpfile_name])
 
-df = frames['clustering'] \
-  .iloc[frames['clustering']['modularity'].isnull() | frames['clustering']['map_equation'].isnull() | frames['clustering']['cluster_count'].isnull()] \
+df = frames['clustering'][frames['clustering']['modularity'].isnull() | frames['clustering']['map_equation'].isnull() | frames['clustering']['cluster_count'].isnull()] \
   .merge(frames['algorithm_run'], left_on='algorithm_run_id', right_index=True) \
   .merge(frames['program_run'], left_on='program_run_id', right_index=True)
 pool.map(work2, df.iterrows())
