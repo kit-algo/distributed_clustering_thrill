@@ -57,7 +57,7 @@ def work2(row):
 
   print(["./streaming_clustering_analyser", row_data['graph'], row_data['path'], row_data['node_count']])
   output = check_output(["./streaming_clustering_analyser", row_data['graph'], row_data['path'], str(row_data['node_count'])]).decode("utf-8")
-  output.replace("clustering/0", "clustering/{}".format(index))
+  output = output.replace("clustering/0", "clustering/{}".format(index))
 
   tmpfile_name = "_tmp_{}".format(index)
   tmpfile = open(tmpfile_name, "w")
