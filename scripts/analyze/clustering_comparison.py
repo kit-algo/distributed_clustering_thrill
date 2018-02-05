@@ -15,9 +15,6 @@ from subprocess import check_output
 
 from networkit import *
 
-# TODO
-base_dir = path.dirname(sys.argv[1])
-
 data = {}
 
 for arg in sys.argv[1:]:
@@ -32,9 +29,9 @@ frames = { typename: pd.DataFrame.from_dict(items, orient='index') for typename,
 
 def read_clustering(clustering_file):
   if clustering_file.endswith(".txt"):
-    return community.readCommunities(path.join(base_dir, clustering_file))
+    return community.readCommunities(clustering_file)
   else:
-    files = sorted(glob.glob(path.join(base_dir, clustering_file.replace('@@@@-#####', '*'))))
+    files = sorted(glob.glob(clustering_file))
     return community.BinaryEdgeListPartitionReader(0, 4).read(files)
 
 def work(rows):
