@@ -21,14 +21,15 @@ for folder in listdir("data/results"):
 
       if "clustering" in data:
         for index, clustering_data in data["clustering"].items():
-          if clustering_data['path'].startswith("clusterings/"):
-            old = clustering_data['path']
-            clustering_data['path'] = "data/results/{}/{}".format(folder, clustering_data['path'])
-            print("fixed clustering path from {} to {}".format(old, clustering_data['path']))
-          if '@@@@-#####' in clustering_data['path']:
-            old = clustering_data['path']
-            clustering_data['path'] = clustering_data['path'].replace('@@@@-#####', '*')
-            print("fixed clustering path from {} to {}".format(old, clustering_data['path']))
+          if 'path' in clustering_data:
+            if clustering_data['path'].startswith("clusterings/"):
+              old = clustering_data['path']
+              clustering_data['path'] = "data/results/{}/{}".format(folder, clustering_data['path'])
+              print("fixed clustering path from {} to {}".format(old, clustering_data['path']))
+            if '@@@@-#####' in clustering_data['path']:
+              old = clustering_data['path']
+              clustering_data['path'] = clustering_data['path'].replace('@@@@-#####', '*')
+              print("fixed clustering path from {} to {}".format(old, clustering_data['path']))
 
       with open(file, 'w') as f:
         json.dump(data, f)
