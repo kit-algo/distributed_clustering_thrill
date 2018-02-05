@@ -8,6 +8,9 @@ module load compiler/gnu/7.1
 
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores"
 
+free -h
+~/spectre-meltdown-checker.sh
+
 executable="$HOME/RelaxMap/ompRelaxmap"
 seed=$(ruby -e "puts rand 2**31 - 1")
 echo $executable "$seed" "$GRAPH" 16 1 1e-3 0.0 10 "$CLUSTERING-$MOAB_JOBID.part.bin" prior

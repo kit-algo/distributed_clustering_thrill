@@ -8,6 +8,9 @@ module load compiler/gnu/7.1
 
 echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores"
 
+free -h
+~/spectre-meltdown-checker.sh
+
 executable="$HOME/code/release/infomap"
 echo $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part.bin"
 exec $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part.bin"
