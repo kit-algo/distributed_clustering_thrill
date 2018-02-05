@@ -17,16 +17,17 @@ from networkit import *
 
 data = {}
 
-for path in glob.glob(sys.argv[1]):
-  for typename, items in json.load(open(path)).items():
-    if typename in data:
-      for key, object_data in items.items():
-        if key in data[typename]:
-          data[typename][key].update(object_data)
-        else:
-          data[typename][key] = object_data
-    else:
-      data[typename] = items
+for arg in sys.argv[1:]:
+  for path in glob.glob(arg):
+    for typename, items in json.load(open(path)).items():
+      if typename in data:
+        for key, object_data in items.items():
+          if key in data[typename]:
+            data[typename][key].update(object_data)
+          else:
+            data[typename][key] = object_data
+      else:
+        data[typename] = items
 
 frames = { typename: pd.DataFrame.from_dict(items, orient='index') for typename, items in data.items() }
 
