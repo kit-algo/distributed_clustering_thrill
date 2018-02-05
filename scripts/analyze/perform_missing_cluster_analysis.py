@@ -72,7 +72,7 @@ def work2(row):
 
 count = multiprocessing.cpu_count()
 pool = multiprocessing.Pool(processes=count)
-pool.map(work, set(["clusterings/{}-*.bin".format(file_pattern.match(file).group(1)) for file in listdir(path.join(base_dir, "clusterings")) if file_pattern.match(file)]))
+pool.map(work, set([path.join(base_dir, "clusterings", "{}-*.bin".format(file_pattern.match(file).group(1))) for file in listdir(path.join(base_dir, "clusterings")) if file_pattern.match(file)]))
 
 
 if (not 'modularity' in frames['clustering']) or (not 'map_equation' in frames['clustering']) or (not 'cluster_count' in frames['clustering']):
