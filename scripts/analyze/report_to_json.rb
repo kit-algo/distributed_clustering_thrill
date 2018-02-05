@@ -55,10 +55,19 @@ if data['program_run']
 end
 
 Dir.chdir ENV['MA_RESULT_OUTPUT_DIR'] if ENV['MA_RESULT_OUTPUT_DIR']
+
 counter = 0
-while File.exist?("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json")
-  counter += 1
-end
-File.open("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json", 'w+') do |export|
-  export.puts data.to_json
+written = false
+while !written
+  while File.exist?("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json")
+    counter += 1
+  end
+  begin
+    File.open("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json", File::WRONLY|File::CREAT|File::EXCL) do |export|
+      export.puts data.to_json
+    end
+    written = true
+  rescue Errno::EEXIST
+    counter += 1
+  end
 end
