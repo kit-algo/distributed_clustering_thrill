@@ -29,6 +29,7 @@ jobid_pattern = re.compile('^clusterings/.+-(\d+)-@@@@-#####.bin$')
 
 base_dir = path.dirname(sys.argv[1])
 
+# analyse unregistered files
 def work(clustering_path):
   if not (frames['clustering']['path'] == clustering_path).any():
     jobid = int(jobid_pattern.match(clustering_path).group(1))
@@ -51,11 +52,7 @@ def work(clustering_path):
     check_output(["./report_to_json.rb", tmpfile_name])
     check_output(["rm", tmpfile_name])
 
-# clusterings/me-14169048-@@@@-#####.bin
-count = multiprocessing.cpu_count()
-pool = multiprocessing.Pool(processes=count)
-pool.map(work, set(["clusterings/{}-@@@@-#####.bin".format(file_pattern.match(file).group(1)) for file in listdir(path.join(base_dir, "clusterings")) if file_pattern.match(file)]))
-
+# analyse clustering already tracked but with missing analysis
 def work2(row):
   index, row_data = row
 
@@ -72,6 +69,11 @@ def work2(row):
   tmpfile.close()
   check_output(["./report_to_json.rb", tmpfile_name])
   check_output(["rm", tmpfile_name])
+
+count = multiprocessing.cpu_count()
+pool = multiprocessing.Pool(processes=count)
+pool.map(work, set(["clusterings/{}-@@@@-#####.bin".format(file_pattern.match(file).group(1)) for file in listdir(path.join(base_dir, "clusterings")) if file_pattern.match(file)]))
+
 
 if (not 'modularity' in frames['clustering']) or (not 'map_equation' in frames['clustering']) or (not 'cluster_count' in frames['clustering']):
   clusterings = frames['clustering']
