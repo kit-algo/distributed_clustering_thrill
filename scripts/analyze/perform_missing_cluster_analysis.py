@@ -25,7 +25,7 @@ from os import listdir, path
 from subprocess import check_output
 
 file_pattern = re.compile('^(.+-(\d+))-\d+-\d+\.bin$')
-jobid_pattern = re.compile('^clusterings/.+-(\d+)-@@@@-#####.bin$')
+jobid_pattern = re.compile('.*clusterings/.+-(\d+)-\*.bin$')
 
 base_dir = path.dirname(sys.argv[1])
 
@@ -37,10 +37,9 @@ def work(clustering_path):
     job_data = df.iloc[0]
     index = df.index[0]
     graph_files = job_data['graph'].replace('/home/kit/iti/ji4215', '/algoDaten/zeitz')
-    clustering_files = path.join(base_dir, clustering_path.replace('@@@@-#####', '*'))
 
-    print(["./streaming_clustering_analyser", graph_files, clustering_files, job_data['node_count']])
-    output = check_output(["./streaming_clustering_analyser", graph_files, clustering_files, str(job_data['node_count'])]).decode("utf-8")
+    print(["./streaming_clustering_analyser", graph_files, clustering_path, job_data['node_count']])
+    output = check_output(["./streaming_clustering_analyser", graph_files, clustering_path, str(job_data['node_count'])]).decode("utf-8")
 
     tmpfile_name = "_tmp_{}".format(jobid)
     tmpfile = open(tmpfile_name, "w")
@@ -56,11 +55,8 @@ def work(clustering_path):
 def work2(row):
   index, row_data = row
 
-  graph_files = row_data['graph'].replace('/home/kit/iti/ji4215', '/algoDaten/zeitz')
-  clustering_files = path.join(base_dir, row_data['path'].replace('@@@@-#####', '*'))
-
-  print(["./streaming_clustering_analyser", graph_files, clustering_files, row_data['node_count']])
-  output = check_output(["./streaming_clustering_analyser", graph_files, clustering_files, str(row_data['node_count'])]).decode("utf-8")
+  print(["./streaming_clustering_analyser", row_data['graph'], row_data['path'], row_data['node_count']])
+  output = check_output(["./streaming_clustering_analyser", row_data['graph'], row_data['path'], str(row_data['node_count'])]).decode("utf-8")
   output.replace("clustering/0", "clustering/{}".format(index))
 
   tmpfile_name = "_tmp_{}".format(index)
@@ -72,7 +68,7 @@ def work2(row):
 
 count = multiprocessing.cpu_count()
 pool = multiprocessing.Pool(processes=count)
-pool.map(work, set(["clusterings/{}-@@@@-#####.bin".format(file_pattern.match(file).group(1)) for file in listdir(path.join(base_dir, "clusterings")) if file_pattern.match(file)]))
+pool.map(work, set(["clusterings/{}-*.bin".format(file_pattern.match(file).group(1)) for file in listdir(path.join(base_dir, "clusterings")) if file_pattern.match(file)]))
 
 
 if (not 'modularity' in frames['clustering']) or (not 'map_equation' in frames['clustering']) or (not 'cluster_count' in frames['clustering']):
