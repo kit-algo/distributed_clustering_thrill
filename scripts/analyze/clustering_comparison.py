@@ -84,5 +84,6 @@ graphs_with_clusterings = frames['clustering'] \
 for graph, clusterings in graphs_with_clusterings:
   pool.map(work, ((row1, row2) for row1 in clusterings.iterrows() for row2 in clusterings.iterrows()))
 
-  ground_truth = frames['clustering'].loc[lambda x: x.source == "ground_truth"].loc[lambda x: x.graph == graph]
-  pool.map(work, ((row1, row2) for row1 in ground_truth.iterrows() for row2 in clusterings.iterrows()))
+  if 'graph' in frames['clustering']:
+    ground_truth = frames['clustering'].loc[lambda x: x.source == "ground_truth"].loc[lambda x: x.graph == graph]
+    pool.map(work, ((row1, row2) for row1 in ground_truth.iterrows() for row2 in clusterings.iterrows()))
