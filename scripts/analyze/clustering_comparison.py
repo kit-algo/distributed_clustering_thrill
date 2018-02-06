@@ -46,9 +46,9 @@ def work(rows):
   if index1 == index2:
     return
   if 'clustering_comparison' in frames:
-    if frames['clustering_comparison'].loc[lambda x: x.base_clustering_id == index1].loc[lambda x: x.compare_clustering_id == index2].any():
+    if not frames['clustering_comparison'].loc[lambda x: x.base_clustering_id == index1].loc[lambda x: x.compare_clustering_id == index2].empty:
       return
-    if frames['clustering_comparison'].loc[lambda x: x.base_clustering_id == index2].loc[lambda x: x.compare_clustering_id == index1].any():
+    if not frames['clustering_comparison'].loc[lambda x: x.base_clustering_id == index2].loc[lambda x: x.compare_clustering_id == index1].empty:
       return
 
   clustering1 = read_clustering(row_data1['path'])
@@ -74,10 +74,10 @@ pool = multiprocessing.Pool(processes=count)
 graphs_with_clusterings = frames['clustering'] \
   .merge(frames['algorithm_run'], left_on='algorithm_run_id', right_index=True) \
   .merge(frames['program_run'], left_on='program_run_id', right_index=True) \
-  .groupby('graph')
+  .groupby('graph_y')
 
 for graph, clusterings in graphs_with_clusterings:
   pool.map(work, ((row1, row2) for row1 in clusterings.iterrows() for row2 in clusterings.iterrows()))
 
   ground_truth = frames['clustering'].loc[lambda x: x.source == "ground_truth"].loc[lambda x: x.graph == graph]
-  pool.map(work, ((row1, row2) for row1 in ground_truths.iterrows() for row2 in clusterings.iterrows()))
+  pool.map(work, ((row1, row2) for row1 in ground_truth.iterrows() for row2 in clusterings.iterrows()))
