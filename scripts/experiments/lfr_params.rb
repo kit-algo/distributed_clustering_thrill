@@ -2,26 +2,34 @@
 
 require 'securerandom'
 
-algos = ['seq_louvain', 'dlslm_map_eq', 'dlslm_with_seq', 'dlslm', 'infomap']
+algos = ['seq_louvain', 'dlslm_map_eq', 'dlslm_with_seq', 'dlslm_no_contraction', 'dlslm', 'infomap', 'ompRelaxmap', 'plm', 'gossip_map']
 
-graphs = Dir.glob(File.join(ARGV[0], '**/*.graph'))
 algos.each do |algo|
-  `mkdir #{ARGV[1]}/#{algo}`
+  `mkdir data/results/lfr_params/#{algo}`
+  `mkdir data/results/lfr_params/#{algo}/clusterings`
 end
 
-graphs.each do |graph|
-  name = graph.split('/').last.split('.')[0..-2].join('.')
+(1..9).each do |mu|
+  name = "graph_g2_b1_m0.#{mu}"
+  bin_graph_path = "data/graphs/lfr_params/#{name}-preprocessed-*.bin"
 
-  3.times do |i|
+  10.times do |i|
     algos.each do |algo|
       if algo == 'seq_louvain' || algo == 'infomap'
-        cmd = "./#{algo} #{graph} -o #{ARGV[1]}/#{algo}/#{name}.run#{i}.part.bin"
+        cmd = "./#{algo} -b '#{bin_graph_path}' -o data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.bin"
+      elsif algo == 'ompRelaxmap'
+        seed = rand 2**31 - 1
+        cmd = "./#{algo} #{seed} #{bin_graph_path} 16 1 1e-3 0.0 10 data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.bin prior"
+      elsif algo == 'plm'
+        cmd = "./#{algo} #{bin_graph_path} data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.txt"
+      elsif algo == 'gossip_map'
+        cmd = "./#{algo} #{bin_graph_path} data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.txt"
       else
-        cmd = "./#{algo} #{graph} #{ARGV[1]}/#{algo}/#{name}.run#{i}-@@@@-#####.bin,#{SecureRandom.uuid}"
+        cmd = "./#{algo} --format bintsv4 --graph data/graphs/lfr_params/#{name}.bintsv4 --prefix data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i} --ncpus 4"
       end
       puts cmd
       begin
-        system "#{cmd} | tee /dev/tty | MA_RESULT_OUTPUT_DIR=#{ARGV[1]} ./report_to_json.rb"
+        system "#{cmd} | tee data/results/lfr_params/#{algo}/job_#{name}_#{i}.out"
       rescue Exception => _
       end
     end
