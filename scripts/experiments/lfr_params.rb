@@ -25,7 +25,7 @@ end
       elsif algo == 'gossip_map'
         cmd = "./#{algo} --format bintsv4 --graph data/graphs/lfr_params/#{name}.bintsv4 --prefix data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i} --ncpus 4"
       else
-        cmd = "./#{algo} #{bin_graph_path} data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.txt,#{SecureRandom.uuid}"
+        cmd = "./#{algo} #{bin_graph_path} data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}-@@@@-#####.bin,#{SecureRandom.uuid}"
       end
       puts cmd
       begin
