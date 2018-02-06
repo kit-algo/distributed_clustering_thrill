@@ -2,7 +2,7 @@
 
 require 'securerandom'
 
-algos = ['seq_louvain', 'dlslm_map_eq', 'dlslm_with_seq', 'dlslm_no_contraction', 'dlslm', 'infomap', 'ompRelaxmap', 'plm', 'gossip_map']
+algos = ['seq_louvain', 'dlslm_map_eq', 'dlslm_no_contraction', 'dlslm', 'infomap', 'ompRelaxmap', 'plm', 'gossip_map']
 
 algos.each do |algo|
   `mkdir data/results/lfr_params/#{algo}`
