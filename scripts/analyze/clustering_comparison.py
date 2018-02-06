@@ -71,10 +71,15 @@ def work(rows):
 count = multiprocessing.cpu_count()
 pool = multiprocessing.Pool(processes=count)
 
+if 'graph' in frames['clustering']:
+  group_key = 'graph_y'
+else:
+  group_key = 'graph'
+
 graphs_with_clusterings = frames['clustering'] \
   .merge(frames['algorithm_run'], left_on='algorithm_run_id', right_index=True) \
   .merge(frames['program_run'], left_on='program_run_id', right_index=True) \
-  .groupby('graph_y')
+  .groupby(group_key)
 
 for graph, clusterings in graphs_with_clusterings:
   pool.map(work, ((row1, row2) for row1 in clusterings.iterrows() for row2 in clusterings.iterrows()))
