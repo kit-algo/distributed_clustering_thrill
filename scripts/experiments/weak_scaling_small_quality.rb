@@ -11,7 +11,7 @@ algos.each do |algo|
 end
 
 (0..3).map { |exp| 2**exp }.each do |million_nodes|
-  name = "raph_50_10000_mu_0.4_#{million_nodes}000000-sorted-preprocessed"
+  name = "graph_50_10000_mu_0.4_#{million_nodes}000000-sorted-preprocessed"
   bin_graph_path = "data/graphs/mu-04/#{name}-*.bin"
 
   10.times do |i|
