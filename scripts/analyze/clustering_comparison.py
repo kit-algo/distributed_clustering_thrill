@@ -51,6 +51,8 @@ def work(rows):
     if not frames['clustering_comparison'].loc[lambda x: x.base_clustering_id == index2].loc[lambda x: x.compare_clustering_id == index1].empty:
       return
 
+  print("comparing {} with {}".format(row_data1['path'], row_data2['path']))
+
   clustering1 = read_clustering(row_data1['path'])
   clustering2 = read_clustering(row_data2['path'])
 
