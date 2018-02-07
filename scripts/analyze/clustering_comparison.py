@@ -84,7 +84,7 @@ graphs_with_clusterings = frames['clustering'] \
   .groupby(group_key)
 
 for graph_group, clusterings in graphs_with_clusterings:
-  pool.map(work, ((row1, row2) for row1 in clusterings.iterrows() for row2 in clusterings.iterrows()))
+  pool.map(work, (((index1, row_data1), (index2, row_data2)) for (index1, row_data1) in clusterings.iterrows() for (index2, row_data2) in clusterings.iterrows() if index1 < index2))
 
   if 'graph_group' in frames['clustering']:
     ground_truth = frames['clustering'].loc[lambda x: x.source == "ground_truth"].loc[lambda x: x.graph == graph_group]
