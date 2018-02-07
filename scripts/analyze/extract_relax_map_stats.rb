@@ -22,7 +22,7 @@ File.readlines(ARGV[0]).each do |line|
     puts "#LOG# program_run/0/graph: #{match['graph']}"
     puts "#LOG# program_run/0/job_id: #{job_id}"
     puts "#LOG# algorithm_run/1/program_run_id: 0"
-    puts "#LOG# algorithm_run/1/algorithm: gossip map"
+    puts "#LOG# algorithm_run/1/algorithm: relax map"
     puts "#LOG# clustering/2/algorithm_run_id: 1"
     puts "#LOG# clustering/2/source: computation"
     puts "#LOG# clustering/2/path: #{match[:clustering]}"
