@@ -16,9 +16,20 @@ using ClusterId = typename ClusterStore::ClusterId;
 
 using int128_t = __int128_t;
 
+bool ends_with(const std::string& value, const std::string& ending) {
+  if (ending.size() > value.size()) return false;
+  return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
+
 int main(int, char const *argv[]) {
   const NodeId node_count = std::stoi(argv[3]);
-  ClusterStore clusters = IO::read_binary_clustering(argv[2], node_count);
+
+  ClusterStore clusters(node_count);
+  if (ends_with(argv[2], ".txt")) {
+    IO::read_clustering(argv[2], clusters);
+  } else {
+    clusters = IO::read_binary_clustering(argv[2], node_count);
+  }
   clusters.rewriteClusterIds();
   const ClusterId cluster_count = clusters.idRangeUpperBound();
 
