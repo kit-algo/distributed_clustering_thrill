@@ -54,6 +54,8 @@ if data['program_run']
   end
 end
 
+return if data.empty?
+
 Dir.chdir ENV['MA_RESULT_OUTPUT_DIR'] if ENV['MA_RESULT_OUTPUT_DIR']
 
 counter = 0
