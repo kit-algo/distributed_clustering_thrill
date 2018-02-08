@@ -12,5 +12,5 @@ free -h
 ~/spectre-meltdown-checker.sh
 
 executable="$HOME/code/release/seq_louvain"
-echo $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part.bin"
-exec $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part.bin"
+echo $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part.txt"
+exec $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part.txt"

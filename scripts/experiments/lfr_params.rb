@@ -16,7 +16,7 @@ end
   10.times do |i|
     algos.each do |algo|
       if algo == 'seq_louvain' || algo == 'infomap'
-        cmd = "./#{algo} -b '#{bin_graph_path}' -o data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.bin"
+        cmd = "./#{algo} -b '#{bin_graph_path}' -o data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.txt"
       elsif algo == 'ompRelaxmap'
         seed = rand 2**31 - 1
         cmd = "./#{algo} #{seed} '#{bin_graph_path}' 16 1 1e-3 0.0 10 data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.bin prior"
