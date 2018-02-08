@@ -29,6 +29,13 @@ for folder in listdir("data/results"):
               old = clustering_data['path']
               clustering_data['path'] = clustering_data['path'].replace('@@@@-#####', '*')
               print("{}: fixed clustering path from {} to {}".format(file, old, clustering_data['path']))
+            if (not '*' in clustering_data['path']) and (not path.isfile(clustering_data['path'])) and path.isfile(clustering_data['path'][0:-3] + 'txt'):
+              old = clustering_data['path']
+              clustering_data['path'] = clustering_data['path'][0:-3] + 'txt'
+              print("{}: fixed clustering path from {} to {}".format(file, old, clustering_data['path']))
 
       with open(file, 'w') as f:
         json.dump(data, f)
+
+# `ls infomap-*.part.bin`.split.each { |file| `mv #{file} #{file[0..-4]}txt` }
+# `ls louvain-*.part.bin`.split.each { |file| `mv #{file} #{file[0..-4]}txt` }
