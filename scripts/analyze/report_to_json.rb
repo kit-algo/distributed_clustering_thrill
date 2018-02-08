@@ -59,17 +59,15 @@ exit if data.empty?
 Dir.chdir ENV['MA_RESULT_OUTPUT_DIR'] if ENV['MA_RESULT_OUTPUT_DIR']
 
 counter = 0
-written = false
-while !written
+begin
   while File.exist?("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json")
     counter += 1
   end
-  begin
-    File.open("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json", File::WRONLY|File::CREAT|File::EXCL) do |export|
-      export.puts data.to_json
-    end
-    written = true
-  rescue Errno::EEXIST
-    counter += 1
+  binding.irb
+  File.open("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json", File::WRONLY|File::CREAT|File::EXCL) do |export|
+    export.puts data.to_json
   end
+  written = true
+rescue Errno::EEXIST
+  retry
 end
