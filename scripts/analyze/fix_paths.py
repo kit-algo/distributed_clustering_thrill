@@ -8,7 +8,7 @@ from os import listdir, path
 
 for folder in listdir("data/results"):
   if path.isdir(path.join("data/results", folder)):
-    for file in glob.glob(path.join("data/results", folder, "*.json")):
+    for file in glob.glob(path.join("data/results", folder, "**/*.json"), recursive=True):
       data = json.load(open(file))
 
       if "program_run" in data:
