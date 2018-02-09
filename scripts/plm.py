@@ -12,7 +12,10 @@ print("#LOG# program_run/0/total_workers: {}".format(16))
 print("#LOG# program_run/0/workers_per_host: {}".format(16))
 print("#LOG# program_run/0/graph: {}".format(sys.argv[1]))
 
-g = graphio.ThrillGraphBinaryReader().read(sorted(glob(sys.argv[1])))
+if sys.argv[1].endswith('.bin'):
+  g = graphio.ThrillGraphBinaryReader().read(sorted(glob(sys.argv[1])))
+else:
+  g = graphio.METISGraphReader().read(sys.argv[1])
 
 print("#LOG# program_run/0/node_count: {}".format(g.numberOfNodes()))
 print("#LOG# program_run/0/edge_count: {}".format(g.numberOfEdges()))
