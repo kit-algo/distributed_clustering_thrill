@@ -30,7 +30,7 @@ for path in glob.glob(sys.argv[1]):
           m = time_pattern.match(line)
           if m:
             print("fixing relax runtime from {} to {}".format(data['algorithm_run'][algorithm_run_key]['runtime'], m.group(1)))
-            data['algorithm_run'][algorithm_run_key]['runtime'] = m.group(1)
+            data['algorithm_run'][algorithm_run_key]['runtime'] = float(m.group(1))
 
       with open(path, 'w') as f:
         json.dump(data, f)
