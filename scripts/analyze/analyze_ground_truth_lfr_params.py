@@ -8,7 +8,7 @@ from subprocess import check_output
 
 def work(mu):
   graph_path = "data/graphs/lfr_params/graph_g2_b1_m0.{}-preprocessed-*.bin".format(mu)
-  ground_truth_path = "part_graph_g2_b1_m0.{}-preprocessed-*.bin".format(mu)
+  ground_truth_path = "data/graphs/lfr_params/part_graph_g2_b1_m0.{}-preprocessed-*.bin".format(mu)
 
   output = check_output(["./streaming_clustering_analyser", graph_path, ground_truth_path, str(1000000)]).decode("utf-8")
 
