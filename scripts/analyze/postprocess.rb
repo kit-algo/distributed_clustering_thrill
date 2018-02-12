@@ -9,6 +9,7 @@ Dir.chdir(ARGV.first) do
 
   puts 'generate reports'
   Dir.glob("job_*.out").each do |job_file|
+    puts job_file
     `#{scripts_dir}/report_to_json.rb #{job_file}`
     `#{scripts_dir}/extract_gossip_map_stats.rb #{job_file} | #{scripts_dir}/report_to_json.rb`
     `#{scripts_dir}/extract_relax_map_stats.rb #{job_file} | #{scripts_dir}/report_to_json.rb`
