@@ -222,8 +222,8 @@ auto readClustering(const std::string& file, thrill::Context& context) {
           std::istringstream line_stream(line_node.first);
           ClusterId cluster = 0;
 
-          if (!line_stream >> cluster) {
-            assert(false);
+          if (!(line_stream >> cluster)) {
+            throw "could not read line";
           }
 
           return NodeCluster(line_node.second, cluster);
