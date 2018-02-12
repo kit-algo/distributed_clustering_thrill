@@ -24,4 +24,4 @@ def work(mu):
 
 count = multiprocessing.cpu_count()
 pool = multiprocessing.Pool(processes=count)
-pool.map(work, range(0, 9))
+pool.map(work, range(1, 10))
