@@ -7,7 +7,7 @@
 relax_map = false
 cmd_pattern = /(?'bin'\S+ompRelaxmap) (?'seed'\d+) (?'graph'\S+) (?'threads'\d+) 1 1e-3 0\.0 10 (?'clustering'\S+) prior/
 node_pattern = /done! \(found (\d+) nodes and \d+ edges\.\)/
-time_pattern = /Overall Elapsed Time for Module Detection \(w\/o file IO\): (\d+\.\d+) \(sec\)/
+time_pattern = /Time for partitioning : (\d+.\d+) \(sec\)/
 job_id = (/job_uc1_(\d+)\.out/.match(ARGV[0]) || exit)[1]
 File.readlines(ARGV[0]).each do |line|
   match = cmd_pattern.match(line)
