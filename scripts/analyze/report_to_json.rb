@@ -63,11 +63,9 @@ begin
   while File.exist?("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json")
     counter += 1
   end
-  binding.irb
   File.open("report_#{timestamp.strftime "%Y-%m-%d"}_#{counter}_at_#{commit}.json", File::WRONLY|File::CREAT|File::EXCL) do |export|
     export.puts data.to_json
   end
-  written = true
 rescue Errno::EEXIST
   retry
 end
