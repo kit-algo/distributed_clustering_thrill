@@ -15,17 +15,18 @@ end
 
   10.times do |i|
     algos.each do |algo|
+      seed = rand 2**31 - 1
+
       if algo == 'seq_louvain' || algo == 'infomap'
         cmd = "./#{algo} -b '#{bin_graph_path}' -o data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.txt"
       elsif algo == 'ompRelaxmap'
-        seed = rand 2**31 - 1
         cmd = "./#{algo} #{seed} '#{bin_graph_path}' 16 1 1e-3 0.0 10 data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.bin prior"
       elsif algo == 'plm'
         cmd = "./#{algo} '#{bin_graph_path}' data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}.part.txt"
       elsif algo == 'gossip_map'
         cmd = "./#{algo} --format bintsv4 --graph data/graphs/lfr_params/#{name}.bintsv4 --prefix data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i} --ncpus 4"
       else
-        cmd = "./#{algo} '#{bin_graph_path}' data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}-@@@@-#####.bin,#{SecureRandom.uuid}"
+        cmd = "SEED=#{seed} ./#{algo} '#{bin_graph_path}' data/results/lfr_params/#{algo}/clusterings/#{name}.run#{i}-@@@@-#####.bin,#{SecureRandom.uuid}"
       end
       puts cmd
       begin
