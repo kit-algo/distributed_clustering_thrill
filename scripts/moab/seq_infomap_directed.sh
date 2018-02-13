@@ -1,5 +1,5 @@
 #!/bin/bash
-#MSUB -N seq_infomap
+#MSUB -N seq_infomap_directed
 #MSUB -l nodes=2:ppn=28
 #MSUB -l pmem=4570mb
 #MSUB -q multinode
@@ -11,6 +11,6 @@ echo "${MOAB_JOBNAME} running on ${MOAB_PROCCOUNT} cores"
 free -h
 ~/spectre-meltdown-checker.sh
 
-executable="$HOME/code/release/infomap"
+executable="$HOME/code/release/infomap_directed"
 echo $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part.txt"
 exec $executable -b "$GRAPH" -o "$CLUSTERING-$MOAB_JOBID.part.txt"

@@ -20,6 +20,7 @@ jobs.each do |job|
   puts `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/plm -l walltime=#{"%02d" % (hours)}:#{"%02d" % (minutes)}:00 #{ENV['HOME']}/code/scripts/moab/plm.sh`
   if include_mapeq
     puts `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/infomap -l walltime=#{"%02d" % (hours * 4)}:#{"%02d" % (minutes * 2)}:00 #{ENV['HOME']}/code/scripts/moab/seq_infomap.sh`
+    puts `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/infomap)directed -l walltime=#{"%02d" % (hours * 4)}:#{"%02d" % (minutes * 2)}:00 #{ENV['HOME']}/code/scripts/moab/seq_infomap_directed.sh`
     puts `msub -v GRAPH=#{graph} -v CLUSTERING=clusterings/relaxmap -l walltime=#{"%02d" % (hours * 4)}:#{"%02d" % (minutes * 2)}:00 #{ENV['HOME']}/code/scripts/moab/relax_map.sh`
   end
 end

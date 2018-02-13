@@ -20,14 +20,12 @@ int main(int argc, char const *argv[]) {
 
   const Graph& graph = input.getGraph();
 
-  infomap::Config config = infomap::init("--clu -2 -s " + std::to_string(input.getSeed()));
+  infomap::Config config = infomap::init("--clu -2 -d -s " + std::to_string(input.getSeed()));
   infomap::Network network(config);
 
   for (NodeId node = 0; node < graph.getNodeCount(); node++) {
     graph.forEachAdjacentNode(node, [&](NodeId neighbor, auto) {
-      if (node < neighbor) {
-        network.addLink(node, neighbor);
-      }
+      network.addLink(node, neighbor);
     });
   }
 
@@ -37,7 +35,7 @@ int main(int argc, char const *argv[]) {
 
   Logging::Id algo_run_logging_id = Logging::getUnusedId();
   Logging::report("algorithm_run", algo_run_logging_id, "program_run_id", run_id);
-  Logging::report("algorithm_run", algo_run_logging_id, "algorithm", "sequential infomap");
+  Logging::report("algorithm_run", algo_run_logging_id, "algorithm", "sequential directed infomap");
 
   thrill::common::StatsTimerBase<true> timer(/* autostart */ true);
   infomap::run(network, resultNetwork);
