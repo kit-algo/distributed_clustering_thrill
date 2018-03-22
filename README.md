@@ -44,3 +44,6 @@ When building everything (among others) the following binaries are build:
 Our programs can read DIMACs graphs, SNAP Edge List graphs and our own custom binary format.
 For optimal performance preprocess all graphs using the `preprocess` tool.
 `seq_louvain` and `infomap` will output a help about command line arguments, for the other binaries you will have to refer to the source code or the scripts to see what arguments can be passed.
+
+The analysis scripts make use of [Networkit](https://github.com/kit-parco/networkit) which you can also use to generate some test graphs.
+To be able to read our binary graphs you will need to use the thrill_support branch of this [fork](https://github.com/michitux/networkit/tree/thrill_support) of networkit.
