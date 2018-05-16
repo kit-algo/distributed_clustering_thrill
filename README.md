@@ -47,3 +47,12 @@ For optimal performance preprocess all graphs using the `preprocess` tool.
 
 The analysis scripts make use of [Networkit](https://github.com/kit-parco/networkit) which you can also use to generate some test graphs.
 To be able to read our binary graphs you will need to use the thrill_support branch of this [fork](https://github.com/michitux/networkit/tree/thrill_support) of networkit.
+
+## Acknowledgement
+
+This work was partially supported by the DFG under grants WA654/19-2 and WA654/22-2.
+
+## Licence
+
+The code in this repository is released under the BSD-2 License - except for the parts which use [Infomap](https://github.com/mapequation/infomap) which are released under GNU Affero General Public License version 3.
+For these files, the licence is stated explicitely at the top of the file.
