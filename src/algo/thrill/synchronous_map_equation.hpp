@@ -17,8 +17,6 @@
 #include <vector>
 #include <algorithm>
 #include <sparsepp/spp.h>
-#include "vectorclass.h"
-#include "vectormath_exp.h"
 
 #include "algo/louvain.hpp"
 #include "util/util.hpp"
@@ -65,19 +63,8 @@ double deltaMapEq(const Weight node_degree,
 
   double result[5];
 
-#if MAX_VECTOR_SIZE >= 256
-  double inverse_total_volume = 1. / total_volumne;
-  Vec4d value_vec, result_vec;
-  value_vec.load(values);
-  value_vec *= inverse_total_volume;
-  result_vec = select(value_vec > .0, value_vec * log(value_vec), Vec4d(0,0,0,0));
-  result_vec.store(result);
-
-  for (uint8_t i = 4; i < 5; ++i) {
-#else
 #pragma omp simd
   for (uint8_t i = 0; i < 5; ++i) {
-#endif
     result[i] = 0;
     values[i] /= total_volumne;
     if (values[i] > .0) {
