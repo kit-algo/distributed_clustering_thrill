@@ -1,6 +1,6 @@
 # Distributed Graph Clustering using Thrill
 
-This repository contains the code of the master thesis of [Tim Zeitz](https://github.com/SDEagle) [Engineering Distributed Graph Clustering using MapReduce](https://i11www.iti.kit.edu/_media/teaching/theses/ma-zeitz-17.pdf) and the follow up paper [Distributed Graph Clustering using Modularity and Map Equation](https://arxiv.org/abs/1710.09605) submitted to Euro-Par 2018.
+This repository contains the code of the master thesis of [Tim Zeitz](https://github.com/SDEagle) [Engineering Distributed Graph Clustering using MapReduce](https://i11www.iti.kit.edu/_media/teaching/theses/ma-zeitz-17.pdf) and the follow up paper [Distributed Graph Clustering using Modularity and Map Equation](https://arxiv.org/abs/1710.09605) accepted to Euro-Par 2018.
 The algorithms were implemented using the experimental [Thrill framework](https://github.com/thrill/thrill), though we maintained our own [fork](https://github.com/SDEagle/thrill) of it.
 Most of the updates from the fork have now been merged back into upstream, but some discrepencies remain.
 The code uses `C++14`, so you will need a recent `gcc` or `clang` to build.
