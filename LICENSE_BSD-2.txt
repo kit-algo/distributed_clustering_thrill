@@ -1,5 +1,7 @@
 # BSD-2 License
 
+The following licence applies to all files in this repository except src/infomap.cpp and src/infomap_directed.cpp.
+
 Copyright (c) 2016-2018, KIT ITI Algorithmics Group and contributors (see AUTHORS).
 
 All rights reserved.

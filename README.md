@@ -55,4 +55,4 @@ This work was partially supported by the DFG under grants WA654/19-2 and WA654/2
 ## Licence
 
 The code in this repository is released under the BSD-2 License - except for the parts which use [Infomap](https://github.com/mapequation/infomap) which are released under GNU Affero General Public License version 3.
-For these files, the licence is stated explicitely at the top of the file.
+For these files (src/infomap.cpp, src/infomap_directed.cpp), the licence is stated explicitely at the top of the file.
