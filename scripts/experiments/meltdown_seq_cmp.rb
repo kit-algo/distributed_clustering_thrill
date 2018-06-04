@@ -10,7 +10,7 @@ algos.each do |algo|
 end
 
 ["com-lj.ungraph", "com-orkut.ungraph", "uk-2002.metis"].each do |name|
-  bin_graph_path = "data/graphs/lfr_params/#{name}-preprocessed-*.bin"
+  bin_graph_path = "/algoDaten/zeitz/graphs/#{name}-preprocessed-*.bin"
 
   algos.each do |algo|
     10.times do |i|
